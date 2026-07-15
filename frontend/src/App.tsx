@@ -12,6 +12,7 @@ import Advances from './pages/Advances';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
+import AuditLogs from './pages/AuditLogs';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -36,6 +37,14 @@ export default function App() {
             element={
               <RequireSuperAdmin>
                 <UserManagement />
+              </RequireSuperAdmin>
+            }
+          />
+          <Route
+            path="/audit-logs"
+            element={
+              <RequireSuperAdmin>
+                <AuditLogs />
               </RequireSuperAdmin>
             }
           />

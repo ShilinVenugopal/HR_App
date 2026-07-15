@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   UserCog,
+  ScrollText,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -35,4 +36,5 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'REPORTS', label: 'Reports', path: '/reports', icon: BarChart3 },
   { module: 'SETTINGS', label: 'Settings', path: '/settings', icon: Settings },
   { module: 'USER_MANAGEMENT', label: 'User Management', path: '/user-management', icon: UserCog, superAdminOnly: true },
+  { module: 'USER_MANAGEMENT', label: 'Audit Logs', path: '/audit-logs', icon: ScrollText, superAdminOnly: true },
 ];
