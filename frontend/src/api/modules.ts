@@ -57,6 +57,7 @@ export interface Candidate {
   remarks?: string | null;
   status: string;
   createdAt: string;
+  employee?: { id: string } | null;
 }
 export const recruitmentApi = createResourceApi<Candidate>('/recruitment');
 

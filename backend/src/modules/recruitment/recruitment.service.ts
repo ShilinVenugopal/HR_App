@@ -49,7 +49,11 @@ export async function listCandidates(req: Request, pagination: PaginationParams,
   const [rows, total] = await Promise.all([
     prisma.recruitmentCandidate.findMany({
       where,
-      include: { project: { select: { id: true, projectName: true } }, designation: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, projectName: true } },
+        designation: { select: { id: true, name: true } },
+        employee: { select: { id: true } },
+      },
       skip: pagination.skip,
       take: pagination.take,
       orderBy: { [pagination.sortBy ?? 'createdAt']: pagination.sortOrder },
@@ -63,7 +67,7 @@ export async function listCandidates(req: Request, pagination: PaginationParams,
 export async function getCandidate(req: Request, id: string) {
   const candidate = await prisma.recruitmentCandidate.findUnique({
     where: { id },
-    include: { project: true, designation: true },
+    include: { project: true, designation: true, employee: { select: { id: true } } },
   });
   if (!candidate) throw ApiError.notFound('Candidate not found');
   assertProjectAccess(req, candidate.projectId);

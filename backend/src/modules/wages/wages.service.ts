@@ -110,6 +110,10 @@ export async function createWage(req: Request, input: WageInput & { employeeId: 
       otherDeductions: input.otherDeductions ?? 0,
       grossWage,
       netWage,
+      // Generated payroll is immediately actionable — there is no separate
+      // "save as draft" step in the UI, so it must not land in DRAFT with
+      // no path forward to approval.
+      status: 'PENDING_APPROVAL',
     },
     include: includeRelations,
   });

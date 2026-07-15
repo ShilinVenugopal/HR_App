@@ -210,7 +210,7 @@ export default function Recruitment() {
         }
         rowActions={(row) => (
           <div className="flex justify-end gap-1">
-            {can('EMPLOYEES', 'add') && row.status !== 'JOINED' && (
+            {can('EMPLOYEES', 'add') && !row.employee && (
               <button
                 title="Convert to Employee"
                 className="btn-ghost p-1.5"
