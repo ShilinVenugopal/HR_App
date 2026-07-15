@@ -1,0 +1,529 @@
+// Forays Group HR Solutions — Enterprise HR Management System
+// Prisma schema: normalized RBAC + project-based data security model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  SITE_ADMIN
+  HR_EXECUTIVE
+  PROJECT_MANAGER
+  FINANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Every permission-checkable module in the sidebar / API surface.
+enum ModuleName {
+  DASHBOARD
+  RECRUITMENT
+  EMPLOYEES
+  ATTENDANCE
+  WAGES
+  COMPLIANCE
+  ADVANCES
+  REPORTS
+  SETTINGS
+  USER_MANAGEMENT
+}
+
+enum CandidateStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  SELECTED
+  REJECTED
+  OFFER_RELEASED
+  JOINED
+  CANCELLED
+}
+
+enum InterviewStage {
+  NOT_STARTED
+  SCHEDULED
+  COMPLETED
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+  TERMINATED
+}
+
+enum Shift {
+  DAY
+  NIGHT
+  GENERAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  HOLIDAY
+  WEEK_OFF
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+}
+
+enum ComplianceType {
+  PF
+  ESIC
+  INSURANCE
+  LABOUR_LICENSE
+  MEDICAL
+}
+
+enum ComplianceStatus {
+  ACTIVE
+  EXPIRED
+  PENDING_RENEWAL
+}
+
+enum AdvanceType {
+  ADVANCE
+  LOAN
+}
+
+enum AdvanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  FAILED_LOGIN
+  UNAUTHORIZED_ACCESS
+  PASSWORD_RESET
+  EXPORT
+}
+
+enum AuditStatus {
+  SUCCESS
+  FAILURE
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RBAC CORE
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  mobile       String
+  passwordHash String
+  role         Role
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  mustResetPassword Boolean @default(false)
+  createdById  String?
+  createdBy    User?      @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers User[]     @relation("UserCreatedBy")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  projects      UserProject[]
+  permissions   Permission[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  approvedAttendance Attendance[]     @relation("AttendanceApprover")
+  approvedWages      WageRecord[]     @relation("WageApprover")
+  approvedAdvances   Advance[]        @relation("AdvanceApprover")
+  createdCandidates  RecruitmentCandidate[] @relation("CandidateCreatedBy")
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  projectName String
+  clientName  String
+  location    String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  users        UserProject[]
+  employees    Employee[]
+  candidates   RecruitmentCandidate[]
+  attendance   Attendance[]
+  wages        WageRecord[]
+  compliance   Compliance[]
+  advances     Advance[]
+  auditLogs    AuditLog[]
+
+  @@index([status])
+  @@map("projects")
+}
+
+/// Many-to-many: which projects a user is allowed to access.
+model UserProject {
+  id        String   @id @default(uuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("user_projects")
+}
+
+/// Per-user, per-module CRUD + approval permission matrix.
+/// Never hardcode permissions in code — always read from this table.
+model Permission {
+  id          String     @id @default(uuid())
+  userId      String
+  module      ModuleName
+  canView     Boolean    @default(false)
+  canAdd      Boolean    @default(false)
+  canEdit     Boolean    @default(false)
+  canDelete   Boolean    @default(false)
+  canApprove  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, module])
+  @@index([userId])
+  @@index([module])
+  @@map("permissions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String?
+  userEmail String?
+  action    AuditAction
+  module    ModuleName?
+  projectId String?
+  ipAddress String?
+  device    String?
+  browser   String?
+  status    AuditStatus
+  details   Json?
+  createdAt DateTime    @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// MASTERS
+// ─────────────────────────────────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+
+  @@map("departments")
+}
+
+model Designation {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees  Employee[]
+  candidates RecruitmentCandidate[]
+
+  @@map("designations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RECRUITMENT
+// ─────────────────────────────────────────────────────────────────────────
+
+model RecruitmentCandidate {
+  id                     String          @id @default(uuid())
+  candidateName          String
+  contactNumber          String
+  dateOfBirth            DateTime?
+  qualification          String?
+  experience             String?
+  designationId          String?
+  email                  String?
+  projectId              String?
+  resumeUrl              String?
+  foraysInterviewStatus  InterviewStage  @default(NOT_STARTED)
+  clientInterviewStatus  InterviewStage  @default(NOT_STARTED)
+  remarks                String?
+  status                 CandidateStatus @default(APPLIED)
+  createdById            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  project     Project?     @relation(fields: [projectId], references: [id])
+  designation Designation? @relation(fields: [designationId], references: [id])
+  createdBy   User?        @relation("CandidateCreatedBy", fields: [createdById], references: [id])
+  employee    Employee?
+
+  @@index([projectId])
+  @@index([status])
+  @@index([designationId])
+  @@map("recruitment_candidates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EMPLOYEES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Employee {
+  id                  String         @id @default(uuid())
+  employeeCode        String         @unique
+  employeeId          String?        @unique
+  name                String
+  contactNumber       String?
+  email                String?
+  dateOfBirth         DateTime?
+  departmentId        String?
+  designationId       String?
+  projectId           String
+  joiningDate         DateTime?
+  reportingManagerId  String?
+  documents           Json?
+  status              EmployeeStatus @default(ACTIVE)
+  candidateId         String?        @unique
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  project           Project      @relation(fields: [projectId], references: [id])
+  department        Department?  @relation(fields: [departmentId], references: [id])
+  designation       Designation? @relation(fields: [designationId], references: [id])
+  reportingManager  Employee?    @relation("EmployeeReportingManager", fields: [reportingManagerId], references: [id])
+  subordinates      Employee[]   @relation("EmployeeReportingManager")
+  candidate         RecruitmentCandidate? @relation(fields: [candidateId], references: [id])
+
+  attendance   Attendance[]
+  wages        WageRecord[]
+  compliance   Compliance[]
+  advances     Advance[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([departmentId])
+  @@index([designationId])
+  @@map("employees")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────────────────────────────────
+
+model Attendance {
+  id             String            @id @default(uuid())
+  employeeId     String
+  projectId      String
+  date           DateTime
+  shift          Shift             @default(GENERAL)
+  inTime         String?
+  outTime        String?
+  status         AttendanceStatus  @default(PRESENT)
+  overtimeHours  Decimal           @default(0) @db.Decimal(5, 2)
+  approvalStatus ApprovalStatus    @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  isLocked       Boolean           @default(false)
+  remarks        String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+  approvedBy User?    @relation("AttendanceApprover", fields: [approvedById], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([projectId])
+  @@index([date])
+  @@index([approvalStatus])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WAGES / PAYROLL
+// ─────────────────────────────────────────────────────────────────────────
+
+model WageRecord {
+  id             String        @id @default(uuid())
+  employeeId     String
+  projectId      String
+  month          Int
+  year           Int
+  presentDays    Decimal       @default(0) @db.Decimal(5, 2)
+  overtimeHours  Decimal       @default(0) @db.Decimal(6, 2)
+  basicWage      Decimal       @default(0) @db.Decimal(12, 2)
+  allowances     Decimal       @default(0) @db.Decimal(12, 2)
+  overtimeAmount Decimal       @default(0) @db.Decimal(12, 2)
+  grossWage      Decimal       @default(0) @db.Decimal(12, 2)
+  pfDeduction    Decimal       @default(0) @db.Decimal(12, 2)
+  esicDeduction  Decimal       @default(0) @db.Decimal(12, 2)
+  advanceRecovery Decimal      @default(0) @db.Decimal(12, 2)
+  otherDeductions Decimal      @default(0) @db.Decimal(12, 2)
+  netWage        Decimal       @default(0) @db.Decimal(12, 2)
+  status         PayrollStatus @default(DRAFT)
+  approvedById   String?
+  approvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+  approvedBy User?    @relation("WageApprover", fields: [approvedById], references: [id])
+
+  @@unique([employeeId, month, year])
+  @@index([projectId])
+  @@index([month, year])
+  @@index([status])
+  @@map("wage_records")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// COMPLIANCE
+// ─────────────────────────────────────────────────────────────────────────
+
+model Compliance {
+  id              String            @id @default(uuid())
+  projectId       String
+  employeeId      String?
+  type            ComplianceType
+  referenceNumber String?
+  validFrom       DateTime?
+  validTo         DateTime?
+  status          ComplianceStatus  @default(ACTIVE)
+  remarks         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([projectId])
+  @@index([type])
+  @@index([validTo])
+  @@map("compliance")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ADVANCES / LOANS / RECOVERIES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Advance {
+  id              String        @id @default(uuid())
+  employeeId      String
+  projectId       String
+  type            AdvanceType   @default(ADVANCE)
+  amount          Decimal       @db.Decimal(12, 2)
+  reason          String?
+  installments    Int           @default(1)
+  recoveredAmount Decimal       @default(0) @db.Decimal(12, 2)
+  status          AdvanceStatus @default(PENDING)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  employee   Employee           @relation(fields: [employeeId], references: [id])
+  project    Project            @relation(fields: [projectId], references: [id])
+  approvedBy User?              @relation("AdvanceApprover", fields: [approvedById], references: [id])
+  recoveries AdvanceRecovery[]
+
+  @@index([projectId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("advances")
+}
+
+model AdvanceRecovery {
+  id        String   @id @default(uuid())
+  advanceId String
+  month     Int
+  year      Int
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  advance Advance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+
+  @@index([advanceId])
+  @@map("advance_recoveries")
+}

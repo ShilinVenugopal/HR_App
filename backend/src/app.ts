@@ -1,0 +1,72 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import morgan from 'morgan';
+import path from 'path';
+import { env } from './config/env';
+import { apiRateLimiter } from './middleware/rateLimit.middleware';
+import { auditUnauthorizedResponses } from './middleware/audit.middleware';
+import { notFoundHandler, globalErrorHandler } from './middleware/error.middleware';
+import { UPLOAD_ROOT } from './utils/upload';
+
+import authRoutes from './modules/auth/auth.routes';
+import usersRoutes from './modules/users/users.routes';
+import projectsRoutes from './modules/projects/projects.routes';
+import { departmentsRouter, designationsRouter } from './modules/masters/masters.routes';
+import employeesRoutes from './modules/employees/employees.routes';
+import recruitmentRoutes from './modules/recruitment/recruitment.routes';
+import attendanceRoutes from './modules/attendance/attendance.routes';
+import wagesRoutes from './modules/wages/wages.routes';
+import complianceRoutes from './modules/compliance/compliance.routes';
+import advancesRoutes from './modules/advances/advances.routes';
+import reportsRoutes from './modules/reports/reports.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import auditLogRoutes from './modules/auditLogs/auditLog.routes';
+import uploadRoutes from './modules/uploads/upload.routes';
+
+const app = express();
+
+app.set('trust proxy', 1);
+
+app.use(helmet());
+app.use(
+  cors({
+    origin: env.corsOrigin,
+    credentials: true,
+  })
+);
+app.use(compression());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan(env.isProduction ? 'combined' : 'dev'));
+app.use(auditUnauthorizedResponses);
+app.use(apiRateLimiter);
+
+app.use('/uploads', express.static(UPLOAD_ROOT));
+
+app.get('/health', (_req, res) => res.json({ success: true, message: 'HR App API is healthy' }));
+
+const api = express.Router();
+api.use('/auth', authRoutes);
+api.use('/users', usersRoutes);
+api.use('/projects', projectsRoutes);
+api.use('/departments', departmentsRouter);
+api.use('/designations', designationsRouter);
+api.use('/employees', employeesRoutes);
+api.use('/recruitment', recruitmentRoutes);
+api.use('/attendance', attendanceRoutes);
+api.use('/wages', wagesRoutes);
+api.use('/compliance', complianceRoutes);
+api.use('/advances', advancesRoutes);
+api.use('/reports', reportsRoutes);
+api.use('/dashboard', dashboardRoutes);
+api.use('/audit-logs', auditLogRoutes);
+api.use('/uploads', uploadRoutes);
+
+app.use(env.apiPrefix, api);
+
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
+
+export default app;
