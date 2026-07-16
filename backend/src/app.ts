@@ -37,7 +37,8 @@ app.use(
   })
 );
 app.use(compression());
-app.use(express.json({ limit: '2mb' }));
+// 10mb covers bulk-import payloads (up to 2000 candidate rows as JSON).
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.isProduction ? 'combined' : 'dev'));
 app.use(auditUnauthorizedResponses);

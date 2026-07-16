@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, UserCheck2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck2, Download, FileUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Candidate, recruitmentApi, employeesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
@@ -11,19 +11,8 @@ import { Badge } from '../components/common/Badge';
 import { useAuth } from '../context/AuthContext';
 import { useDesignationOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
-
-const CANDIDATE_STATUSES = [
-  'APPLIED',
-  'SCREENING',
-  'INTERVIEW_SCHEDULED',
-  'INTERVIEW_COMPLETED',
-  'SELECTED',
-  'REJECTED',
-  'OFFER_RELEASED',
-  'JOINED',
-  'CANCELLED',
-];
-const INTERVIEW_STAGES = ['NOT_STARTED', 'SCHEDULED', 'COMPLETED', 'PASSED', 'FAILED', 'ON_HOLD'];
+import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from '../utils/candidateConstants';
+import { BulkImportModal } from '../components/recruitment/BulkImportModal';
 
 const emptyForm = {
   candidateName: '',
@@ -55,6 +44,8 @@ export default function Recruitment() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Candidate | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['recruitment', page, search, filters],
@@ -173,9 +164,31 @@ export default function Recruitment() {
         }}
         headerActions={
           can('RECRUITMENT', 'add') && (
-            <button className="btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Candidate
-            </button>
+            <>
+              <button
+                className="btn-secondary"
+                disabled={downloadingTemplate}
+                onClick={async () => {
+                  setDownloadingTemplate(true);
+                  try {
+                    const { downloadCandidateTemplate } = await import('../utils/excelImport');
+                    await downloadCandidateTemplate(projectOptions.map((p) => p.label));
+                  } catch {
+                    toast.error('Could not generate the template file');
+                  } finally {
+                    setDownloadingTemplate(false);
+                  }
+                }}
+              >
+                <Download size={16} /> Download Template
+              </button>
+              <button className="btn-secondary" onClick={() => setBulkImportOpen(true)}>
+                <FileUp size={16} /> Import Excel
+              </button>
+              <button className="btn-primary" onClick={openCreate}>
+                <Plus size={16} /> Add Candidate
+              </button>
+            </>
           )
         }
         filters={
@@ -345,6 +358,14 @@ export default function Recruitment() {
         danger
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
+
+      <BulkImportModal
+        open={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
+        projectOptions={projectOptions}
+        designationOptions={designationOptions}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ['recruitment'] })}
       />
     </div>
   );

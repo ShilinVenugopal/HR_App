@@ -61,6 +61,48 @@ export interface Candidate {
 }
 export const recruitmentApi = createResourceApi<Candidate>('/recruitment');
 
+export interface BulkCandidateRowInput {
+  rowNumber: number;
+  candidateName: string;
+  contactNumber: string;
+  dateOfBirth?: string | null;
+  qualification?: string | null;
+  experience?: string | null;
+  designationId?: string | null;
+  email?: string | null;
+  projectId?: string | null;
+  resumeUrl?: string | null;
+  foraysInterviewStatus: string;
+  clientInterviewStatus: string;
+  status: string;
+  remarks?: string | null;
+}
+export interface DuplicateMatch {
+  id: string;
+  contactNumber: string;
+  candidateName: string;
+}
+export interface BulkImportFailure {
+  rowNumber: number;
+  candidateName: string;
+  contactNumber: string;
+  reason: string;
+}
+export interface BulkImportResult {
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  failures: BulkImportFailure[];
+}
+export const recruitmentBulkApi = {
+  checkDuplicates: (contactNumbers: string[]) =>
+    apiClient.post('/recruitment/bulk/check-duplicates', { contactNumbers }).then((r) => r.data.data as DuplicateMatch[]),
+  import: (rows: BulkCandidateRowInput[], duplicateStrategy: 'skip' | 'update') =>
+    apiClient.post('/recruitment/bulk/import', { rows, duplicateStrategy }).then((r) => r.data.data as BulkImportResult),
+};
+
 export interface Employee {
   id: string;
   employeeCode: string;

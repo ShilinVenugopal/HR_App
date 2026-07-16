@@ -24,3 +24,39 @@ export const updateCandidateSchema = z.object({
 });
 
 export const idParamSchema = z.object({ params: z.object({ id: z.string().uuid() }) });
+
+// ── Bulk import (Excel) ─────────────────────────────────────────────────
+// Kept intentionally lenient (only candidateName + contactNumber required)
+// to match the existing single-candidate Add Candidate form's validation
+// rule — bulk import must not impose a stricter rule than manual entry.
+const bulkCandidateRowSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  candidateName: z.string().trim().min(1, 'Candidate Name is required'),
+  contactNumber: z.string().trim().regex(/^\+?[0-9]{7,15}$/, 'Contact Number must be 7-15 digits'),
+  dateOfBirth: z.coerce.date().optional().nullable(),
+  qualification: z.string().trim().optional().nullable(),
+  experience: z.string().trim().optional().nullable(),
+  designationId: z.string().uuid().optional().nullable(),
+  email: z.string().trim().email().optional().or(z.literal('')).nullable(),
+  projectId: z.string().uuid().optional().nullable(),
+  resumeUrl: z.string().trim().optional().nullable(),
+  foraysInterviewStatus: z.nativeEnum(InterviewStage).default(InterviewStage.NOT_STARTED),
+  clientInterviewStatus: z.nativeEnum(InterviewStage).default(InterviewStage.NOT_STARTED),
+  remarks: z.string().trim().optional().nullable(),
+  status: z.nativeEnum(CandidateStatus).default(CandidateStatus.APPLIED),
+});
+
+export const checkDuplicatesSchema = z.object({
+  body: z.object({
+    contactNumbers: z.array(z.string().trim().min(1)).min(1).max(2000),
+  }),
+});
+
+export const bulkImportSchema = z.object({
+  body: z.object({
+    rows: z.array(bulkCandidateRowSchema).min(1).max(2000),
+    duplicateStrategy: z.enum(['skip', 'update']).default('skip'),
+  }),
+});
+
+export type BulkCandidateRow = z.infer<typeof bulkCandidateRowSchema>;

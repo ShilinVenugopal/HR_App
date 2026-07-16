@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { buildPaginationMeta, sendSuccess } from '../../utils/apiResponse';
 import { parsePagination } from '../../utils/pagination';
+import { ApiError } from '../../utils/apiError';
 import * as recruitmentService from './recruitment.service';
 
 export const listCandidatesHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -38,4 +39,21 @@ export const updateCandidateHandler = asyncHandler(async (req: Request, res: Res
 export const deleteCandidateHandler = asyncHandler(async (req: Request, res: Response) => {
   await recruitmentService.deleteCandidate(req, req.params.id, req.meta);
   return sendSuccess(res, null, 'Candidate deleted successfully');
+});
+
+export const checkDuplicatesHandler = asyncHandler(async (req: Request, res: Response) => {
+  const matches = await recruitmentService.checkDuplicateContacts(req, req.body.contactNumbers);
+  return sendSuccess(res, matches, 'Duplicate check complete');
+});
+
+export const bulkImportHandler = asyncHandler(async (req: Request, res: Response) => {
+  // The route is gated on RECRUITMENT 'add' (bulk import is primarily an
+  // add flow), but "Update Existing" for duplicates is really an edit —
+  // require that permission too before allowing that strategy.
+  if (req.body.duplicateStrategy === 'update' && !req.user!.permissions.RECRUITMENT?.canEdit && req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('You do not have permission to update existing candidates');
+  }
+
+  const result = await recruitmentService.bulkImportCandidates(req, req.body.rows, req.body.duplicateStrategy, req.meta);
+  return sendSuccess(res, result, 'Bulk import complete');
 });
