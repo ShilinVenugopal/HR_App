@@ -84,17 +84,7 @@ export default function Advances() {
 
   return (
     <div>
-      <PageHeader
-        title="Advances"
-        description="Employee advances, loans and recoveries"
-        actions={
-          can('ADVANCES', 'add') && (
-            <button className="btn-primary" onClick={() => setModalOpen(true)}>
-              <Plus size={16} /> New Request
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Advances" description="Employee advances, loans and recoveries" />
 
       <DataTable
         columns={columns}
@@ -102,6 +92,13 @@ export default function Advances() {
         loading={isLoading}
         meta={data?.meta}
         onPageChange={setPage}
+        headerActions={
+          can('ADVANCES', 'add') && (
+            <button className="btn-primary" onClick={() => setModalOpen(true)}>
+              <Plus size={16} /> New Request
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>

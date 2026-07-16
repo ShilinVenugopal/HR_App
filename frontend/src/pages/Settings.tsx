@@ -107,13 +107,6 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   return (
     <div>
-      {isSuperAdmin && (
-        <div className="mb-4 flex justify-end">
-          <button className="btn-primary" onClick={openCreate}>
-            <Plus size={16} /> Add Project
-          </button>
-        </div>
-      )}
       <DataTable
         columns={columns}
         rows={data?.data ?? []}
@@ -121,10 +114,18 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         meta={data?.meta}
         onPageChange={setPage}
         search={search}
+        searchPlaceholder="Search projects..."
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
+        headerActions={
+          isSuperAdmin && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Project
+            </button>
+          )
+        }
         rowActions={
           isSuperAdmin
             ? (row) => (
@@ -255,13 +256,6 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
 
   return (
     <div>
-      {can('SETTINGS', 'add') && (
-        <div className="mb-4 flex justify-end">
-          <button className="btn-primary" onClick={openCreate}>
-            <Plus size={16} /> Add {label}
-          </button>
-        </div>
-      )}
       <DataTable
         columns={columns}
         rows={data?.data ?? []}
@@ -269,10 +263,18 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
         meta={data?.meta}
         onPageChange={setPage}
         search={search}
+        searchPlaceholder={`Search ${label.toLowerCase()}s...`}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
+        headerActions={
+          can('SETTINGS', 'add') && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add {label}
+            </button>
+          )
+        }
         rowActions={(row) => (
           <div className="flex justify-end gap-1">
             {can('SETTINGS', 'edit') && (

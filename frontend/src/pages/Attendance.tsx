@@ -111,17 +111,7 @@ export default function Attendance() {
 
   return (
     <div>
-      <PageHeader
-        title="Attendance"
-        description="Daily attendance, shift, overtime and approvals"
-        actions={
-          can('ATTENDANCE', 'add') && (
-            <button className="btn-primary" onClick={() => setModalOpen(true)}>
-              <Plus size={16} /> Mark Attendance
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Attendance" description="Daily attendance, shift, overtime and approvals" />
 
       <DataTable
         columns={columns}
@@ -129,6 +119,13 @@ export default function Attendance() {
         loading={isLoading}
         meta={data?.meta}
         onPageChange={setPage}
+        headerActions={
+          can('ATTENDANCE', 'add') && (
+            <button className="btn-primary" onClick={() => setModalOpen(true)}>
+              <Plus size={16} /> Mark Attendance
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>

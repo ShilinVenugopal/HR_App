@@ -107,17 +107,7 @@ export default function Compliance() {
 
   return (
     <div>
-      <PageHeader
-        title="Compliance"
-        description="PF, ESIC, Insurance, Labour License, Medical"
-        actions={
-          can('COMPLIANCE', 'add') && (
-            <button className="btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Record
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Compliance" description="PF, ESIC, Insurance, Labour License, Medical" />
 
       {Boolean(expiringSoon?.length) && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300">
@@ -132,6 +122,13 @@ export default function Compliance() {
         loading={isLoading}
         meta={data?.meta}
         onPageChange={setPage}
+        headerActions={
+          can('COMPLIANCE', 'add') && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Record
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>

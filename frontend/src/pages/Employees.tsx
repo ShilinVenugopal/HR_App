@@ -137,17 +137,7 @@ export default function Employees() {
 
   return (
     <div>
-      <PageHeader
-        title="Employees"
-        description="Employee master, one project per employee"
-        actions={
-          can('EMPLOYEES', 'add') && (
-            <button className="btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Employee
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Employees" description="Employee master, one project per employee" />
 
       <DataTable
         columns={columns}
@@ -156,10 +146,18 @@ export default function Employees() {
         meta={data?.meta}
         onPageChange={setPage}
         search={search}
+        searchPlaceholder="Search employees..."
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
+        headerActions={
+          can('EMPLOYEES', 'add') && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Employee
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>

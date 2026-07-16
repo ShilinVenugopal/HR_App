@@ -157,17 +157,7 @@ export default function Recruitment() {
 
   return (
     <div>
-      <PageHeader
-        title="Recruitment"
-        description="Candidate pipeline for assigned projects"
-        actions={
-          can('RECRUITMENT', 'add') && (
-            <button className="btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Candidate
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Recruitment" description="Candidate pipeline for assigned projects" />
 
       <DataTable
         columns={columns}
@@ -176,10 +166,18 @@ export default function Recruitment() {
         meta={data?.meta}
         onPageChange={setPage}
         search={search}
+        searchPlaceholder="Search candidates..."
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
+        headerActions={
+          can('RECRUITMENT', 'add') && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Candidate
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>

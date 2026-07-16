@@ -204,15 +204,7 @@ export default function UserManagement() {
 
   return (
     <div>
-      <PageHeader
-        title="User Management"
-        description="Create users, assign projects and configure the permission matrix"
-        actions={
-          <button className="btn-primary" onClick={openCreate}>
-            <Plus size={16} /> Add User
-          </button>
-        }
-      />
+      <PageHeader title="User Management" description="Create users, assign projects and configure the permission matrix" />
 
       <DataTable
         columns={columns}
@@ -221,10 +213,16 @@ export default function UserManagement() {
         meta={data?.meta}
         onPageChange={setPage}
         search={search}
+        searchPlaceholder="Search users..."
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
+        headerActions={
+          <button className="btn-primary" onClick={openCreate}>
+            <Plus size={16} /> Add User
+          </button>
+        }
         rowActions={(row) => (
           <div className="flex justify-end gap-1">
             <button className="btn-ghost p-1.5" title="View Permissions" onClick={() => openView(row)}>

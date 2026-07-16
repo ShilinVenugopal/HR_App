@@ -11,9 +11,9 @@ export function AppLayout() {
       <Sidebar open={sidebarOpen} />
       {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Topbar onMenuClick={() => setSidebarOpen((v) => !v)} />
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 px-4 py-6 sm:px-6">
           <Outlet />
         </main>
       </div>

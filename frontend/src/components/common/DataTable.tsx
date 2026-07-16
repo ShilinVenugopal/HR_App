@@ -19,7 +19,9 @@ export function DataTable<T extends { id: string }>({
   onPageChange,
   search,
   onSearchChange,
+  searchPlaceholder = 'Search...',
   filters,
+  headerActions,
   emptyLabel = 'No records found',
   rowActions,
 }: {
@@ -30,39 +32,45 @@ export function DataTable<T extends { id: string }>({
   onPageChange?: (page: number) => void;
   search?: string;
   onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
   filters?: ReactNode;
+  /// Primary action (e.g. "+ Add Candidate") rendered at the right edge of
+  /// the search/filter row, so search, filters, and the add button all sit
+  /// on one aligned line instead of the button floating in the page header.
+  headerActions?: ReactNode;
   emptyLabel?: string;
   rowActions?: (row: T) => ReactNode;
 }) {
   return (
     <div className="card overflow-hidden">
-      {(onSearchChange || filters) && (
+      {(onSearchChange || filters || headerActions) && (
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
           {onSearchChange && (
             <div className="relative w-full max-w-xs">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 className="input pl-9"
-                placeholder="Search..."
+                placeholder={searchPlaceholder}
                 value={search ?? ''}
                 onChange={(e) => onSearchChange(e.target.value)}
               />
             </div>
           )}
           {filters}
+          {headerActions && <div className="ml-auto flex items-center gap-2">{headerActions}</div>}
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
               {columns.map((col) => (
-                <th key={col.key} className={`px-4 py-3 font-semibold ${col.className ?? ''}`}>
+                <th key={col.key} className={`whitespace-nowrap px-5 py-3 font-semibold ${col.className ?? ''}`}>
                   {col.header}
                 </th>
               ))}
-              {rowActions && <th className="px-4 py-3 text-right font-semibold">Actions</th>}
+              {rowActions && <th className="whitespace-nowrap px-5 py-3 text-right font-semibold">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -70,12 +78,12 @@ export function DataTable<T extends { id: string }>({
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3">
+                    <td key={col.key} className="px-5 py-3.5">
                       <Skeleton className="h-4 w-24" />
                     </td>
                   ))}
                   {rowActions && (
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       <Skeleton className="h-4 w-16 ml-auto" />
                     </td>
                   )}
@@ -84,21 +92,26 @@ export function DataTable<T extends { id: string }>({
 
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length + (rowActions ? 1 : 0)} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={columns.length + (rowActions ? 1 : 0)} className="px-5 py-10 text-center text-slate-400">
                   {emptyLabel}
                 </td>
               </tr>
             )}
 
             {!loading &&
-              rows.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+              rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  className={`hover:bg-slate-100 dark:hover:bg-slate-800/60 ${
+                    i % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-900/40' : ''
+                  }`}
+                >
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-4 py-3 ${col.className ?? ''}`}>
+                    <td key={col.key} className={`px-5 py-3.5 ${col.className ?? ''}`}>
                       {col.render(row)}
                     </td>
                   ))}
-                  {rowActions && <td className="px-4 py-3 text-right">{rowActions(row)}</td>}
+                  {rowActions && <td className="px-5 py-3.5 text-right">{rowActions(row)}</td>}
                 </tr>
               ))}
           </tbody>
@@ -106,7 +119,7 @@ export function DataTable<T extends { id: string }>({
       </div>
 
       {meta && onPageChange && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm dark:border-slate-800">
+        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
           <span className="text-slate-500">
             Page {meta.page} of {meta.totalPages} · {meta.total} records
           </span>

@@ -89,17 +89,7 @@ export default function Wages() {
 
   return (
     <div>
-      <PageHeader
-        title="Wages"
-        description="Monthly payroll — overtime, allowances, deductions, net salary"
-        actions={
-          can('WAGES', 'add') && (
-            <button className="btn-primary" onClick={() => setModalOpen(true)}>
-              <Plus size={16} /> Generate Payroll
-            </button>
-          )
-        }
-      />
+      <PageHeader title="Wages" description="Monthly payroll — overtime, allowances, deductions, net salary" />
 
       <DataTable
         columns={columns}
@@ -107,6 +97,13 @@ export default function Wages() {
         loading={isLoading}
         meta={data?.meta}
         onPageChange={setPage}
+        headerActions={
+          can('WAGES', 'add') && (
+            <button className="btn-primary" onClick={() => setModalOpen(true)}>
+              <Plus size={16} /> Generate Payroll
+            </button>
+          )
+        }
         filters={
           <div className="flex flex-wrap gap-2">
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>
