@@ -1,11 +1,14 @@
 import app from './app';
 import { env } from './config/env';
 import { prisma } from './config/database';
+import { startCommunicationWorker } from './jobs/communicationWorker';
 
 const server = app.listen(env.port, () => {
   // eslint-disable-next-line no-console
   console.log(`HR App API listening on port ${env.port} [${env.nodeEnv}]`);
 });
+
+startCommunicationWorker();
 
 async function shutdown(signal: string) {
   // eslint-disable-next-line no-console

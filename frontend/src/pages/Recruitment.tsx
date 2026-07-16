@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, UserCheck2, Download, FileUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck2, Download, FileUp, FileDown, Mail, MessageCircle, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Candidate, recruitmentApi, employeesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
@@ -13,6 +13,11 @@ import { useDesignationOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from '../utils/candidateConstants';
 import { BulkImportModal } from '../components/recruitment/BulkImportModal';
+import { BulkSendModal } from '../components/recruitment/BulkSendModal';
+import { CommunicationStats } from '../components/recruitment/CommunicationStats';
+import { TemplateManager } from '../components/recruitment/TemplateManager';
+import { CommunicationHistory } from '../components/recruitment/CommunicationHistory';
+import { CandidateTimelineModal } from '../components/recruitment/CandidateTimelineModal';
 
 const emptyForm = {
   candidateName: '',
@@ -46,6 +51,18 @@ export default function Recruitment() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [exportingCandidates, setExportingCandidates] = useState(false);
+  const [activeTab, setActiveTab] = useState<'candidates' | 'communication'>('candidates');
+  const [commSubTab, setCommSubTab] = useState<'history' | 'templates'>('history');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false);
+  const [timelineCandidate, setTimelineCandidate] = useState<Candidate | null>(null);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  };
+  const canSend = can('RECRUITMENT', 'approve');
 
   const { data, isLoading } = useQuery({
     queryKey: ['recruitment', page, search, filters],
@@ -135,7 +152,76 @@ export default function Recruitment() {
     saveMutation.mutate();
   };
 
+  const pageIds = (data?.data ?? []).map((c) => c.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((prev) => (allPageSelected ? prev.filter((id) => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]));
+  };
+
+  const handleExportCandidates = async () => {
+    setExportingCandidates(true);
+    try {
+      const full = await recruitmentApi.list({ page: 1, pageSize: 5000, search, ...filters });
+      const ExcelJS = (await import('exceljs')).default;
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Candidates');
+      sheet.columns = [
+        { header: 'Candidate Name', key: 'candidateName', width: 24 },
+        { header: 'Contact Number', key: 'contactNumber', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Qualification', key: 'qualification', width: 22 },
+        { header: 'Experience', key: 'experience', width: 14 },
+        { header: 'Designation', key: 'designation', width: 18 },
+        { header: 'Assigned Project', key: 'project', width: 18 },
+        { header: 'Forays Interview Status', key: 'forays', width: 20 },
+        { header: 'Client Interview Status', key: 'client', width: 20 },
+        { header: 'Candidate Status', key: 'status', width: 18 },
+        { header: 'Resume URL', key: 'resumeUrl', width: 30 },
+        { header: 'Remarks', key: 'remarks', width: 24 },
+      ];
+      sheet.getRow(1).font = { bold: true };
+      sheet.addRows(
+        (full.data as Candidate[]).map((c) => ({
+          candidateName: c.candidateName,
+          contactNumber: c.contactNumber,
+          email: c.email ?? '',
+          qualification: c.qualification ?? '',
+          experience: c.experience ?? '',
+          designation: c.designation?.name ?? '',
+          project: c.project?.projectName ?? '',
+          forays: c.foraysInterviewStatus,
+          client: c.clientInterviewStatus,
+          status: c.status,
+          resumeUrl: c.resumeUrl ?? '',
+          remarks: c.remarks ?? '',
+        }))
+      );
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Candidates_Export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Could not export candidates');
+    } finally {
+      setExportingCandidates(false);
+    }
+  };
+
   const columns: Column<Candidate>[] = [
+    {
+      key: 'select',
+      header: '',
+      className: 'w-8',
+      render: (r) => (
+        <input type="checkbox" className="rounded" checked={selectedIds.includes(r.id)} onChange={() => toggleSelect(r.id)} />
+      ),
+    },
     { key: 'candidateName', header: 'Candidate', render: (r) => <span className="font-medium">{r.candidateName}</span> },
     { key: 'contactNumber', header: 'Contact', render: (r) => r.contactNumber },
     { key: 'project', header: 'Project', render: (r) => r.project?.projectName ?? '—' },
@@ -150,6 +236,23 @@ export default function Recruitment() {
     <div>
       <PageHeader title="Recruitment" description="Candidate pipeline for assigned projects" />
 
+      <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
+        {(['candidates', 'communication'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`border-b-2 px-4 py-2 text-sm font-medium capitalize ${
+              activeTab === tab
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            {tab === 'candidates' ? 'Candidates' : 'Bulk Communication'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'candidates' && (
       <DataTable
         columns={columns}
         rows={data?.data ?? []}
@@ -163,8 +266,8 @@ export default function Recruitment() {
           setPage(1);
         }}
         headerActions={
-          can('RECRUITMENT', 'add') && (
-            <>
+          <>
+            {can('RECRUITMENT', 'add') && (
               <button
                 className="btn-secondary"
                 disabled={downloadingTemplate}
@@ -182,17 +285,56 @@ export default function Recruitment() {
               >
                 <Download size={16} /> Download Template
               </button>
+            )}
+            {can('RECRUITMENT', 'add') && (
               <button className="btn-secondary" onClick={() => setBulkImportOpen(true)}>
                 <FileUp size={16} /> Import Excel
               </button>
+            )}
+            <button className="btn-secondary" disabled={exportingCandidates} onClick={handleExportCandidates}>
+              <FileDown size={16} /> Export Excel
+            </button>
+            {canSend && (
+              <button
+                className="btn-secondary"
+                disabled={selectedIds.length === 0}
+                title={selectedIds.length === 0 ? 'Select candidates first' : ''}
+                onClick={() => setBulkEmailOpen(true)}
+              >
+                <Mail size={16} /> Bulk Email
+              </button>
+            )}
+            {canSend && (
+              <button
+                className="btn-secondary"
+                disabled={selectedIds.length === 0}
+                title={selectedIds.length === 0 ? 'Select candidates first' : ''}
+                onClick={() => setBulkWhatsappOpen(true)}
+              >
+                <MessageCircle size={16} /> Bulk WhatsApp
+              </button>
+            )}
+            {can('RECRUITMENT', 'add') && (
               <button className="btn-primary" onClick={openCreate}>
                 <Plus size={16} /> Add Candidate
               </button>
-            </>
-          )
+            )}
+          </>
         }
         filters={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+              <input type="checkbox" className="rounded" checked={allPageSelected} onChange={toggleSelectAllOnPage} />
+              Select All
+            </label>
+            {selectedIds.length > 0 && (
+              <span className="badge bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                {selectedIds.length} selected
+                <button className="ml-1.5 underline" onClick={() => setSelectedIds([])}>
+                  Clear
+                </button>
+              </span>
+            )}
             <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>
               <option value="">All Projects</option>
               {projectOptions.map((o) => (
@@ -221,6 +363,9 @@ export default function Recruitment() {
         }
         rowActions={(row) => (
           <div className="flex justify-end gap-1">
+            <button title="Communication Timeline" className="btn-ghost p-1.5" onClick={() => setTimelineCandidate(row)}>
+              <History size={15} />
+            </button>
             {can('EMPLOYEES', 'add') && !row.employee && (
               <button
                 title="Convert to Employee"
@@ -243,7 +388,32 @@ export default function Recruitment() {
           </div>
         )}
       />
+      )}
 
+      {activeTab === 'communication' && (
+        <div>
+          <CommunicationStats />
+          <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
+            {(['history', 'templates'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setCommSubTab(tab)}
+                className={`border-b-2 px-4 py-2 text-sm font-medium capitalize ${
+                  commSubTab === tab
+                    ? 'border-brand-600 text-brand-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {tab === 'history' ? 'Communication History' : 'Message Templates'}
+              </button>
+            ))}
+          </div>
+          {commSubTab === 'history' ? <CommunicationHistory /> : <TemplateManager />}
+        </div>
+      )}
+
+      {activeTab === 'candidates' && (
+      <>
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -366,6 +536,28 @@ export default function Recruitment() {
         projectOptions={projectOptions}
         designationOptions={designationOptions}
         onImported={() => queryClient.invalidateQueries({ queryKey: ['recruitment'] })}
+      />
+      </>
+      )}
+
+      <BulkSendModal
+        open={bulkEmailOpen}
+        onClose={() => setBulkEmailOpen(false)}
+        channel="EMAIL"
+        selectedCandidateIds={selectedIds}
+        onSent={() => setSelectedIds([])}
+      />
+      <BulkSendModal
+        open={bulkWhatsappOpen}
+        onClose={() => setBulkWhatsappOpen(false)}
+        channel="WHATSAPP"
+        selectedCandidateIds={selectedIds}
+        onSent={() => setSelectedIds([])}
+      />
+      <CandidateTimelineModal
+        candidateId={timelineCandidate?.id ?? null}
+        candidateName={timelineCandidate?.candidateName}
+        onClose={() => setTimelineCandidate(null)}
       />
     </div>
   );

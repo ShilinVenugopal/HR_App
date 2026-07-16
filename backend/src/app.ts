@@ -24,6 +24,8 @@ import reportsRoutes from './modules/reports/reports.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import auditLogRoutes from './modules/auditLogs/auditLog.routes';
 import uploadRoutes from './modules/uploads/upload.routes';
+import communicationRoutes from './modules/communication/communication.routes';
+import communicationPublicRoutes from './modules/communication/communicationPublic.routes';
 
 const app = express();
 
@@ -64,6 +66,8 @@ api.use('/reports', reportsRoutes);
 api.use('/dashboard', dashboardRoutes);
 api.use('/audit-logs', auditLogRoutes);
 api.use('/uploads', uploadRoutes);
+api.use('/communication', communicationRoutes);
+api.use('/', communicationPublicRoutes);
 
 app.use(env.apiPrefix, api);
 

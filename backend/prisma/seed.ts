@@ -155,7 +155,10 @@ async function main() {
     projectNames: ['RIL Jamnagar'],
     permissions: permissionsFor({
       DASHBOARD: { view: true },
-      RECRUITMENT: { view: true, add: true, edit: true },
+      // canApprove on RECRUITMENT doubles as "can send Bulk Communication"
+      // (templates, Bulk Email/WhatsApp) — reuses the existing permission
+      // matrix rather than a hardcoded role check.
+      RECRUITMENT: { view: true, add: true, edit: true, approve: true },
       EMPLOYEES: { view: true, add: true, edit: true },
       ATTENDANCE: { view: true, add: true },
     }),

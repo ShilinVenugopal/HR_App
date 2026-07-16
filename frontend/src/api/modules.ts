@@ -260,3 +260,118 @@ export const uploadsApi = {
     return data.data as { url: string; originalName: string };
   },
 };
+
+// ── Bulk Communication ──────────────────────────────────────────────────
+
+export type CommChannel = 'EMAIL' | 'WHATSAPP';
+
+export interface CommunicationTemplate {
+  id: string;
+  name: string;
+  channel: CommChannel;
+  category?: string | null;
+  subject?: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunicationBatch {
+  id: string;
+  channel: CommChannel;
+  templateId?: string | null;
+  subject?: string | null;
+  body: string;
+  attachments?: { filename: string; url: string }[] | null;
+  scheduledAt?: string | null;
+  status: string;
+  totalRecipients: number;
+  sentCount: number;
+  deliveredCount: number;
+  openedCount: number;
+  failedCount: number;
+  bouncedCount: number;
+  createdAt: string;
+}
+
+export interface CommunicationMessageLog {
+  id: string;
+  batchId: string;
+  candidateId: string;
+  channel: CommChannel;
+  recipientEmail?: string | null;
+  recipientPhone?: string | null;
+  subject?: string | null;
+  body: string;
+  status: string;
+  errorReason?: string | null;
+  attempts: number;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  openedAt?: string | null;
+  failedAt?: string | null;
+  bouncedAt?: string | null;
+  createdAt: string;
+  candidate?: { id: string; candidateName: string; email?: string | null; contactNumber: string };
+  project?: { id: string; projectName: string } | null;
+  batch?: {
+    id: string;
+    template?: { id: string; name: string } | null;
+    createdBy?: { id: string; name: string } | null;
+    attachments?: { filename: string; url: string }[] | null;
+  };
+}
+
+export interface CommunicationStats {
+  emailsSentToday: number;
+  whatsappSentToday: number;
+  pendingScheduled: number;
+  failedMessages: number;
+  openRate: number;
+  responseRate: number;
+}
+
+export interface CommunicationConfig {
+  emailConfigured: boolean;
+  whatsappConfigured: boolean;
+}
+
+export interface TestSendResult {
+  success: boolean;
+  providerMessageId?: string;
+  errorReason?: string;
+}
+
+export interface BulkSendPayload {
+  channel: CommChannel;
+  candidateIds: string[];
+  templateId?: string | null;
+  subject?: string;
+  body: string;
+  attachments?: { filename: string; url: string }[];
+  scheduledAt?: string | null;
+  variables?: Record<string, string>;
+}
+
+export const communicationApi = {
+  templates: {
+    list: (channel?: CommChannel) =>
+      apiClient.get('/communication/templates', { params: channel ? { channel } : {} }).then((r) => r.data.data as CommunicationTemplate[]),
+    create: (payload: Partial<CommunicationTemplate>) =>
+      apiClient.post('/communication/templates', payload).then((r) => r.data.data as CommunicationTemplate),
+    update: (id: string, payload: Partial<CommunicationTemplate>) =>
+      apiClient.put(`/communication/templates/${id}`, payload).then((r) => r.data.data as CommunicationTemplate),
+    duplicate: (id: string) => apiClient.post(`/communication/templates/${id}/duplicate`).then((r) => r.data.data as CommunicationTemplate),
+    remove: (id: string) => apiClient.delete(`/communication/templates/${id}`),
+  },
+  send: (payload: BulkSendPayload) => apiClient.post('/communication/send', payload).then((r) => r.data.data as CommunicationBatch),
+  sendTest: (payload: { channel: CommChannel; subject?: string; body: string; testRecipient: string; variables?: Record<string, string> }) =>
+    apiClient.post('/communication/send-test', payload).then((r) => r.data.data as TestSendResult),
+  history: (params?: Record<string, unknown>) => apiClient.get('/communication/history', { params }).then((r) => r.data),
+  resend: (id: string) => apiClient.patch(`/communication/history/${id}/resend`).then((r) => r.data.data as CommunicationMessageLog),
+  timeline: (candidateId: string) =>
+    apiClient.get(`/communication/candidates/${candidateId}/timeline`).then((r) => r.data.data as CommunicationMessageLog[]),
+  stats: () => apiClient.get('/communication/stats').then((r) => r.data.data as CommunicationStats),
+  config: () => apiClient.get('/communication/config').then((r) => r.data.data as CommunicationConfig),
+};
