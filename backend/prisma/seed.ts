@@ -1,5 +1,6 @@
 import { ModuleName, PrismaClient, Role, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { NAYARA_TEMPLATE } from '../src/modules/projectWages/nayaraTemplate';
 
 const prisma = new PrismaClient();
 
@@ -73,13 +74,22 @@ async function main() {
   console.log('Seeding Forays Group HR Solutions database...');
 
   // ── Projects ────────────────────────────────────────────────────────
+  // One-time rename: the project seeded as 'Nayara' before the project-wise
+  // Wages module existed becomes 'Nayara AMC' (matching the client's AMC
+  // wage-sheet template), instead of leaving an orphaned duplicate.
+  const legacyNayara = await prisma.project.findFirst({ where: { projectName: 'Nayara' } });
+  const nayaraAmcAlreadyExists = await prisma.project.findFirst({ where: { projectName: 'Nayara AMC' } });
+  if (legacyNayara && !nayaraAmcAlreadyExists) {
+    await prisma.project.update({ where: { id: legacyNayara.id }, data: { projectName: 'Nayara AMC' } });
+  }
+
   const projectSeed = [
     { projectName: 'RIL Jamnagar', clientName: 'Reliance Industries Ltd', location: 'Jamnagar, Gujarat' },
     { projectName: 'IOCL Panipat', clientName: 'Indian Oil Corporation Ltd', location: 'Panipat, Haryana' },
     { projectName: 'OPaL', clientName: 'ONGC Petro additions Ltd', location: 'Dahej, Gujarat' },
     { projectName: 'HPCL', clientName: 'Hindustan Petroleum Corporation Ltd', location: 'Visakhapatnam, AP' },
     { projectName: 'Dangote', clientName: 'Dangote Group', location: 'Lagos, Nigeria' },
-    { projectName: 'Nayara', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat' },
+    { projectName: 'Nayara AMC', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat' },
   ];
 
   const projectIdByName = new Map<string, string>();
@@ -89,6 +99,16 @@ async function main() {
       ? await prisma.project.update({ where: { id: existing.id }, data: p })
       : await prisma.project.create({ data: p });
     projectIdByName.set(p.projectName, project.id);
+  }
+
+  // ── Project-wise Wages templates ────────────────────────────────────
+  const nayaraProjectId = projectIdByName.get('Nayara AMC');
+  if (nayaraProjectId) {
+    await prisma.wageProjectTemplate.upsert({
+      where: { code: NAYARA_TEMPLATE.code },
+      update: { name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId, active: true },
+      create: { code: NAYARA_TEMPLATE.code, name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId },
+    });
   }
 
   // ── Departments & Designations ─────────────────────────────────────

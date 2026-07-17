@@ -7,6 +7,7 @@ import Recruitment from './pages/Recruitment';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Wages from './pages/Wages';
+import ProjectWagesPage from './pages/ProjectWagesPage';
 import Compliance from './pages/Compliance';
 import Advances from './pages/Advances';
 import Reports from './pages/Reports';
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/wages" element={<Wages />} />
+          <Route path="/wages/:code" element={<ProjectWagesPage />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/advances" element={<Advances />} />
           <Route path="/reports" element={<Reports />} />

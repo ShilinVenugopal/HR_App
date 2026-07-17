@@ -1,15 +1,59 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, Banknote } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Check, Banknote, FileSpreadsheet, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { WageRecord, wagesApi } from '../api/modules';
+import { WageRecord, wagesApi, projectWagesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
+import { Skeleton } from '../components/common/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
+
+/// Project-wise wages picker — every template returned here (currently just
+/// Nayara AMC) is a fully independent wages page with its own sheet
+/// format. Adding a new project's template server-side makes a new card
+/// appear automatically; no frontend change is needed. Every other project
+/// keeps using the general wages table below, unchanged.
+function ProjectWagesPicker() {
+  const navigate = useNavigate();
+  const { data: templates, isLoading } = useQuery({ queryKey: ['wage-templates'], queryFn: projectWagesApi.listTemplates });
+
+  if (!isLoading && !templates?.length) return null;
+
+  return (
+    <div className="mb-8">
+      <h2 className="mb-1 text-lg font-semibold">Project-Specific Wage Sheets</h2>
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        Each project below has its own wage sheet format, upload template, and salary calculations.
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {isLoading && [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+        {templates?.map((t) => (
+          <button
+            key={t.code}
+            onClick={() => navigate(`/wages/${t.code}`)}
+            className="card flex items-center justify-between gap-3 p-5 text-left transition hover:border-brand-400 hover:shadow-md"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
+                <FileSpreadsheet size={22} />
+              </div>
+              <div>
+                <p className="font-semibold">{t.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t.projectName}</p>
+              </div>
+            </div>
+            <ArrowRight size={18} className="shrink-0 text-slate-400" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -90,6 +134,11 @@ export default function Wages() {
   return (
     <div>
       <PageHeader title="Wages" description="Monthly payroll — overtime, allowances, deductions, net salary" />
+
+      <ProjectWagesPicker />
+
+      <h2 className="mb-1 text-lg font-semibold">General Wages</h2>
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">For all other projects, using the standard payroll form.</p>
 
       <DataTable
         columns={columns}

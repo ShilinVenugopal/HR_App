@@ -201,6 +201,7 @@ model User {
   createdCandidates    RecruitmentCandidate[]  @relation("CandidateCreatedBy")
   createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
   createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
+  wageUploads          WageUpload[]            @relation("WageUploadedBy")
 
   @@index([role])
   @@index([status])
@@ -225,6 +226,8 @@ model Project {
   advances        Advance[]
   auditLogs       AuditLog[]
   commMessageLogs CommunicationMessageLog[]
+  wageTemplate    WageProjectTemplate?
+  wageEntries     WageEntry[]
 
   @@index([status])
   @@map("projects")
@@ -667,4 +670,92 @@ model AdvanceRecovery {
 
   @@index([advanceId])
   @@map("advance_recoveries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROJECT-WISE WAGES (template-driven)
+//
+// Every client project can have its own wage-sheet layout — different
+// column sets, different salary/deduction formulas. Rather than a fixed
+// schema per project, one project (WageProjectTemplate) owns an ordered
+// JSON column definition (labels, sections, which columns are computed and
+// by what formula) that both the frontend grid and the backend formula
+// engine read. Adding a new project's wages page is a data change (a new
+// template row), not a schema change.
+//
+// "Monthly Wage Summary" from the design brief is intentionally NOT a
+// stored table — it's a live aggregate over WageEntry so it can never go
+// stale when rows are edited/added/deleted (no sync code required).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum WageUploadStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model WageProjectTemplate {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+  code      String   @unique
+  name      String
+  columns   Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id])
+  uploads WageUpload[]
+  entries WageEntry[]
+
+  @@map("wage_project_templates")
+}
+
+model WageUpload {
+  id           String           @id @default(uuid())
+  templateId   String
+  month        Int
+  year         Int
+  fileName     String
+  fileUrl      String
+  status       WageUploadStatus @default(PROCESSING)
+  totalRows    Int              @default(0)
+  importedRows Int              @default(0)
+  failedRows   Int              @default(0)
+  errorReport  Json?
+  uploadedById String
+  createdAt    DateTime         @default(now())
+
+  template   WageProjectTemplate @relation(fields: [templateId], references: [id])
+  uploadedBy User                @relation("WageUploadedBy", fields: [uploadedById], references: [id])
+  entries    WageEntry[]
+
+  @@index([templateId, month, year])
+  @@map("wage_uploads")
+}
+
+model WageEntry {
+  id              String   @id @default(uuid())
+  templateId      String
+  projectId       String
+  uploadId        String?
+  month           Int
+  year            Int
+  employeeCode    String
+  employeeName    String
+  data            Json
+  grossSalary     Decimal  @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal  @default(0) @db.Decimal(12, 2)
+  netSalary       Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  template WageProjectTemplate @relation(fields: [templateId], references: [id])
+  project  Project             @relation(fields: [projectId], references: [id])
+  upload   WageUpload?         @relation(fields: [uploadId], references: [id])
+
+  @@unique([templateId, month, year, employeeCode])
+  @@index([templateId, month, year])
+  @@index([projectId])
+  @@map("wage_entries")
 }

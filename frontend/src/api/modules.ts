@@ -180,6 +180,108 @@ export const wagesApi = {
   markPaid: (id: string) => apiClient.patch(`/wages/${id}/mark-paid`).then((r) => r.data),
 };
 
+// ── Project-wise Wages (template-driven) ──────────────────────────────
+
+export type WageColumnType = 'text' | 'number' | 'date';
+
+export type WageFormulaSpec =
+  | { op: 'PRORATE'; base: string; workingDays: string; daysPaid: string }
+  | { op: 'MULTIPLY'; a: string; b: string }
+  | { op: 'PERCENT'; field: string; percent: number }
+  | { op: 'SUM'; fields: string[] }
+  | { op: 'CAP_SUM'; fields: string[]; max: number }
+  | { op: 'SLAB2'; field: string; threshold: number; amountAbove: number }
+  | { op: 'SUBTRACT'; from: string; fields: string[] };
+
+export interface WageColumnDef {
+  key: string;
+  label: string;
+  section: string;
+  type: WageColumnType;
+  formula?: WageFormulaSpec;
+  required?: boolean;
+  isEmployeeId?: boolean;
+  isEmployeeName?: boolean;
+  isGrossTotal?: boolean;
+  isDeductionsTotal?: boolean;
+  isNetTotal?: boolean;
+  validator?: 'UAN12';
+  width?: number;
+}
+
+export interface WageTemplateSummary {
+  code: string;
+  name: string;
+  projectId: string;
+  projectName: string;
+}
+
+export interface WageTemplateDetail extends WageTemplateSummary {
+  columns: WageColumnDef[];
+}
+
+export interface WageEntry {
+  id: string;
+  templateId: string;
+  projectId: string;
+  uploadId: string | null;
+  month: number;
+  year: number;
+  employeeCode: string;
+  employeeName: string;
+  data: Record<string, string | number | null>;
+  grossSalary: number;
+  totalDeductions: number;
+  netSalary: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WageImportRowInput {
+  rowNumber: number;
+  values: Record<string, string | number | null>;
+}
+
+export interface WageImportError {
+  row: number;
+  message: string;
+}
+
+export interface WageImportResult {
+  upload: { id: string; status: string; totalRows: number; importedRows: number; failedRows: number };
+  imported: number;
+  failed: number;
+  total: number;
+  errors: WageImportError[];
+}
+
+export interface WageMonthlySummary {
+  totalEmployees: number;
+  grossSalary: number;
+  totalDeductions: number;
+  netSalary: number;
+}
+
+export const projectWagesApi = {
+  listTemplates: () => apiClient.get('/project-wages/templates').then((r) => r.data.data as WageTemplateSummary[]),
+  getTemplate: (code: string) => apiClient.get(`/project-wages/${code}`).then((r) => r.data.data as WageTemplateDetail),
+  listEntries: (code: string, month: number, year: number, search?: string) =>
+    apiClient
+      .get(`/project-wages/${code}/entries`, { params: { month, year, search } })
+      .then((r) => r.data.data as { columns: WageColumnDef[]; entries: WageEntry[] }),
+  getSummary: (code: string, month: number, year: number) =>
+    apiClient.get(`/project-wages/${code}/summary`, { params: { month, year } }).then((r) => r.data.data as WageMonthlySummary),
+  getHistory: (code: string, employeeCode: string) =>
+    apiClient.get(`/project-wages/${code}/history/${employeeCode}`).then((r) => r.data.data as { columns: WageColumnDef[]; entries: WageEntry[] }),
+  createEntry: (code: string, payload: { month: number; year: number; values: Record<string, string | number | null> }) =>
+    apiClient.post(`/project-wages/${code}/entries`, payload).then((r) => r.data.data as WageEntry),
+  updateEntry: (code: string, id: string, values: Record<string, string | number | null>) =>
+    apiClient.put(`/project-wages/${code}/entries/${id}`, { values }).then((r) => r.data.data as WageEntry),
+  deleteEntry: (code: string, id: string) => apiClient.delete(`/project-wages/${code}/entries/${id}`),
+  import: (code: string, payload: { month: number; year: number; fileName: string; fileUrl: string; rows: WageImportRowInput[] }) =>
+    apiClient.post(`/project-wages/${code}/import`, payload).then((r) => r.data.data as WageImportResult),
+};
+
 export interface ComplianceRecord {
   id: string;
   projectId: string;
