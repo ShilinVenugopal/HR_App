@@ -40,3 +40,13 @@ export const convertCandidateHandler = asyncHandler(async (req: Request, res: Re
   const employee = await employeesService.createEmployeeFromCandidate(req, req.params.candidateId, req.meta);
   return sendSuccess(res, employee, 'Candidate converted to employee successfully', 201);
 });
+
+export const checkDuplicatesHandler = asyncHandler(async (req: Request, res: Response) => {
+  const matches = await employeesService.checkDuplicateEmployees(req, req.body.employeeCodes, req.body.aadhaarNumbers);
+  return sendSuccess(res, matches, 'Duplicate check complete');
+});
+
+export const bulkImportHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await employeesService.bulkImportEmployees(req, req.body.rows, req.body.duplicateStrategy, req.meta);
+  return sendSuccess(res, result, 'Bulk import complete', 201);
+});

@@ -72,6 +72,8 @@ enum EmployeeStatus {
   INACTIVE
   RESIGNED
   TERMINATED
+  ON_LEAVE
+  BLACKLISTED
 }
 
 enum Shift {
@@ -496,9 +498,9 @@ model CommunicationMessageLog {
 model Employee {
   id                 String         @id @default(uuid())
   employeeCode       String         @unique
-  employeeId         String?        @unique
   name               String
-  contactNumber      String?
+  fatherName         String?
+  contactNumber      String
   email              String?
   dateOfBirth        DateTime?
   departmentId       String?
@@ -506,6 +508,17 @@ model Employee {
   projectId          String
   joiningDate        DateTime?
   reportingManagerId String?
+  panNumber          String?
+  aadhaarNumber      String?        @unique
+  passportNumber     String?
+  pfNumber           String?
+  uanNumber          String?
+  esicNumber         String?
+  bankAccountNumber  String?
+  bankIfscCode       String?
+  bankName           String?
+  bankAccountName    String?
+  address            String?
   documents          Json?
   status             EmployeeStatus @default(ACTIVE)
   candidateId        String?        @unique

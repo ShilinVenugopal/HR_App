@@ -2,11 +2,26 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.middleware';
 import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createEmployeeSchema, idParamSchema, updateEmployeeSchema } from './employees.validation';
+import { bulkImportSchema, checkDuplicatesSchema, createEmployeeSchema, idParamSchema, updateEmployeeSchema } from './employees.validation';
 import * as employeesController from './employees.controller';
 
 const router = Router();
 router.use(authenticate);
+
+// Bulk import (Excel) — declared before '/:id' so 'bulk' is never matched
+// as an employee id.
+router.post(
+  '/bulk/check-duplicates',
+  requirePermission('EMPLOYEES', 'add'),
+  validate(checkDuplicatesSchema),
+  employeesController.checkDuplicatesHandler
+);
+router.post(
+  '/bulk/import',
+  requirePermission('EMPLOYEES', 'add'),
+  validate(bulkImportSchema),
+  employeesController.bulkImportHandler
+);
 
 router.get('/', requirePermission('EMPLOYEES', 'view'), employeesController.listEmployeesHandler);
 router.get('/:id', requirePermission('EMPLOYEES', 'view'), validate(idParamSchema), employeesController.getEmployeeHandler);

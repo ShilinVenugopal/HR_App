@@ -194,7 +194,9 @@ async function main() {
     projectNames: ['IOCL Panipat'],
     permissions: permissionsFor({
       DASHBOARD: { view: true },
-      EMPLOYEES: { view: true },
+      // View/edit only — project scoping already limits this to the
+      // Project Manager's own assigned project(s); no add/delete.
+      EMPLOYEES: { view: true, edit: true },
       ATTENDANCE: { view: true, approve: true },
       REPORTS: { view: true },
       WAGES: { view: true },

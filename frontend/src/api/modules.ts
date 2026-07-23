@@ -106,9 +106,9 @@ export const recruitmentBulkApi = {
 export interface Employee {
   id: string;
   employeeCode: string;
-  employeeId?: string | null;
   name: string;
-  contactNumber?: string | null;
+  fatherName?: string | null;
+  contactNumber: string;
   email?: string | null;
   dateOfBirth?: string | null;
   departmentId?: string | null;
@@ -120,13 +120,52 @@ export interface Employee {
   joiningDate?: string | null;
   reportingManagerId?: string | null;
   reportingManager?: { id: string; name: string; employeeCode: string } | null;
+  panNumber?: string | null;
+  aadhaarNumber?: string | null;
+  passportNumber?: string | null;
+  pfNumber?: string | null;
+  uanNumber?: string | null;
+  esicNumber?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfscCode?: string | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  address?: string | null;
   status: string;
   createdAt: string;
 }
+
+export interface EmployeeDuplicateMatch {
+  id: string;
+  employeeCode: string;
+  aadhaarNumber: string | null;
+  name: string;
+}
+
+export interface EmployeeBulkImportFailure {
+  rowNumber: number;
+  employeeCode: string;
+  name: string;
+  reason: string;
+}
+
+export interface EmployeeBulkImportResult {
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  failures: EmployeeBulkImportFailure[];
+}
+
 export const employeesApi = {
   ...createResourceApi<Employee>('/employees'),
   convertCandidate: (candidateId: string) =>
     apiClient.post(`/employees/from-candidate/${candidateId}`).then((r) => r.data),
+  checkDuplicates: (employeeCodes: string[], aadhaarNumbers: string[]) =>
+    apiClient.post('/employees/bulk/check-duplicates', { employeeCodes, aadhaarNumbers }).then((r) => r.data.data as EmployeeDuplicateMatch[]),
+  bulkImport: (rows: unknown[], duplicateStrategy: 'skip' | 'update') =>
+    apiClient.post('/employees/bulk/import', { rows, duplicateStrategy }).then((r) => r.data.data as EmployeeBulkImportResult),
 };
 
 export interface AttendanceRecord {
