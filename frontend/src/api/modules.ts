@@ -245,6 +245,7 @@ export interface WageColumnDef {
   isDeductionsTotal?: boolean;
   isNetTotal?: boolean;
   validator?: 'UAN12';
+  isTextFormat?: boolean;
   width?: number;
 }
 

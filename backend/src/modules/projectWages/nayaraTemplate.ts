@@ -1,22 +1,30 @@
 import { WageColumnDef, WageTemplateConfig } from './wageColumns.types';
 
-/// Column layout reproduced 1:1 from the client-supplied Formate_Nayara.xlsx
-/// (row 2 headers, columns A–AK). Formula columns (Y–AJ in the original)
-/// are reproduced from the sheet's own Excel formulas — see the op-by-op
-/// mapping below. Columns AL–AR in the source file were unused padding and
-/// are dropped here.
+/// Column layout reproduced 1:1 from the client's real Nayara AMC payroll
+/// file (row 2 headers, columns A–AJ — cross-checked against both the
+/// original Formate_Nayara.xlsx template and a live populated export,
+/// Nayara_Site_Att_JUN2026HO_COPY.xlsx). Column ORDER here matters beyond
+/// cosmetics: it must match the source file's literal left-to-right
+/// sequence, because (a) it's what HR staff filling this in Excel expect
+/// to see, and (b) it's the order the formula engine's dependency
+/// resolution relies on (see formulaEngine.ts — each formula column may
+/// only reference columns declared earlier in this array, which holds
+/// here because it mirrors the original sheet's own left-to-right formula
+/// references). An earlier revision grouped columns by logical section
+/// instead of matching the source order, which silently broke
+/// compatibility with real uploaded files — see the header-matching fix
+/// in projectWages.service.ts / wageExcel.ts for the other half of that
+/// fix. Columns AK–AR in the source file were unused padding and are
+/// dropped here (AK "REMARKS" is kept — present in the original template,
+/// absent from the live copy, but a genuinely useful free-text field).
 export const NAYARA_COLUMNS: WageColumnDef[] = [
   // ── Employee Info ──────────────────────────────────────────────────
   { key: 'plant', label: 'Plant', section: 'Employee Info', type: 'text', width: 14 },
   { key: 'designation', label: 'Designation', section: 'Employee Info', type: 'text', width: 16 },
-  { key: 'gpNo', label: 'GP No.', section: 'Employee Info', type: 'text', required: true, isEmployeeId: true, width: 12 },
-  { key: 'formA', label: 'Form A', section: 'Employee Info', type: 'text', width: 10 },
+  { key: 'gpNo', label: 'GP No.', section: 'Employee Info', type: 'text', required: true, isEmployeeId: true, isTextFormat: true, width: 12 },
+  { key: 'formA', label: 'Form A', section: 'Employee Info', type: 'text', isTextFormat: true, width: 10 },
   { key: 'candidateName', label: 'Name of Candidate', section: 'Employee Info', type: 'text', required: true, isEmployeeName: true, width: 24 },
   { key: 'dateOfJoining', label: 'Date of Joining', section: 'Employee Info', type: 'date', width: 14 },
-  { key: 'uan', label: 'UAN', section: 'Employee Info', type: 'text', validator: 'UAN12', width: 14 },
-  { key: 'bankAccountNumber', label: 'Bank account number', section: 'Employee Info', type: 'text', width: 20 },
-  { key: 'bankName', label: 'Bank Name', section: 'Employee Info', type: 'text', width: 16 },
-  { key: 'bankBranch', label: 'Bank Branch', section: 'Employee Info', type: 'text', width: 16 },
 
   // ── Attendance ──────────────────────────────────────────────────────
   { key: 'totalWorkingDays', label: 'Total working days', section: 'Attendance', type: 'number', width: 10 },
@@ -24,9 +32,15 @@ export const NAYARA_COLUMNS: WageColumnDef[] = [
   { key: 'totalDaysPaid', label: 'Total no. of days to be paid', section: 'Attendance', type: 'number', width: 12 },
   { key: 'extraHrs', label: 'Extra Hrs', section: 'Attendance', type: 'number', width: 10 },
   { key: 'extraHrsRate', label: 'Extra Hrs Rate', section: 'Attendance', type: 'number', width: 10 },
-  { key: 'monthlyWorkingDays', label: 'Monthly Working Days', section: 'Attendance', type: 'number', width: 10 },
+
+  // ── Bank & Statutory IDs ──────────────────────────────────────────────
+  { key: 'uan', label: 'UAN', section: 'Bank & Statutory IDs', type: 'text', validator: 'UAN12', isTextFormat: true, width: 14 },
+  { key: 'bankAccountNumber', label: 'Bank account number', section: 'Bank & Statutory IDs', type: 'text', isTextFormat: true, width: 20 },
+  { key: 'bankName', label: 'Bank Name', section: 'Bank & Statutory IDs', type: 'text', width: 16 },
+  { key: 'bankBranch', label: 'Bank Branch', section: 'Bank & Statutory IDs', type: 'text', width: 16 },
 
   // ── Salary Structure (Master) ────────────────────────────────────────
+  { key: 'monthlyWorkingDays', label: 'Monthly Working Days', section: 'Salary Structure', type: 'number', width: 10 },
   { key: 'monthlyBasicSalary', label: 'Monthly Basic salary', section: 'Salary Structure', type: 'number', width: 12 },
   { key: 'hraMaster', label: 'HRA', section: 'Salary Structure', type: 'number', width: 10 },
   { key: 'specialAllowanceMaster', label: 'Special Allowance', section: 'Salary Structure', type: 'number', width: 12 },

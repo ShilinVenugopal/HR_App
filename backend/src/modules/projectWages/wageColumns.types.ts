@@ -44,6 +44,11 @@ export interface WageColumnDef {
   isDeductionsTotal?: boolean;
   isNetTotal?: boolean;
   validator?: WageColumnValidator;
+  /// Written as Excel text format ('@') rather than a number in the
+  /// downloadable template and every export, so IDs with leading zeros
+  /// (GP No., UAN, bank account numbers, Form A) are never silently
+  /// reinterpreted by Excel in scientific notation.
+  isTextFormat?: boolean;
   /// Excel column width hint (characters), used by the template generator.
   width?: number;
 }

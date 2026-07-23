@@ -12,11 +12,29 @@ import { WageUploadModal } from '../components/wages/WageUploadModal';
 import { WageHistoryModal } from '../components/wages/WageHistoryModal';
 import { useAuth } from '../context/AuthContext';
 import { apiErrorMessage } from '../api/client';
-import { WageEntry, projectWagesApi } from '../api/modules';
+import { Employee, WageColumnDef, WageEntry, employeesApi, projectWagesApi } from '../api/modules';
 import { MONTHS, downloadWageTemplate, exportWagesExcel, exportWagesPdf } from '../utils/wageExcel';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
+
+/// Maps whatever the Employee Master actually has onto matching wage-sheet
+/// columns, "where possible" (per spec) — GP No., Form A, and Bank Branch
+/// have no Employee Master equivalent and are always left for manual
+/// entry. Only applied for keys the current template actually declares,
+/// so this stays safe to reuse for a future project template with a
+/// different column set.
+function employeeToWageDraft(employee: Employee, columns: WageColumnDef[]): Record<string, string | number | null> {
+  const hasKey = (key: string) => columns.some((c) => c.key === key);
+  const draft: Record<string, string | number | null> = {};
+  if (hasKey('candidateName')) draft.candidateName = employee.name;
+  if (hasKey('designation')) draft.designation = employee.designation?.name ?? '';
+  if (hasKey('dateOfJoining')) draft.dateOfJoining = employee.joiningDate ? employee.joiningDate.slice(0, 10) : null;
+  if (hasKey('uan')) draft.uan = employee.uanNumber ?? '';
+  if (hasKey('bankAccountNumber')) draft.bankAccountNumber = employee.bankAccountNumber ?? '';
+  if (hasKey('bankName')) draft.bankName = employee.bankName ?? '';
+  return draft;
+}
 
 export default function ProjectWagesPage() {
   const { code } = useParams<{ code: string }>();
@@ -27,6 +45,9 @@ export default function ProjectWagesPage() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(CURRENT_YEAR);
   const [search, setSearch] = useState('');
+  const [plantFilter, setPlantFilter] = useState('');
+  const [designationFilter, setDesignationFilter] = useState('');
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [historyTarget, setHistoryTarget] = useState<{ code: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WageEntry | null>(null);
@@ -44,9 +65,13 @@ export default function ProjectWagesPage() {
     enabled: Boolean(code),
   });
 
+  // Search/filter/sort are applied client-side (see `visibleEntries` below)
+  // since a project's whole month is already fetched in one shot for the
+  // grid — searching by GP No./UAN/Bank Account and filtering by Plant/
+  // Designation doesn't need a round trip, and stays instant while typing.
   const { data: entriesData, isLoading: entriesLoading } = useQuery({
-    queryKey: ['wage-entries', code, month, year, search],
-    queryFn: () => projectWagesApi.listEntries(code!, month, year, search || undefined),
+    queryKey: ['wage-entries', code, month, year],
+    queryFn: () => projectWagesApi.listEntries(code!, month, year),
     enabled: Boolean(code),
   });
 
@@ -54,6 +79,15 @@ export default function ProjectWagesPage() {
     queryKey: ['wage-summary', code, month, year],
     queryFn: () => projectWagesApi.getSummary(code!, month, year),
     enabled: Boolean(code),
+  });
+
+  // Employee Master lookup for the "Add from Employee Master" autofill —
+  // scoped to this template's own project, matching the module's project
+  // isolation rule everywhere else.
+  const { data: projectEmployees } = useQuery({
+    queryKey: ['project-wages-employees', template?.projectId],
+    queryFn: () => employeesApi.list({ projectId: template!.projectId, pageSize: 500 }),
+    enabled: Boolean(template?.projectId),
   });
 
   const invalidateAll = () => {
@@ -66,7 +100,7 @@ export default function ProjectWagesPage() {
       projectWagesApi.updateEntry(code!, entry.id, { [key]: value }),
     onMutate: ({ entry }) => setSavingRowId(entry.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(['wage-entries', code, month, year, search], (old: typeof entriesData) =>
+      queryClient.setQueryData(['wage-entries', code, month, year], (old: typeof entriesData) =>
         old ? { ...old, entries: old.entries.map((e) => (e.id === updated.id ? updated : e)) } : old
       );
       queryClient.invalidateQueries({ queryKey: ['wage-summary', code] });
@@ -98,6 +132,48 @@ export default function ProjectWagesPage() {
 
   const columns = template?.columns ?? [];
   const entries = useMemo(() => entriesData?.entries ?? [], [entriesData]);
+
+  // Plant/Designation filters only appear when the template actually has
+  // those columns (Nayara does; a future project's template might not) —
+  // driven by whatever distinct values are present this month, not a
+  // hardcoded list.
+  const hasPlantColumn = columns.some((c) => c.key === 'plant');
+  const hasDesignationColumn = columns.some((c) => c.key === 'designation');
+  const plantOptions = useMemo(
+    () => Array.from(new Set(entries.map((e) => String(e.data.plant ?? '').trim()).filter(Boolean))).sort(),
+    [entries]
+  );
+  const designationOptions = useMemo(
+    () => Array.from(new Set(entries.map((e) => String(e.data.designation ?? '').trim()).filter(Boolean))).sort(),
+    [entries]
+  );
+
+  const visibleEntries = useMemo(() => {
+    let result = entries;
+    if (plantFilter) result = result.filter((e) => String(e.data.plant ?? '').trim() === plantFilter);
+    if (designationFilter) result = result.filter((e) => String(e.data.designation ?? '').trim() === designationFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.employeeName.toLowerCase().includes(q) ||
+          e.employeeCode.toLowerCase().includes(q) ||
+          Object.values(e.data).some((v) => typeof v === 'string' && v.toLowerCase().includes(q))
+      );
+    }
+    if (sort) {
+      const { key, dir } = sort;
+      result = [...result].sort((a, b) => {
+        const av = key === 'employeeName' ? a.employeeName : (a.data[key] ?? '');
+        const bv = key === 'employeeName' ? b.employeeName : (b.data[key] ?? '');
+        const an = Number(av);
+        const bn = Number(bv);
+        const cmp = Number.isFinite(an) && Number.isFinite(bn) && av !== '' && bv !== '' ? an - bn : String(av).localeCompare(String(bv));
+        return dir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return result;
+  }, [entries, plantFilter, designationFilter, search, sort]);
 
   if (templateLoading) {
     return (
@@ -191,21 +267,68 @@ export default function ProjectWagesPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div className="relative w-full max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-8" placeholder="Search employee..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full max-w-xs">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input pl-8"
+              placeholder="Search name, GP No., UAN, bank account..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {hasPlantColumn && (
+            <select className="input w-auto" value={plantFilter} onChange={(e) => setPlantFilter(e.target.value)}>
+              <option value="">All Plants</option>
+              {plantOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          )}
+          {hasDesignationColumn && (
+            <select className="input w-auto" value={designationFilter} onChange={(e) => setDesignationFilter(e.target.value)}>
+              <option value="">All Designations</option>
+              {designationOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {canAdd && !newRowDraft && (
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              const idCol = columns.find((c) => c.isEmployeeId);
-              const nameCol = columns.find((c) => c.isEmployeeName);
-              setNewRowDraft({ ...(idCol ? { [idCol.key]: '' } : {}), ...(nameCol ? { [nameCol.key]: '' } : {}) });
-            }}
-          >
-            <Plus size={15} /> Add Row
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                const idCol = columns.find((c) => c.isEmployeeId);
+                const nameCol = columns.find((c) => c.isEmployeeName);
+                setNewRowDraft({ ...(idCol ? { [idCol.key]: '' } : {}), ...(nameCol ? { [nameCol.key]: '' } : {}) });
+              }}
+            >
+              <Plus size={15} /> Add Row
+            </button>
+            {Boolean(projectEmployees?.data.length) && (
+              <select
+                className="input w-auto"
+                value=""
+                onChange={(e) => {
+                  const employee = projectEmployees!.data.find((emp) => emp.id === e.target.value);
+                  if (employee) setNewRowDraft(employeeToWageDraft(employee, columns));
+                  e.target.value = '';
+                }}
+              >
+                <option value="">+ Add from Employee Master...</option>
+                {projectEmployees!.data.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.employeeCode})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
       </div>
 
@@ -214,10 +337,12 @@ export default function ProjectWagesPage() {
       ) : (
         <WageGrid
           columns={columns}
-          entries={entries}
+          entries={visibleEntries}
           savingRowId={savingRowId}
           canEdit={canEdit}
           canDelete={canDelete}
+          sort={sort}
+          onSortChange={setSort}
           onSaveCell={(entry, key, value) => {
             if (!canEdit) return;
             updateMutation.mutate({ entry, key, value });

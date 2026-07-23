@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Check, Clock, Loader2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, Clock, Loader2, Trash2, X } from 'lucide-react';
 import { WageColumnDef, WageEntry } from '../../api/modules';
+
+export interface WageSort {
+  key: string;
+  dir: 'asc' | 'desc';
+}
 
 type CellValue = string | number | null;
 type RowValues = Record<string, CellValue>;
@@ -58,6 +63,8 @@ export function WageGrid({
   savingRowId,
   canEdit,
   canDelete,
+  sort,
+  onSortChange,
   onSaveCell,
   onDeleteRow,
   onOpenHistory,
@@ -72,6 +79,8 @@ export function WageGrid({
   savingRowId: string | null;
   canEdit: boolean;
   canDelete: boolean;
+  sort: WageSort | null;
+  onSortChange: (sort: WageSort | null) => void;
   onSaveCell: (entry: WageEntry, key: string, value: CellValue) => void;
   onDeleteRow: (entry: WageEntry) => void;
   onOpenHistory: (employeeCode: string, employeeName: string) => void;
@@ -82,6 +91,12 @@ export function WageGrid({
   savingNewRow: boolean;
 }) {
   const spans = sectionSpans(columns);
+
+  const toggleSort = (key: string) => {
+    if (!sort || sort.key !== key) return onSortChange({ key, dir: 'asc' });
+    if (sort.dir === 'asc') return onSortChange({ key, dir: 'desc' });
+    return onSortChange(null);
+  };
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
@@ -103,8 +118,26 @@ export function WageGrid({
           <tr>
             {columns.map((c) => (
               <th key={c.key} className="min-w-[7rem] whitespace-pre-line border-b border-l border-slate-200 px-2 py-2 text-left text-xs font-semibold text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                {c.label}
-                {c.required && <span className="text-red-500"> *</span>}
+                <button
+                  type="button"
+                  onClick={() => toggleSort(c.key)}
+                  className="flex items-center gap-1 text-left hover:text-brand-600"
+                  title="Sort"
+                >
+                  <span>
+                    {c.label}
+                    {c.required && <span className="text-red-500"> *</span>}
+                  </span>
+                  {sort?.key === c.key ? (
+                    sort.dir === 'asc' ? (
+                      <ArrowUp size={11} />
+                    ) : (
+                      <ArrowDown size={11} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={11} className="text-slate-300" />
+                  )}
+                </button>
               </th>
             ))}
           </tr>
