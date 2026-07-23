@@ -1,0 +1,21 @@
+import { z } from 'zod';
+import { AttendanceStatus, Shift } from '@prisma/client';
+
+export const createAttendanceSchema = z.object({
+  body: z.object({
+    employeeId: z.string().uuid('Employee is required'),
+    date: z.coerce.date({ required_error: 'Date is required' }),
+    shift: z.nativeEnum(Shift).default(Shift.GENERAL),
+    inTime: z.string().trim().optional(),
+    outTime: z.string().trim().optional(),
+    status: z.nativeEnum(AttendanceStatus).default(AttendanceStatus.PRESENT),
+    overtimeHours: z.coerce.number().min(0).max(24).default(0),
+    remarks: z.string().trim().optional(),
+  }),
+});
+
+export const updateAttendanceSchema = z.object({
+  body: createAttendanceSchema.shape.body.partial().omit({ employeeId: true }),
+});
+
+export const idParamSchema = z.object({ params: z.object({ id: z.string().uuid() }) });

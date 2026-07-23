@@ -1,0 +1,775 @@
+// Forays Group HR Solutions — Enterprise HR Management System
+// Prisma schema: normalized RBAC + project-based data security model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  SITE_ADMIN
+  HR_EXECUTIVE
+  PROJECT_MANAGER
+  FINANCE
+  NORMAL_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Every permission-checkable module in the sidebar / API surface.
+enum ModuleName {
+  DASHBOARD
+  RECRUITMENT
+  EMPLOYEES
+  ATTENDANCE
+  WAGES
+  COMPLIANCE
+  ADVANCES
+  REPORTS
+  SETTINGS
+  USER_MANAGEMENT
+}
+
+enum CandidateStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  SELECTED
+  REJECTED
+  OFFER_RELEASED
+  JOINED
+  CANCELLED
+}
+
+enum InterviewStage {
+  NOT_STARTED
+  SCHEDULED
+  COMPLETED
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+  TERMINATED
+  ON_LEAVE
+  BLACKLISTED
+}
+
+enum Shift {
+  DAY
+  NIGHT
+  GENERAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  HOLIDAY
+  WEEK_OFF
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+}
+
+enum ComplianceType {
+  PF
+  ESIC
+  INSURANCE
+  LABOUR_LICENSE
+  MEDICAL
+}
+
+enum ComplianceStatus {
+  ACTIVE
+  EXPIRED
+  PENDING_RENEWAL
+}
+
+enum AdvanceType {
+  ADVANCE
+  LOAN
+}
+
+enum AdvanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  FAILED_LOGIN
+  UNAUTHORIZED_ACCESS
+  PASSWORD_RESET
+  EXPORT
+}
+
+enum AuditStatus {
+  SUCCESS
+  FAILURE
+}
+
+enum CommChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum CommBatchStatus {
+  QUEUED
+  SENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CommMessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  OPENED
+  FAILED
+  BOUNCED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RBAC CORE
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id                String     @id @default(uuid())
+  name              String
+  email             String     @unique
+  mobile            String
+  passwordHash      String
+  role              Role
+  status            UserStatus @default(ACTIVE)
+  lastLoginAt       DateTime?
+  mustResetPassword Boolean    @default(false)
+  createdById       String?
+  createdBy         User?      @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers      User[]     @relation("UserCreatedBy")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  projects      UserProject[]
+  permissions   Permission[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  approvedAttendance   Attendance[]            @relation("AttendanceApprover")
+  approvedWages        WageRecord[]            @relation("WageApprover")
+  approvedAdvances     Advance[]               @relation("AdvanceApprover")
+  createdCandidates    RecruitmentCandidate[]  @relation("CandidateCreatedBy")
+  createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
+  createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
+  wageUploads          WageUpload[]            @relation("WageUploadedBy")
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  projectName String
+  clientName  String
+  location    String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  users           UserProject[]
+  employees       Employee[]
+  candidates      RecruitmentCandidate[]
+  attendance      Attendance[]
+  wages           WageRecord[]
+  compliance      Compliance[]
+  advances        Advance[]
+  auditLogs       AuditLog[]
+  commMessageLogs CommunicationMessageLog[]
+  wageTemplate    WageProjectTemplate?
+  wageEntries     WageEntry[]
+
+  @@index([status])
+  @@map("projects")
+}
+
+/// Many-to-many: which projects a user is allowed to access.
+model UserProject {
+  id        String   @id @default(uuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("user_projects")
+}
+
+/// Per-user, per-module CRUD + approval permission matrix.
+/// Never hardcode permissions in code — always read from this table.
+model Permission {
+  id         String     @id @default(uuid())
+  userId     String
+  module     ModuleName
+  canView    Boolean    @default(false)
+  canAdd     Boolean    @default(false)
+  canEdit    Boolean    @default(false)
+  canDelete  Boolean    @default(false)
+  canApprove Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, module])
+  @@index([userId])
+  @@index([module])
+  @@map("permissions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String?
+  userEmail String?
+  action    AuditAction
+  module    ModuleName?
+  projectId String?
+  ipAddress String?
+  device    String?
+  browser   String?
+  status    AuditStatus
+  details   Json?
+  createdAt DateTime    @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// MASTERS
+// ─────────────────────────────────────────────────────────────────────────
+
+model Department {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  employees Employee[]
+
+  @@map("departments")
+}
+
+model Designation {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  employees  Employee[]
+  candidates RecruitmentCandidate[]
+
+  @@map("designations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RECRUITMENT
+// ─────────────────────────────────────────────────────────────────────────
+
+model RecruitmentCandidate {
+  id                    String          @id @default(uuid())
+  candidateName         String
+  contactNumber         String
+  dateOfBirth           DateTime?
+  qualification         String?
+  experience            String?
+  designationId         String?
+  email                 String?
+  projectId             String?
+  resumeUrl             String?
+  foraysInterviewStatus InterviewStage  @default(NOT_STARTED)
+  clientInterviewStatus InterviewStage  @default(NOT_STARTED)
+  remarks               String?
+  status                CandidateStatus @default(APPLIED)
+  createdById           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  project         Project?                  @relation(fields: [projectId], references: [id])
+  designation     Designation?              @relation(fields: [designationId], references: [id])
+  createdBy       User?                     @relation("CandidateCreatedBy", fields: [createdById], references: [id])
+  employee        Employee?
+  commMessageLogs CommunicationMessageLog[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([designationId])
+  @@map("recruitment_candidates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RECRUITMENT — BULK COMMUNICATION
+//
+// Deliberately 3 tables, not the 7 a naive reading of "queue/history/
+// scheduled/logs" might suggest: CommunicationMessageLog.status is a single
+// state machine (QUEUED -> SENDING -> SENT/FAILED -> DELIVERED/OPENED/
+// BOUNCED) that IS the queue while status=QUEUED and IS the history once
+// terminal, and `scheduledAt` on the same row is what "scheduled messages"
+// means — a QUEUED row whose scheduledAt is in the future. Attachments are
+// a JSON array on the batch (same pattern as Employee.documents), not a
+// separate table. Fine-grained audit trail reuses the existing AuditLog
+// table via its `details` JSON, not a parallel audit system.
+// ─────────────────────────────────────────────────────────────────────────
+
+model CommunicationTemplate {
+  id          String      @id @default(uuid())
+  name        String
+  channel     CommChannel
+  /// Free-text grouping (e.g. "Interview Call", "Offer Letter") — not an
+  /// enum, since email and WhatsApp template categories overlap but aren't
+  /// identical and new categories shouldn't require a migration.
+  category    String?
+  /// Only meaningful for EMAIL; WhatsApp messages have no subject line.
+  subject     String?
+  body        String
+  createdById String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  createdBy User?                @relation("CommTemplateCreatedBy", fields: [createdById], references: [id])
+  batches   CommunicationBatch[]
+
+  @@index([channel])
+  @@map("communication_templates")
+}
+
+/// One "Send Bulk Email/WhatsApp" action. Fans out into one
+/// CommunicationMessageLog per selected candidate.
+model CommunicationBatch {
+  id              String          @id @default(uuid())
+  channel         CommChannel
+  templateId      String?
+  subject         String?
+  body            String
+  /// [{ name, url }] — uploaded via the existing /uploads endpoint.
+  attachments     Json?
+  /// Null = send now. A future timestamp = scheduled.
+  scheduledAt     DateTime?
+  status          CommBatchStatus @default(QUEUED)
+  totalRecipients Int             @default(0)
+  sentCount       Int             @default(0)
+  deliveredCount  Int             @default(0)
+  openedCount     Int             @default(0)
+  failedCount     Int             @default(0)
+  bouncedCount    Int             @default(0)
+  createdById     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  template  CommunicationTemplate?    @relation(fields: [templateId], references: [id])
+  createdBy User?                     @relation("CommBatchCreatedBy", fields: [createdById], references: [id])
+  messages  CommunicationMessageLog[]
+
+  @@index([channel])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("communication_batches")
+}
+
+/// One row per candidate per batch. This is simultaneously the send queue
+/// (status=QUEUED, picked up by the worker), the delivery tracker (status
+/// transitions through SENT/DELIVERED/OPENED/FAILED/BOUNCED), and the
+/// communication-history / candidate-timeline source (queried directly).
+model CommunicationMessageLog {
+  id                String            @id @default(uuid())
+  batchId           String
+  candidateId       String
+  /// Denormalized from the candidate at send time so history stays
+  /// correctly project-scoped even if the candidate is later reassigned.
+  projectId         String?
+  channel           CommChannel
+  recipientEmail    String?
+  recipientPhone    String?
+  subject           String?
+  /// Final rendered content — placeholders already substituted.
+  body              String
+  status            CommMessageStatus @default(QUEUED)
+  /// External id from the provider (SMTP envelope id / Meta message id),
+  /// used to correlate inbound webhook delivery events back to this row.
+  providerMessageId String?
+  errorReason       String?
+  attempts          Int               @default(0)
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  failedAt          DateTime?
+  bouncedAt         DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  batch     CommunicationBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  candidate RecruitmentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  project   Project?             @relation(fields: [projectId], references: [id])
+
+  @@index([batchId])
+  @@index([candidateId])
+  @@index([projectId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("communication_message_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EMPLOYEES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Employee {
+  id                 String         @id @default(uuid())
+  employeeCode       String         @unique
+  name               String
+  fatherName         String?
+  contactNumber      String
+  email              String?
+  dateOfBirth        DateTime?
+  departmentId       String?
+  designationId      String?
+  projectId          String
+  joiningDate        DateTime?
+  reportingManagerId String?
+  panNumber          String?
+  aadhaarNumber      String?        @unique
+  passportNumber     String?
+  pfNumber           String?
+  uanNumber          String?
+  esicNumber         String?
+  bankAccountNumber  String?
+  bankIfscCode       String?
+  bankName           String?
+  bankAccountName    String?
+  address            String?
+  documents          Json?
+  status             EmployeeStatus @default(ACTIVE)
+  candidateId        String?        @unique
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  project          Project               @relation(fields: [projectId], references: [id])
+  department       Department?           @relation(fields: [departmentId], references: [id])
+  designation      Designation?          @relation(fields: [designationId], references: [id])
+  reportingManager Employee?             @relation("EmployeeReportingManager", fields: [reportingManagerId], references: [id])
+  subordinates     Employee[]            @relation("EmployeeReportingManager")
+  candidate        RecruitmentCandidate? @relation(fields: [candidateId], references: [id])
+
+  attendance Attendance[]
+  wages      WageRecord[]
+  compliance Compliance[]
+  advances   Advance[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([departmentId])
+  @@index([designationId])
+  @@map("employees")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────────────────────────────────
+
+model Attendance {
+  id             String           @id @default(uuid())
+  employeeId     String
+  projectId      String
+  date           DateTime
+  shift          Shift            @default(GENERAL)
+  inTime         String?
+  outTime        String?
+  status         AttendanceStatus @default(PRESENT)
+  overtimeHours  Decimal          @default(0) @db.Decimal(5, 2)
+  approvalStatus ApprovalStatus   @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  isLocked       Boolean          @default(false)
+  remarks        String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+  approvedBy User?    @relation("AttendanceApprover", fields: [approvedById], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([projectId])
+  @@index([date])
+  @@index([approvalStatus])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WAGES / PAYROLL
+// ─────────────────────────────────────────────────────────────────────────
+
+model WageRecord {
+  id              String        @id @default(uuid())
+  employeeId      String
+  projectId       String
+  month           Int
+  year            Int
+  presentDays     Decimal       @default(0) @db.Decimal(5, 2)
+  overtimeHours   Decimal       @default(0) @db.Decimal(6, 2)
+  basicWage       Decimal       @default(0) @db.Decimal(12, 2)
+  allowances      Decimal       @default(0) @db.Decimal(12, 2)
+  overtimeAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  grossWage       Decimal       @default(0) @db.Decimal(12, 2)
+  pfDeduction     Decimal       @default(0) @db.Decimal(12, 2)
+  esicDeduction   Decimal       @default(0) @db.Decimal(12, 2)
+  advanceRecovery Decimal       @default(0) @db.Decimal(12, 2)
+  otherDeductions Decimal       @default(0) @db.Decimal(12, 2)
+  netWage         Decimal       @default(0) @db.Decimal(12, 2)
+  status          PayrollStatus @default(DRAFT)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+  approvedBy User?    @relation("WageApprover", fields: [approvedById], references: [id])
+
+  @@unique([employeeId, month, year])
+  @@index([projectId])
+  @@index([month, year])
+  @@index([status])
+  @@map("wage_records")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// COMPLIANCE
+// ─────────────────────────────────────────────────────────────────────────
+
+model Compliance {
+  id              String           @id @default(uuid())
+  projectId       String
+  employeeId      String?
+  type            ComplianceType
+  referenceNumber String?
+  validFrom       DateTime?
+  validTo         DateTime?
+  status          ComplianceStatus @default(ACTIVE)
+  remarks         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([projectId])
+  @@index([type])
+  @@index([validTo])
+  @@map("compliance")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ADVANCES / LOANS / RECOVERIES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Advance {
+  id              String        @id @default(uuid())
+  employeeId      String
+  projectId       String
+  type            AdvanceType   @default(ADVANCE)
+  amount          Decimal       @db.Decimal(12, 2)
+  reason          String?
+  installments    Int           @default(1)
+  recoveredAmount Decimal       @default(0) @db.Decimal(12, 2)
+  status          AdvanceStatus @default(PENDING)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  employee   Employee          @relation(fields: [employeeId], references: [id])
+  project    Project           @relation(fields: [projectId], references: [id])
+  approvedBy User?             @relation("AdvanceApprover", fields: [approvedById], references: [id])
+  recoveries AdvanceRecovery[]
+
+  @@index([projectId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("advances")
+}
+
+model AdvanceRecovery {
+  id        String   @id @default(uuid())
+  advanceId String
+  month     Int
+  year      Int
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  advance Advance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+
+  @@index([advanceId])
+  @@map("advance_recoveries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROJECT-WISE WAGES (template-driven)
+//
+// Every client project can have its own wage-sheet layout — different
+// column sets, different salary/deduction formulas. Rather than a fixed
+// schema per project, one project (WageProjectTemplate) owns an ordered
+// JSON column definition (labels, sections, which columns are computed and
+// by what formula) that both the frontend grid and the backend formula
+// engine read. Adding a new project's wages page is a data change (a new
+// template row), not a schema change.
+//
+// "Monthly Wage Summary" from the design brief is intentionally NOT a
+// stored table — it's a live aggregate over WageEntry so it can never go
+// stale when rows are edited/added/deleted (no sync code required).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum WageUploadStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model WageProjectTemplate {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+  code      String   @unique
+  name      String
+  columns   Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id])
+  uploads WageUpload[]
+  entries WageEntry[]
+
+  @@map("wage_project_templates")
+}
+
+model WageUpload {
+  id           String           @id @default(uuid())
+  templateId   String
+  month        Int
+  year         Int
+  fileName     String
+  fileUrl      String
+  status       WageUploadStatus @default(PROCESSING)
+  totalRows    Int              @default(0)
+  importedRows Int              @default(0)
+  failedRows   Int              @default(0)
+  errorReport  Json?
+  uploadedById String
+  createdAt    DateTime         @default(now())
+
+  template   WageProjectTemplate @relation(fields: [templateId], references: [id])
+  uploadedBy User                @relation("WageUploadedBy", fields: [uploadedById], references: [id])
+  entries    WageEntry[]
+
+  @@index([templateId, month, year])
+  @@map("wage_uploads")
+}
+
+model WageEntry {
+  id              String   @id @default(uuid())
+  templateId      String
+  projectId       String
+  uploadId        String?
+  month           Int
+  year            Int
+  employeeCode    String
+  employeeName    String
+  data            Json
+  grossSalary     Decimal  @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal  @default(0) @db.Decimal(12, 2)
+  netSalary       Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  template WageProjectTemplate @relation(fields: [templateId], references: [id])
+  project  Project             @relation(fields: [projectId], references: [id])
+  upload   WageUpload?         @relation(fields: [uploadId], references: [id])
+
+  @@unique([templateId, month, year, employeeCode])
+  @@index([templateId, month, year])
+  @@index([projectId])
+  @@map("wage_entries")
+}
