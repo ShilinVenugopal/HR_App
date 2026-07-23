@@ -220,6 +220,20 @@ async function main() {
     projectIdByName,
   });
 
+  // ── Normal User (view-only) ───────────────────────────────────────────
+  await upsertUser({
+    name: 'Normal User - RIL Jamnagar',
+    email: 'normal.user@foraysgroup.com',
+    mobile: '+919999999905',
+    role: Role.NORMAL_USER,
+    projectNames: ['RIL Jamnagar'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      EMPLOYEES: { view: true },
+    }),
+    projectIdByName,
+  });
+
   console.log('Seed complete.');
   console.log(`Super Admin login: ${SUPER_ADMIN_EMAIL} / ${SUPER_ADMIN_PASSWORD}`);
   console.log('Other seeded users share the same password (see .env SUPER_ADMIN_PASSWORD):');
@@ -227,6 +241,7 @@ async function main() {
   console.log('  hr.executive@foraysgroup.com (HR Executive)');
   console.log('  project.manager@foraysgroup.com (Project Manager)');
   console.log('  finance@foraysgroup.com (Finance)');
+  console.log('  normal.user@foraysgroup.com (Normal User, view-only)');
 }
 
 main()

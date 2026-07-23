@@ -20,6 +20,7 @@ enum Role {
   HR_EXECUTIVE
   PROJECT_MANAGER
   FINANCE
+  NORMAL_USER
 }
 
 enum UserStatus {

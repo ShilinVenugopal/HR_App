@@ -1,4 +1,4 @@
-export type Role = 'SUPER_ADMIN' | 'SITE_ADMIN' | 'HR_EXECUTIVE' | 'PROJECT_MANAGER' | 'FINANCE';
+export type Role = 'SUPER_ADMIN' | 'SITE_ADMIN' | 'HR_EXECUTIVE' | 'PROJECT_MANAGER' | 'FINANCE' | 'NORMAL_USER';
 
 export type ModuleName =
   | 'DASHBOARD'
@@ -44,6 +44,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   HR_EXECUTIVE: 'HR Executive',
   PROJECT_MANAGER: 'Project Manager',
   FINANCE: 'Finance',
+  NORMAL_USER: 'Normal User',
 };
 
 export interface PermissionClaim {

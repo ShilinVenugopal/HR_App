@@ -67,7 +67,8 @@ Seeded logins (password `ChangeMe@12345` unless overridden by
 Admin, all projects), `site.admin@foraysgroup.com` (Site Admin — RIL
 Jamnagar + IOCL Panipat), `hr.executive@foraysgroup.com` (HR Executive — RIL
 Jamnagar), `project.manager@foraysgroup.com` (Project Manager — IOCL
-Panipat), `finance@foraysgroup.com` (Finance — OPaL).
+Panipat), `finance@foraysgroup.com` (Finance — OPaL),
+`normal.user@foraysgroup.com` (Normal User, view-only — RIL Jamnagar).
 
 ## Architecture — the one rule everything else follows
 
