@@ -1,6 +1,6 @@
 import { ModuleName, PrismaClient, Role, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { NAYARA_TEMPLATE } from '../src/modules/projectWages/nayaraTemplate';
+import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSync';
 
 const prisma = new PrismaClient();
 
@@ -102,14 +102,7 @@ async function main() {
   }
 
   // ── Project-wise Wages templates ────────────────────────────────────
-  const nayaraProjectId = projectIdByName.get('Nayara AMC');
-  if (nayaraProjectId) {
-    await prisma.wageProjectTemplate.upsert({
-      where: { code: NAYARA_TEMPLATE.code },
-      update: { name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId, active: true },
-      create: { code: NAYARA_TEMPLATE.code, name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId },
-    });
-  }
+  await syncBuiltInWageTemplates();
 
   // ── Departments & Designations ─────────────────────────────────────
   const departments = ['Human Resources', 'Operations', 'Finance & Accounts', 'Safety (HSE)', 'Administration', 'Engineering'];
