@@ -6,6 +6,7 @@ export interface Project {
   projectName: string;
   clientName: string;
   location?: string | null;
+  projectNumber?: string | null;
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
 }
@@ -592,4 +593,106 @@ export const inventoryApi = {
     apiClient.post('/inventory/bulk/check-duplicates', { items }).then((r) => r.data.data as InventoryDuplicateMatch[]),
   bulkImport: (rows: BulkInventoryRowInput[], duplicateStrategy: 'skip' | 'update') =>
     apiClient.post('/inventory/bulk/import', { rows, duplicateStrategy }).then((r) => r.data.data as InventoryBulkImportResult),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Purchase Requisition
+// ─────────────────────────────────────────────────────────────────────────
+
+export type PRStatus = 'DRAFT' | 'SUBMITTED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'RETURNED';
+
+export interface PurchaseRequisitionItem {
+  id: string;
+  costCodeId: string;
+  costCode?: { id: string; code: string; name: string } | null;
+  materialName: string;
+  unit: InventoryUnit;
+  totalReqQty: string | number;
+  make?: string | null;
+  modelNo?: string | null;
+  qtyAvailableAtSite: string | number;
+  balQtyReq: string | number;
+  remarks?: string | null;
+  sortOrder: number;
+}
+
+export interface ApprovalRecord {
+  id: string;
+  action: 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RETURN';
+  actedById?: string | null;
+  actedBy?: { id: string; name: string } | null;
+  comments?: string | null;
+  createdAt: string;
+}
+
+export interface PurchaseRequisition {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  requestNumber: string;
+  prNumber?: string | null;
+  requesterId: string;
+  requester?: { id: string; name: string; email: string } | null;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
+  siteInchargeName?: string | null;
+  storeInchargeName?: string | null;
+  status: PRStatus;
+  currentApproverId?: string | null;
+  currentApprover?: { id: string; name: string; email: string } | null;
+  submittedAt?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+  items: PurchaseRequisitionItem[];
+  approvalHistory?: ApprovalRecord[];
+}
+
+export interface PrItemInput {
+  costCodeId: string;
+  materialName: string;
+  unit: InventoryUnit;
+  totalReqQty: number;
+  make?: string;
+  modelNo?: string;
+  qtyAvailableAtSite?: number;
+  remarks?: string;
+}
+
+export interface PrCreateInput {
+  projectId: string;
+  prNumber?: string;
+  departmentId?: string;
+  siteInchargeName?: string;
+  storeInchargeName?: string;
+  items: PrItemInput[];
+}
+
+export interface ApproverOption {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export const purchaseRequisitionsApi = {
+  ...createResourceApi<PurchaseRequisition>('/purchase-requisitions'),
+  // Overridden: the create/update payload shape (PrCreateInput, with plain
+  // PrItemInput[] items) differs from PurchaseRequisition's own read shape
+  // (items: PurchaseRequisitionItem[], with server-computed fields like
+  // balQtyReq) — the generic createResourceApi<T> assumes both match.
+  create: (payload: PrCreateInput) =>
+    apiClient.post('/purchase-requisitions', payload).then((r) => r.data as { data: PurchaseRequisition }),
+  update: (id: string, payload: Partial<PrCreateInput>) =>
+    apiClient.put(`/purchase-requisitions/${id}`, payload).then((r) => r.data as { data: PurchaseRequisition }),
+  approvers: (projectId: string) =>
+    apiClient.get('/purchase-requisitions/approvers', { params: { projectId } }).then((r) => r.data.data as ApproverOption[]),
+  submit: (id: string, approverId: string) =>
+    apiClient.post(`/purchase-requisitions/${id}/submit`, { approverId }).then((r) => r.data.data as PurchaseRequisition),
+  approve: (id: string, comments?: string) =>
+    apiClient.post(`/purchase-requisitions/${id}/approve`, { comments }).then((r) => r.data.data as PurchaseRequisition),
+  reject: (id: string, comments: string) =>
+    apiClient.post(`/purchase-requisitions/${id}/reject`, { comments }).then((r) => r.data.data as PurchaseRequisition),
+  returnToRequester: (id: string, comments: string) =>
+    apiClient.post(`/purchase-requisitions/${id}/return`, { comments }).then((r) => r.data.data as PurchaseRequisition),
+  unlock: (id: string) => apiClient.patch(`/purchase-requisitions/${id}/unlock`).then((r) => r.data.data as PurchaseRequisition),
 };

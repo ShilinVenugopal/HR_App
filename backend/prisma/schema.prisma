@@ -323,13 +323,18 @@ model User {
 }
 
 model Project {
-  id          String        @id @default(uuid())
-  projectName String
-  clientName  String
-  location    String?
-  status      ProjectStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  projectName   String
+  clientName    String
+  location      String?
+  /// Client-facing project/site number — shown on printed procurement
+  /// documents (Purchase Requisition, PO, GRN headers all show "Project
+  /// Number"). Optional since it predates the Procurement module; projects
+  /// without one show a blank field on those printouts.
+  projectNumber String?
+  status        ProjectStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   users           UserProject[]
   employees       Employee[]
@@ -1019,10 +1024,17 @@ model InventoryTransaction {
 model PurchaseRequisition {
   id                String    @id @default(uuid())
   projectId         String
-  requestNumber     String    @unique
+  requestNumber     String
   prNumber          String?
   requesterId       String
   departmentId      String?
+  /// Freeform named-individual fields from the printed form's header
+  /// ("NAME OF SITE INCHARGE :-" / "NAME OF STORE INCHARGE :-" in
+  /// PUR-01.xlsx) — distinct from `requesterId` (the logged-in system
+  /// user), since the person named on paper isn't always the same as
+  /// whoever has the login.
+  siteInchargeName  String?
+  storeInchargeName String?
   status            PRStatus  @default(DRAFT)
   currentApproverId String?
   submittedAt       DateTime?
@@ -1037,6 +1049,7 @@ model PurchaseRequisition {
   items           PurchaseRequisitionItem[]
   purchaseOrders  PurchaseOrder[]
 
+  @@unique([projectId, requestNumber])
   @@index([projectId])
   @@index([status])
   @@index([requesterId])
@@ -1152,7 +1165,7 @@ model GoodsReceivedNote {
   id                String    @id @default(uuid())
   projectId         String
   poId              String
-  grnNumber         String    @unique
+  grnNumber         String
   supplierName      String?
   receiptDate       DateTime?
   challanNumber     String?
@@ -1175,6 +1188,7 @@ model GoodsReceivedNote {
   items                 GoodsReceivedNoteItem[]
   inventoryTransactions InventoryTransaction[]
 
+  @@unique([projectId, grnNumber])
   @@index([projectId])
   @@index([poId])
   @@index([status])

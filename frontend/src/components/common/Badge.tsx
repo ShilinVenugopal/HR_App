@@ -15,6 +15,7 @@ const COLOR_MAP: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   PENDING_APPROVAL: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   DRAFT: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  RETURNED: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   SCREENING: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   INTERVIEW_SCHEDULED: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   PENDING_RENEWAL: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',

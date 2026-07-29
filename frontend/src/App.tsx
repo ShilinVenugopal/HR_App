@@ -11,6 +11,8 @@ import ProjectWagesPage from './pages/ProjectWagesPage';
 import Compliance from './pages/Compliance';
 import Advances from './pages/Advances';
 import Inventory from './pages/Inventory';
+import PurchaseRequisitions from './pages/PurchaseRequisitions';
+import PurchaseRequisitionDetail from './pages/PurchaseRequisitionDetail';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
@@ -34,6 +36,8 @@ export default function App() {
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/advances" element={<Advances />} />
           <Route path="/inventory" element={<Inventory />} />
+          <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
+          <Route path="/purchase-requisitions/:id" element={<PurchaseRequisitionDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route

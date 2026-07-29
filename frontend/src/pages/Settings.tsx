@@ -55,10 +55,11 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState<{ projectName: string; clientName: string; location: string; status: 'ACTIVE' | 'INACTIVE' }>({
+  const [form, setForm] = useState<{ projectName: string; clientName: string; location: string; projectNumber: string; status: 'ACTIVE' | 'INACTIVE' }>({
     projectName: '',
     clientName: '',
     location: '',
+    projectNumber: '',
     status: 'ACTIVE',
   });
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
@@ -70,12 +71,12 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ projectName: '', clientName: '', location: '', status: 'ACTIVE' });
+    setForm({ projectName: '', clientName: '', location: '', projectNumber: '', status: 'ACTIVE' });
     setModalOpen(true);
   };
   const openEdit = (p: Project) => {
     setEditing(p);
-    setForm({ projectName: p.projectName, clientName: p.clientName, location: p.location ?? '', status: p.status });
+    setForm({ projectName: p.projectName, clientName: p.clientName, location: p.location ?? '', projectNumber: p.projectNumber ?? '', status: p.status });
     setModalOpen(true);
   };
 
@@ -102,6 +103,7 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const columns: Column<Project>[] = [
     { key: 'projectName', header: 'Project Name', render: (r) => <span className="font-medium">{r.projectName}</span> },
+    { key: 'projectNumber', header: 'Project No.', render: (r) => r.projectNumber ?? '—' },
     { key: 'clientName', header: 'Client', render: (r) => r.clientName },
     { key: 'location', header: 'Location', render: (r) => r.location ?? '—' },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
@@ -171,6 +173,15 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           <div>
             <label className="label">Location</label>
             <input className="input" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Project No.</label>
+            <input
+              className="input"
+              value={form.projectNumber}
+              onChange={(e) => setForm((f) => ({ ...f, projectNumber: e.target.value }))}
+              placeholder="Shown on printed procurement documents (PR/PO/GRN)"
+            />
           </div>
           <div>
             <label className="label">Status</label>

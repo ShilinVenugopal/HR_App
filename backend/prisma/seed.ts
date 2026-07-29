@@ -84,12 +84,12 @@ async function main() {
   }
 
   const projectSeed = [
-    { projectName: 'RIL Jamnagar', clientName: 'Reliance Industries Ltd', location: 'Jamnagar, Gujarat' },
-    { projectName: 'IOCL Panipat', clientName: 'Indian Oil Corporation Ltd', location: 'Panipat, Haryana' },
-    { projectName: 'OPaL', clientName: 'ONGC Petro additions Ltd', location: 'Dahej, Gujarat' },
-    { projectName: 'HPCL', clientName: 'Hindustan Petroleum Corporation Ltd', location: 'Visakhapatnam, AP' },
-    { projectName: 'Dangote', clientName: 'Dangote Group', location: 'Lagos, Nigeria' },
-    { projectName: 'Nayara AMC', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat' },
+    { projectName: 'RIL Jamnagar', clientName: 'Reliance Industries Ltd', location: 'Jamnagar, Gujarat', projectNumber: 'PRJ-001' },
+    { projectName: 'IOCL Panipat', clientName: 'Indian Oil Corporation Ltd', location: 'Panipat, Haryana', projectNumber: 'PRJ-002' },
+    { projectName: 'OPaL', clientName: 'ONGC Petro additions Ltd', location: 'Dahej, Gujarat', projectNumber: 'PRJ-003' },
+    { projectName: 'HPCL', clientName: 'Hindustan Petroleum Corporation Ltd', location: 'Visakhapatnam, AP', projectNumber: 'PRJ-004' },
+    { projectName: 'Dangote', clientName: 'Dangote Group', location: 'Lagos, Nigeria', projectNumber: 'PRJ-005' },
+    { projectName: 'Nayara AMC', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat', projectNumber: 'PRJ-006' },
   ];
 
   const projectIdByName = new Map<string, string>();
