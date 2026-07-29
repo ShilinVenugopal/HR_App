@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { PaginationMeta } from '../../types';
 import { Skeleton } from './Skeleton';
 
@@ -9,6 +9,11 @@ export interface Column<T> {
   render: (row: T) => ReactNode;
   sortable?: boolean;
   className?: string;
+}
+
+export interface SortState {
+  key: string;
+  dir: 'asc' | 'desc';
 }
 
 export function DataTable<T extends { id: string }>({
@@ -24,6 +29,8 @@ export function DataTable<T extends { id: string }>({
   headerActions,
   emptyLabel = 'No records found',
   rowActions,
+  sort,
+  onSortChange,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -40,7 +47,18 @@ export function DataTable<T extends { id: string }>({
   headerActions?: ReactNode;
   emptyLabel?: string;
   rowActions?: (row: T) => ReactNode;
+  /// Current sort state and its setter — only meaningful for columns with
+  /// `sortable: true`. Omit both to keep a column list purely display-order
+  /// (existing pages that don't set `sortable` are unaffected).
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
 }) {
+  const toggleSort = (key: string) => {
+    if (!onSortChange) return;
+    if (!sort || sort.key !== key) return onSortChange({ key, dir: 'asc' });
+    if (sort.dir === 'asc') return onSortChange({ key, dir: 'desc' });
+    return onSortChange(null);
+  };
   return (
     <div className="card overflow-hidden">
       {(onSearchChange || filters || headerActions) && (
@@ -67,7 +85,22 @@ export function DataTable<T extends { id: string }>({
             <tr>
               {columns.map((col) => (
                 <th key={col.key} className={`whitespace-nowrap px-5 py-3 font-semibold ${col.className ?? ''}`}>
-                  {col.header}
+                  {col.sortable && onSortChange ? (
+                    <button type="button" onClick={() => toggleSort(col.key)} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                      {col.header}
+                      {sort?.key === col.key ? (
+                        sort.dir === 'asc' ? (
+                          <ArrowUp size={12} />
+                        ) : (
+                          <ArrowDown size={12} />
+                        )
+                      ) : (
+                        <ArrowUpDown size={12} className="text-slate-300 dark:text-slate-600" />
+                      )}
+                    </button>
+                  ) : (
+                    col.header
+                  )}
                 </th>
               ))}
               {rowActions && <th className="whitespace-nowrap px-5 py-3 text-right font-semibold">Actions</th>}

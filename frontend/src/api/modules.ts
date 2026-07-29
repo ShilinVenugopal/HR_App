@@ -13,11 +13,20 @@ export const projectsApi = createResourceApi<Project>('/projects');
 
 export interface MasterItem {
   id: string;
+  code?: string;
   name: string;
   status: 'ACTIVE' | 'INACTIVE';
 }
 export const departmentsApi = createResourceApi<MasterItem>('/departments');
 export const designationsApi = createResourceApi<MasterItem>('/designations');
+
+export interface CostCode {
+  id: string;
+  code: string;
+  name: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+export const costCodesApi = createResourceApi<CostCode>('/cost-codes');
 
 export interface AppUser {
   id: string;
@@ -516,4 +525,71 @@ export const communicationApi = {
     apiClient.get(`/communication/candidates/${candidateId}/timeline`).then((r) => r.data.data as CommunicationMessageLog[]),
   stats: () => apiClient.get('/communication/stats').then((r) => r.data.data as CommunicationStats),
   config: () => apiClient.get('/communication/config').then((r) => r.data.data as CommunicationConfig),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Inventory
+// ─────────────────────────────────────────────────────────────────────────
+
+export type InventoryUnit = 'NOS' | 'MTR' | 'LOT' | 'EA' | 'KG' | 'TON' | 'LITER';
+
+export interface InventoryItem {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string } | null;
+  costCodeId: string;
+  costCode?: { id: string; code: string; name: string } | null;
+  itemDescription: string;
+  unit: InventoryUnit;
+  workingQuantity: string | number;
+  nonWorkingQuantity: string | number;
+  remarks?: string | null;
+  date: string;
+  createdById?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface BulkInventoryRowInput {
+  rowNumber: number;
+  projectId: string;
+  costCodeId: string;
+  itemDescription: string;
+  unit: InventoryUnit;
+  workingQuantity: number;
+  nonWorkingQuantity: number;
+  remarks?: string | null;
+  date?: string | null;
+}
+
+export interface InventoryDuplicateMatch {
+  id: string;
+  projectId: string;
+  costCodeId: string;
+  itemDescription: string;
+  project?: { id: string; projectName: string } | null;
+  costCode?: { id: string; code: string; name: string } | null;
+}
+
+export interface InventoryBulkImportFailure {
+  rowNumber: number;
+  itemDescription: string;
+  reason: string;
+}
+
+export interface InventoryBulkImportResult {
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  failures: InventoryBulkImportFailure[];
+}
+
+export const inventoryApi = {
+  ...createResourceApi<InventoryItem>('/inventory'),
+  checkDuplicates: (items: { projectId: string; costCodeId: string; itemDescription: string }[]) =>
+    apiClient.post('/inventory/bulk/check-duplicates', { items }).then((r) => r.data.data as InventoryDuplicateMatch[]),
+  bulkImport: (rows: BulkInventoryRowInput[], duplicateStrategy: 'skip' | 'update') =>
+    apiClient.post('/inventory/bulk/import', { rows, duplicateStrategy }).then((r) => r.data.data as InventoryBulkImportResult),
 };

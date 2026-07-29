@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { departmentsApi, designationsApi, MasterItem, Project, projectsApi } from '../api/modules';
+import { costCodesApi, departmentsApi, designationsApi, MasterItem, Project, projectsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -15,6 +15,7 @@ const TABS = [
   { key: 'projects', label: 'Projects' },
   { key: 'designations', label: 'Designations' },
   { key: 'departments', label: 'Departments' },
+  { key: 'costCodes', label: 'Cost Codes' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       {tab === 'projects' && <ProjectsTab isSuperAdmin={isSuperAdmin} />}
       {tab === 'designations' && <MasterTab entity="designation" />}
       {tab === 'departments' && <MasterTab entity="department" />}
+      {tab === 'costCodes' && <MasterTab entity="costCode" />}
     </div>
   );
 }
@@ -193,17 +195,18 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   );
 }
 
-function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
+function MasterTab({ entity }: { entity: 'designation' | 'department' | 'costCode' }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const api = entity === 'designation' ? designationsApi : departmentsApi;
-  const queryKey = entity === 'designation' ? 'designations' : 'departments';
+  const api = entity === 'designation' ? designationsApi : entity === 'department' ? departmentsApi : costCodesApi;
+  const queryKey = entity === 'designation' ? 'designations' : entity === 'department' ? 'departments' : 'cost-codes';
+  const hasCode = entity === 'costCode';
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<MasterItem | null>(null);
-  const [form, setForm] = useState<{ name: string; status: 'ACTIVE' | 'INACTIVE' }>({ name: '', status: 'ACTIVE' });
+  const [form, setForm] = useState<{ code: string; name: string; status: 'ACTIVE' | 'INACTIVE' }>({ code: '', name: '', status: 'ACTIVE' });
   const [deleteTarget, setDeleteTarget] = useState<MasterItem | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -213,12 +216,12 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', status: 'ACTIVE' });
+    setForm({ code: '', name: '', status: 'ACTIVE' });
     setModalOpen(true);
   };
   const openEdit = (item: MasterItem) => {
     setEditing(item);
-    setForm({ name: item.name, status: item.status });
+    setForm({ code: item.code ?? '', name: item.name, status: item.status });
     setModalOpen(true);
   };
 
@@ -228,7 +231,10 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
   };
 
   const saveMutation = useMutation({
-    mutationFn: async () => (editing ? api.update(editing.id, form) : api.create(form)),
+    mutationFn: async () => {
+      const payload = hasCode ? form : { name: form.name, status: form.status };
+      return editing ? api.update(editing.id, payload) : api.create(payload);
+    },
     onSuccess: () => {
       toast.success('Saved successfully');
       setModalOpen(false);
@@ -248,11 +254,12 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
   });
 
   const columns: Column<MasterItem>[] = [
+    ...(hasCode ? [{ key: 'code', header: 'Code', render: (r: MasterItem) => <span className="font-mono text-xs">{r.code}</span> } as Column<MasterItem>] : []),
     { key: 'name', header: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
   ];
 
-  const label = entity === 'designation' ? 'Designation' : 'Department';
+  const label = entity === 'designation' ? 'Designation' : entity === 'department' ? 'Department' : 'Cost Code';
 
   return (
     <div>
@@ -307,6 +314,12 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
         }
       >
         <div className="space-y-4">
+          {hasCode && (
+            <div>
+              <label className="label">Code *</label>
+              <input className="input font-mono" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} />
+            </div>
+          )}
           <div>
             <label className="label">Name *</label>
             <input className="input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />

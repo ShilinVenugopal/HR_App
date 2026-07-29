@@ -4,8 +4,10 @@ import { buildPaginationMeta, sendSuccess } from '../../utils/apiResponse';
 import { parsePagination } from '../../utils/pagination';
 import * as mastersService from './masters.service';
 
-function entityFrom(req: Request): 'department' | 'designation' {
-  return req.baseUrl.includes('designations') ? 'designation' : 'department';
+function entityFrom(req: Request): 'department' | 'designation' | 'costCode' {
+  if (req.baseUrl.includes('designations')) return 'designation';
+  if (req.baseUrl.includes('cost-codes')) return 'costCode';
+  return 'department';
 }
 
 export const listMastersHandler = asyncHandler(async (req: Request, res: Response) => {
