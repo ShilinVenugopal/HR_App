@@ -115,6 +115,24 @@ async function main() {
     await prisma.designation.upsert({ where: { name }, update: {}, create: { name } });
   }
 
+  // ── Cost Codes (Procurement) ────────────────────────────────────────
+  // The 8 fixed categories from the client's real PUR-01.xlsx purchase
+  // requisition template (sections A-H). PR items reference these; the
+  // printed PR groups items by category via this same relation.
+  const costCodes = [
+    { code: 'F05A', name: 'Tools Tackles/Power Tools' },
+    { code: 'F05D', name: 'Machineries (Fixed Assets)' },
+    { code: 'F07A', name: 'Consumable' },
+    { code: 'F08', name: 'Safety Items' },
+    { code: 'F09', name: 'Construction Power' },
+    { code: 'F10', name: 'Site Facilities' },
+    { code: 'F11', name: 'PC, Printer Etc' },
+    { code: 'F12', name: 'GH Items' },
+  ];
+  for (const cc of costCodes) {
+    await prisma.costCode.upsert({ where: { code: cc.code }, update: { name: cc.name }, create: cc });
+  }
+
   // ── Super Administrator ────────────────────────────────────────────
   const superAdminPasswordHash = await bcrypt.hash(SUPER_ADMIN_PASSWORD, SALT_ROUNDS);
   const superAdmin = await prisma.user.upsert({
@@ -227,6 +245,120 @@ async function main() {
     projectIdByName,
   });
 
+  // ── Procurement roles ──────────────────────────────────────────────
+  // Modules/pages for these don't exist yet (built out phase-by-phase in
+  // later work) — seeding the accounts + permission rows now means the
+  // Permission Matrix Editor already shows the new modules, and each
+  // account is ready to use the instant its module ships.
+
+  await upsertUser({
+    name: 'Procurement Admin - Multi-Site',
+    email: 'procurement.admin@foraysgroup.com',
+    mobile: '+919999999906',
+    role: Role.PROCUREMENT_ADMIN,
+    projectNames: ['RIL Jamnagar', 'IOCL Panipat', 'Nayara AMC'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PROCUREMENT_DASHBOARD: { view: true },
+      INVENTORY: { view: true, add: true, edit: true, delete: true, approve: true },
+      PURCHASE_REQUISITION: { view: true, add: true, edit: true, delete: true, approve: true },
+      PURCHASE_ORDER: { view: true, add: true, edit: true, delete: true, approve: true },
+      GRN: { view: true, add: true, edit: true, delete: true, approve: true },
+      REPORTS: { view: true },
+      SETTINGS: { view: true, add: true, edit: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Project Engineer - RIL Jamnagar',
+    email: 'project.engineer@foraysgroup.com',
+    mobile: '+919999999907',
+    role: Role.PROJECT_ENGINEER,
+    projectNames: ['RIL Jamnagar'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      PURCHASE_REQUISITION: { view: true, add: true, edit: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Store Incharge - IOCL Panipat',
+    email: 'store.incharge@foraysgroup.com',
+    mobile: '+919999999908',
+    role: Role.STORE_INCHARGE,
+    projectNames: ['IOCL Panipat'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true, add: true, edit: true },
+      PURCHASE_ORDER: { view: true },
+      GRN: { view: true, add: true, edit: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Purchase Team - OPaL',
+    email: 'purchase.team@foraysgroup.com',
+    mobile: '+919999999909',
+    role: Role.PURCHASE_TEAM,
+    projectNames: ['OPaL'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      PURCHASE_REQUISITION: { view: true },
+      PURCHASE_ORDER: { view: true, add: true, edit: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Accounts - HPCL',
+    email: 'accounts@foraysgroup.com',
+    mobile: '+919999999910',
+    role: Role.ACCOUNTS,
+    projectNames: ['HPCL'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PURCHASE_ORDER: { view: true },
+      GRN: { view: true },
+      REPORTS: { view: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Site User - Dangote',
+    email: 'site.user@foraysgroup.com',
+    mobile: '+919999999911',
+    role: Role.SITE_USER,
+    projectNames: ['Dangote'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      PURCHASE_REQUISITION: { view: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Approver - Nayara AMC',
+    email: 'approver@foraysgroup.com',
+    mobile: '+919999999912',
+    role: Role.APPROVER,
+    projectNames: ['Nayara AMC'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PROCUREMENT_DASHBOARD: { view: true },
+      PURCHASE_REQUISITION: { view: true, approve: true },
+      PURCHASE_ORDER: { view: true, approve: true },
+      GRN: { view: true, approve: true },
+    }),
+    projectIdByName,
+  });
+
   console.log('Seed complete.');
   console.log(`Super Admin login: ${SUPER_ADMIN_EMAIL} / ${SUPER_ADMIN_PASSWORD}`);
   console.log('Other seeded users share the same password (see .env SUPER_ADMIN_PASSWORD):');
@@ -235,6 +367,13 @@ async function main() {
   console.log('  project.manager@foraysgroup.com (Project Manager)');
   console.log('  finance@foraysgroup.com (Finance)');
   console.log('  normal.user@foraysgroup.com (Normal User, view-only)');
+  console.log('  procurement.admin@foraysgroup.com (Procurement Admin)');
+  console.log('  project.engineer@foraysgroup.com (Project Engineer)');
+  console.log('  store.incharge@foraysgroup.com (Store Incharge)');
+  console.log('  purchase.team@foraysgroup.com (Purchase Team)');
+  console.log('  accounts@foraysgroup.com (Accounts)');
+  console.log('  site.user@foraysgroup.com (Site User)');
+  console.log('  approver@foraysgroup.com (Approver)');
 }
 
 main()

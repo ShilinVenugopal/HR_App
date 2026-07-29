@@ -21,6 +21,13 @@ enum Role {
   PROJECT_MANAGER
   FINANCE
   NORMAL_USER
+  PROCUREMENT_ADMIN
+  PROJECT_ENGINEER
+  STORE_INCHARGE
+  PURCHASE_TEAM
+  ACCOUNTS
+  SITE_USER
+  APPROVER
 }
 
 enum UserStatus {
@@ -45,6 +52,11 @@ enum ModuleName {
   REPORTS
   SETTINGS
   USER_MANAGEMENT
+  INVENTORY
+  PURCHASE_REQUISITION
+  PURCHASE_ORDER
+  GRN
+  PROCUREMENT_DASHBOARD
 }
 
 enum CandidateStatus {
@@ -173,6 +185,93 @@ enum CommMessageStatus {
   CANCELLED
 }
 
+// ── Procurement ────────────────────────────────────────────────────────
+
+enum Unit {
+  NOS
+  MTR
+  LOT
+  EA
+  KG
+  TON
+  LITER
+}
+
+enum PRStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum GRNStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+/// Shared by Approval, Notification and DocumentSequence — a lightweight
+/// polymorphic discriminator rather than 3 near-identical enums.
+enum ProcurementDocType {
+  PR
+  PO
+  GRN
+}
+
+enum ApprovalAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  RETURN
+}
+
+enum InventoryTransactionType {
+  GRN_RECEIPT
+  MANUAL_ADJUSTMENT
+}
+
+enum NotificationType {
+  PR_SUBMITTED
+  PR_APPROVED
+  PR_REJECTED
+  PR_RETURNED
+  PO_PENDING
+  PO_APPROVED
+  PO_REJECTED
+  GRN_PENDING
+  GRN_APPROVED
+  GRN_REJECTED
+  GRN_RETURNED
+  INVENTORY_UPDATED
+}
+
+enum NotificationChannel {
+  DASHBOARD
+  EMAIL
+  WHATSAPP
+}
+
+/// Attachment owners include Vendor in addition to the 3 procurement
+/// documents (vendor quotations/certificates aren't tied to one PR/PO/GRN).
+enum AttachmentOwnerType {
+  PR
+  PO
+  GRN
+  VENDOR
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RBAC CORE
 // ─────────────────────────────────────────────────────────────────────────
@@ -206,6 +305,18 @@ model User {
   createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
   wageUploads          WageUpload[]            @relation("WageUploadedBy")
 
+  inventoryItemsCreated          InventoryItem[]        @relation("InventoryItemCreatedBy")
+  inventoryTransactionsPerformed InventoryTransaction[] @relation("InventoryTxPerformedBy")
+  prsRequested                   PurchaseRequisition[]  @relation("PRRequester")
+  prsApproving                   PurchaseRequisition[]  @relation("PRCurrentApprover")
+  posCreated                     PurchaseOrder[]        @relation("POCreatedBy")
+  posApproved                    PurchaseOrder[]        @relation("POApprovedBy")
+  grnsSubmitted                  GoodsReceivedNote[]    @relation("GRNSubmittedBy")
+  grnsApproving                  GoodsReceivedNote[]    @relation("GRNCurrentApprover")
+  approvalsActed                 Approval[]             @relation("ApprovalActedBy")
+  attachmentsUploaded            Attachment[]           @relation("AttachmentUploadedBy")
+  notifications                  Notification[]
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -231,6 +342,13 @@ model Project {
   commMessageLogs CommunicationMessageLog[]
   wageTemplate    WageProjectTemplate?
   wageEntries     WageEntry[]
+
+  inventoryItems        InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  purchaseRequisitions  PurchaseRequisition[]
+  purchaseOrders        PurchaseOrder[]
+  goodsReceivedNotes    GoodsReceivedNote[]
+  documentSequences     DocumentSequence[]
 
   @@index([status])
   @@map("projects")
@@ -326,7 +444,8 @@ model Department {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  employees Employee[]
+  employees            Employee[]
+  purchaseRequisitions PurchaseRequisition[]
 
   @@map("departments")
 }
@@ -772,4 +891,382 @@ model WageEntry {
   @@index([templateId, month, year])
   @@index([projectId])
   @@map("wage_entries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Inventory, Purchase Requisition, Purchase Order, GRN
+//
+// Every operational table here carries projectId (the one architectural
+// rule — see CLAUDE.md) and is scoped via the same projectScopeWhere /
+// assertProjectAccess primitives used by every other module. Approver
+// eligibility is NOT a separate "approval hierarchy" table — it's exactly
+// the existing Permission.canApprove flag on PURCHASE_REQUISITION /
+// PURCHASE_ORDER / GRN, scoped to the approver's assigned projects. "Super
+// Admin configures the approval hierarchy" from the design brief means
+// Super Admin grants canApprove per user per module in User Management,
+// same mechanism every other module already uses — no new config table.
+//
+// CostCode is a master table (like Department/Designation) — the 8
+// categories (F05A/F05D/F07A/F08/F09/F10/F11/F12) from the client's real
+// PUR-01.xlsx purchase-requisition template. PR items reference it via
+// costCodeId; the printed PR groups items by category using that same
+// relation, so the fixed A–H section layout never has to be duplicated
+// as data.
+//
+// Approval, Notification and Attachment are intentionally NOT modeled
+// with a Prisma relation back to PurchaseRequisition/PurchaseOrder/
+// GoodsReceivedNote — they're polymorphic across the 3 document types
+// (plus Vendor for Attachment), which Prisma can't express as a typed
+// relation. They carry (documentType/ownerType, documentId/ownerId) and
+// are looked up by that composite index instead.
+// ─────────────────────────────────────────────────────────────────────────
+
+model CostCode {
+  id        String        @id @default(uuid())
+  code      String        @unique
+  name      String
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  inventoryItems InventoryItem[]
+  prItems        PurchaseRequisitionItem[]
+  poItems        PurchaseOrderItem[]
+  grnItems       GoodsReceivedNoteItem[]
+
+  @@map("cost_codes")
+}
+
+model Vendor {
+  id            String   @id @default(uuid())
+  name          String
+  address       String?
+  gstNumber     String?
+  email         String?
+  phone         String?
+  contactPerson String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([name])
+  @@map("vendors")
+}
+
+model InventoryItem {
+  id                 String   @id @default(uuid())
+  projectId          String
+  costCodeId         String
+  itemDescription    String
+  unit               Unit
+  workingQuantity    Decimal  @default(0) @db.Decimal(14, 2)
+  nonWorkingQuantity Decimal  @default(0) @db.Decimal(14, 2)
+  remarks            String?
+  date               DateTime @default(now())
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project      Project                @relation(fields: [projectId], references: [id])
+  costCode     CostCode               @relation(fields: [costCodeId], references: [id])
+  createdBy    User?                  @relation("InventoryItemCreatedBy", fields: [createdById], references: [id])
+  transactions InventoryTransaction[]
+
+  @@unique([projectId, costCodeId, itemDescription])
+  @@index([projectId])
+  @@index([costCodeId])
+  @@map("inventory_items")
+}
+
+/// Every change to an inventory item's quantities — a manual adjustment or
+/// a GRN receipt — is logged here, independent of the generic AuditLog
+/// (which tracks security/permission events, not domain-level quantity
+/// history). "Inventory transaction history maintained" from the design
+/// brief refers to this table.
+model InventoryTransaction {
+  id                  String                   @id @default(uuid())
+  inventoryItemId     String
+  projectId           String
+  type                InventoryTransactionType
+  workingQtyChange    Decimal                  @default(0) @db.Decimal(14, 2)
+  nonWorkingQtyChange Decimal                  @default(0) @db.Decimal(14, 2)
+  workingQtyAfter     Decimal                  @db.Decimal(14, 2)
+  nonWorkingQtyAfter  Decimal                  @db.Decimal(14, 2)
+  referenceGrnId      String?
+  remarks             String?
+  performedById       String?
+  createdAt           DateTime                 @default(now())
+
+  inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id])
+  project       Project            @relation(fields: [projectId], references: [id])
+  performedBy   User?              @relation("InventoryTxPerformedBy", fields: [performedById], references: [id])
+  grn           GoodsReceivedNote? @relation(fields: [referenceGrnId], references: [id])
+
+  @@index([inventoryItemId])
+  @@index([projectId])
+  @@index([referenceGrnId])
+  @@map("inventory_transactions")
+}
+
+/// requestNumber is the system's own auto-generated reference (via
+/// DocumentSequence, unique per project) used everywhere in-app for
+/// identification/search. prNumber is the separate, manually-typed field
+/// on the printed form ("PURCHASE REQ. NO. :-" in PUR-01.xlsx) — site
+/// staff's own paper-based numbering, which the design brief also called
+/// out as manual entry. Both exist because the brief asked for both.
+model PurchaseRequisition {
+  id                String    @id @default(uuid())
+  projectId         String
+  requestNumber     String    @unique
+  prNumber          String?
+  requesterId       String
+  departmentId      String?
+  status            PRStatus  @default(DRAFT)
+  currentApproverId String?
+  submittedAt       DateTime?
+  decidedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project         Project                   @relation(fields: [projectId], references: [id])
+  department      Department?               @relation(fields: [departmentId], references: [id])
+  requester       User                      @relation("PRRequester", fields: [requesterId], references: [id])
+  currentApprover User?                     @relation("PRCurrentApprover", fields: [currentApproverId], references: [id])
+  items           PurchaseRequisitionItem[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([requesterId])
+  @@map("purchase_requisitions")
+}
+
+/// Columns mirror PUR-01.xlsx exactly: SR.NO (row order), Cost Code,
+/// MATERIAL NAME, UNIT, TOTAL REQ. QTY, MAKE, MODEL NO., QTY AVAILABLE AT
+/// SITE, BAL. QTY REQ., REMARKS. The template's 8 fixed category sections
+/// (A–H) are not separate stored data — they fall out of grouping items by
+/// costCode (each category = one cost code, e.g. F05A = "Tools Tackles/
+/// Power Tools").
+model PurchaseRequisitionItem {
+  id                 String   @id @default(uuid())
+  prId               String
+  costCodeId         String
+  materialName       String
+  unit               Unit
+  totalReqQty        Decimal  @db.Decimal(14, 2)
+  make               String?
+  modelNo            String?
+  qtyAvailableAtSite Decimal  @default(0) @db.Decimal(14, 2)
+  balQtyReq          Decimal  @db.Decimal(14, 2)
+  remarks            String?
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pr       PurchaseRequisition @relation(fields: [prId], references: [id], onDelete: Cascade)
+  costCode CostCode            @relation(fields: [costCodeId], references: [id])
+
+  @@index([prId])
+  @@index([costCodeId])
+  @@map("pr_items")
+}
+
+/// poNumber is manually entered (per the design brief's explicit override
+/// for PO, unlike PR's dual-number approach) — unique per project, not
+/// globally, since different sites may reuse their own paper numbering.
+model PurchaseOrder {
+  id                    String    @id @default(uuid())
+  projectId             String
+  prId                  String?
+  poNumber              String
+  vendorId              String
+  enquiryNoDate         String?
+  quotationNo           String?
+  ref                   String?
+  jobNo                 String?
+  deliveryDate          DateTime?
+  packingForwarding     Decimal   @default(0) @db.Decimal(12, 2)
+  transportationCharges Decimal   @default(0) @db.Decimal(12, 2)
+  taxesAndDuties        Decimal   @default(0) @db.Decimal(12, 2)
+  subtotal              Decimal   @default(0) @db.Decimal(14, 2)
+  grandTotal            Decimal   @default(0) @db.Decimal(14, 2)
+  billingAddress        String?
+  billingGstNumber      String?
+  /// Overrides of the fixed Terms 1-11 (defaults live in code, not DB) —
+  /// only populated when an authorized user actually edits a term.
+  termsAndConditions    Json?
+  signatureImageUrl     String?
+  authorizedName        String?
+  authorizedDesignation String?
+  status                POStatus  @default(DRAFT)
+  createdById           String
+  approvedById          String?
+  approvedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  project    Project              @relation(fields: [projectId], references: [id])
+  pr         PurchaseRequisition? @relation(fields: [prId], references: [id])
+  vendor     Vendor               @relation(fields: [vendorId], references: [id])
+  createdBy  User                 @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedBy User?                @relation("POApprovedBy", fields: [approvedById], references: [id])
+  items      PurchaseOrderItem[]
+  grns       GoodsReceivedNote[]
+
+  @@unique([projectId, poNumber])
+  @@index([projectId])
+  @@index([vendorId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(uuid())
+  poId          String
+  costCodeId    String?
+  description   String
+  unit          Unit
+  qty           Decimal  @db.Decimal(14, 2)
+  rate          Decimal  @db.Decimal(14, 2)
+  amount        Decimal  @default(0) @db.Decimal(14, 2)
+  gstPercent    Decimal  @default(0) @db.Decimal(5, 2)
+  gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
+  extendedPrice Decimal  @default(0) @db.Decimal(14, 2)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  po       PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  costCode CostCode?     @relation(fields: [costCodeId], references: [id])
+
+  @@index([poId])
+  @@map("po_items")
+}
+
+/// grnNumber is auto-generated (via DocumentSequence, unique per project)
+/// — the design brief's document-numbering section didn't override GRN
+/// with a manual-entry instruction the way it did for PR/PO.
+model GoodsReceivedNote {
+  id                String    @id @default(uuid())
+  projectId         String
+  poId              String
+  grnNumber         String    @unique
+  supplierName      String?
+  receiptDate       DateTime?
+  challanNumber     String?
+  challanDate       DateTime?
+  lrNumber          String?
+  lrDate            DateTime?
+  transporterName   String?
+  status            GRNStatus @default(DRAFT)
+  submittedById     String?
+  currentApproverId String?
+  submittedAt       DateTime?
+  decidedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project               Project                 @relation(fields: [projectId], references: [id])
+  po                    PurchaseOrder           @relation(fields: [poId], references: [id])
+  submittedBy           User?                   @relation("GRNSubmittedBy", fields: [submittedById], references: [id])
+  currentApprover       User?                   @relation("GRNCurrentApprover", fields: [currentApproverId], references: [id])
+  items                 GoodsReceivedNoteItem[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@index([projectId])
+  @@index([poId])
+  @@index([status])
+  @@map("goods_received_notes")
+}
+
+model GoodsReceivedNoteItem {
+  id                String   @id @default(uuid())
+  grnId             String
+  costCodeId        String?
+  description       String
+  unit              Unit
+  qtyAsPerChallan   Decimal  @db.Decimal(14, 2)
+  actualQtyReceived Decimal  @db.Decimal(14, 2)
+  acceptedQty       Decimal  @db.Decimal(14, 2)
+  rejectedQty       Decimal  @default(0) @db.Decimal(14, 2)
+  remarks           String?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  grn      GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  costCode CostCode?         @relation(fields: [costCodeId], references: [id])
+
+  @@index([grnId])
+  @@map("grn_items")
+}
+
+/// Generic approval-history log shared by PR/PO/GRN (documentType +
+/// documentId, not a Prisma relation — see file header comment). One row
+/// per SUBMIT/APPROVE/REJECT/RETURN action.
+model Approval {
+  id           String             @id @default(uuid())
+  documentType ProcurementDocType
+  documentId   String
+  action       ApprovalAction
+  actedById    String?
+  comments     String?
+  createdAt    DateTime           @default(now())
+
+  actedBy User? @relation("ApprovalActedBy", fields: [actedById], references: [id])
+
+  @@index([documentType, documentId])
+  @@map("approvals")
+}
+
+model Notification {
+  id           String              @id @default(uuid())
+  userId       String
+  type         NotificationType
+  title        String
+  message      String
+  documentType ProcurementDocType?
+  documentId   String?
+  channel      NotificationChannel @default(DASHBOARD)
+  isRead       Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model Attachment {
+  id           String              @id @default(uuid())
+  ownerType    AttachmentOwnerType
+  ownerId      String
+  fileName     String
+  fileUrl      String
+  fileType     String?
+  uploadedById String?
+  createdAt    DateTime            @default(now())
+
+  uploadedBy User? @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([ownerType, ownerId])
+  @@map("attachments")
+}
+
+/// Atomic per-project counters backing requestNumber (PR) and grnNumber
+/// (GRN) generation. PO is excluded — poNumber is fully manual.
+model DocumentSequence {
+  id         String             @id @default(uuid())
+  projectId  String
+  type       ProcurementDocType
+  lastNumber Int                @default(0)
+  updatedAt  DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, type])
+  @@map("document_sequences")
 }
