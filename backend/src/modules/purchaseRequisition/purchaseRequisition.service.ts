@@ -8,6 +8,7 @@ import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
 import { nextDocumentNumber } from '../../utils/documentSequence';
 import { listEligibleApprovers } from '../../utils/approvers';
+import { createNotification } from '../notifications/notifications.service';
 
 const includeRelations = {
   project: { select: { id: true, projectName: true, projectNumber: true } },
@@ -237,6 +238,15 @@ export async function submitPurchaseRequisition(req: Request, id: string, approv
     data: { documentType: 'PR', documentId: id, action: 'SUBMIT', actedById: req.user!.sub, comments: null },
   });
 
+  await createNotification({
+    userId: approverId,
+    type: 'PR_SUBMITTED',
+    title: 'Purchase Requisition pending your approval',
+    message: `PR ${pr.requestNumber} is waiting for your approval.`,
+    documentType: 'PR',
+    documentId: id,
+  });
+
   await recordAuditLog({
     userId: req.user!.sub,
     action: 'UPDATE',
@@ -256,6 +266,12 @@ function assertIsCurrentApprover(req: Request, pr: { currentApproverId: string |
     throw ApiError.forbidden('Only the assigned approver (or a Super Admin) may act on this Purchase Requisition');
   }
 }
+
+const NOTIFICATION_BY_ACTION: Record<'APPROVE' | 'REJECT' | 'RETURN', { type: 'PR_APPROVED' | 'PR_REJECTED' | 'PR_RETURNED'; verb: string }> = {
+  APPROVE: { type: 'PR_APPROVED', verb: 'approved' },
+  REJECT: { type: 'PR_REJECTED', verb: 'rejected' },
+  RETURN: { type: 'PR_RETURNED', verb: 'returned to you' },
+};
 
 export async function decidePurchaseRequisition(
   req: Request,
@@ -280,6 +296,16 @@ export async function decidePurchaseRequisition(
 
   await prisma.approval.create({
     data: { documentType: 'PR', documentId: id, action, actedById: req.user!.sub, comments: comments || null },
+  });
+
+  const notif = NOTIFICATION_BY_ACTION[action];
+  await createNotification({
+    userId: existing.requesterId,
+    type: notif.type,
+    title: `Purchase Requisition ${notif.verb}`,
+    message: `PR ${pr.requestNumber} has been ${notif.verb}.`,
+    documentType: 'PR',
+    documentId: id,
   });
 
   await recordAuditLog({

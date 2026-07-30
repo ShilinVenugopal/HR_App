@@ -4,6 +4,7 @@ import { AuditLogRow, auditLogsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Badge } from '../components/common/Badge';
+import { ALL_MODULES, MODULE_LABELS } from '../types';
 
 const ACTIONS = [
   'LOGIN',
@@ -21,7 +22,7 @@ const ACTIONS = [
 export default function AuditLogs() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ action: '', status: '', dateFrom: '', dateTo: '' });
+  const [filters, setFilters] = useState({ action: '', module: '', status: '', dateFrom: '', dateTo: '' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['audit-logs', page, search, filters],
@@ -82,6 +83,14 @@ export default function AuditLogs() {
               {ACTIONS.map((a) => (
                 <option key={a} value={a}>
                   {a.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+            <select className="input w-auto" value={filters.module} onChange={(e) => setFilters((f) => ({ ...f, module: e.target.value }))}>
+              <option value="">All Modules</option>
+              {ALL_MODULES.map((m) => (
+                <option key={m} value={m}>
+                  {MODULE_LABELS[m]}
                 </option>
               ))}
             </select>

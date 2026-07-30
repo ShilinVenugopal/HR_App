@@ -301,6 +301,15 @@ export async function submitPurchaseOrder(req: Request, id: string, approverId: 
     data: { documentType: 'PO', documentId: id, action: 'SUBMIT', actedById: req.user!.sub, comments: null },
   });
 
+  await createNotification({
+    userId: approverId,
+    type: 'PO_PENDING',
+    title: 'Purchase Order pending your approval',
+    message: `PO ${po.poNumber} is waiting for your approval.`,
+    documentType: 'PO',
+    documentId: id,
+  });
+
   await recordAuditLog({
     userId: req.user!.sub,
     action: 'UPDATE',
@@ -363,6 +372,26 @@ export async function decidePurchaseOrder(req: Request, id: string, action: 'APP
         documentId: id,
       });
     }
+  } else if (action === 'APPROVE') {
+    // Not sourced from a PR (a direct/walk-in PO) — the creator is the only
+    // interested party to notify.
+    await createNotification({
+      userId: existing.createdById,
+      type: 'PO_APPROVED',
+      title: 'Purchase Order Approved',
+      message: `PO ${po.poNumber} has been approved.`,
+      documentType: 'PO',
+      documentId: id,
+    });
+  } else {
+    await createNotification({
+      userId: existing.createdById,
+      type: 'PO_REJECTED',
+      title: 'Purchase Order Rejected',
+      message: `PO ${po.poNumber} has been rejected.`,
+      documentType: 'PO',
+      documentId: id,
+    });
   }
 
   return po;

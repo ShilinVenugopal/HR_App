@@ -376,6 +376,28 @@ export const dashboardApi = {
   summary: () => apiClient.get('/dashboard/summary').then((r) => r.data.data),
 };
 
+export interface ProcurementDashboardSummary {
+  cards: {
+    pendingPrApprovals: number;
+    pendingPoApprovals: number;
+    pendingGrnApprovals: number;
+    totalInventoryItems: number;
+    totalWorkingQuantity: number;
+    totalNonWorkingQuantity: number;
+  };
+  charts: {
+    prStatus: { status: string; count: number }[];
+    poStatus: { status: string; count: number }[];
+    grnStatus: { status: string; count: number }[];
+    spendTrend: { month: string; total: number }[];
+    topVendors: { vendorId: string; vendorName: string; totalValue: number }[];
+  };
+}
+
+export const procurementDashboardApi = {
+  summary: (): Promise<ProcurementDashboardSummary> => apiClient.get('/procurement-dashboard/summary').then((r) => r.data.data),
+};
+
 export const reportsApi = {
   manpower: () => apiClient.get('/reports/manpower').then((r) => r.data.data),
   employees: () => apiClient.get('/reports/employees').then((r) => r.data.data),
@@ -383,6 +405,8 @@ export const reportsApi = {
     apiClient.get('/reports/attendance', { params }).then((r) => r.data.data),
   recruitment: () => apiClient.get('/reports/recruitment').then((r) => r.data.data),
   payroll: (params?: { month?: number; year?: number }) => apiClient.get('/reports/payroll', { params }).then((r) => r.data.data),
+  procurementSummary: () => apiClient.get('/reports/procurement-summary').then((r) => r.data.data),
+  vendorSpend: () => apiClient.get('/reports/vendor-spend').then((r) => r.data.data),
 };
 
 export interface AuditLogRow {

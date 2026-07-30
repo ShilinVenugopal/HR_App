@@ -110,3 +110,48 @@ export async function payrollReport(req: Request, month?: number, year?: number)
 
   return { rows, totals };
 }
+
+export async function procurementSummaryReport(req: Request) {
+  const where = projectScopeWhere(req);
+
+  const [prByStatus, poByStatus, grnByStatus, inventoryAgg, inventoryItemCount] = await Promise.all([
+    prisma.purchaseRequisition.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    prisma.purchaseOrder.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    prisma.goodsReceivedNote.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    prisma.inventoryItem.aggregate({ where, _sum: { workingQuantity: true, nonWorkingQuantity: true } }),
+    prisma.inventoryItem.count({ where }),
+  ]);
+
+  return {
+    prByStatus: prByStatus.map((r) => ({ status: r.status, count: r._count._all })),
+    poByStatus: poByStatus.map((r) => ({ status: r.status, count: r._count._all })),
+    grnByStatus: grnByStatus.map((r) => ({ status: r.status, count: r._count._all })),
+    inventory: {
+      totalItems: inventoryItemCount,
+      totalWorkingQuantity: Number(inventoryAgg._sum.workingQuantity ?? 0),
+      totalNonWorkingQuantity: Number(inventoryAgg._sum.nonWorkingQuantity ?? 0),
+    },
+  };
+}
+
+export async function vendorSpendReport(req: Request) {
+  const where = { ...projectScopeWhere(req), status: 'APPROVED' as const };
+
+  const grouped = await prisma.purchaseOrder.groupBy({
+    by: ['vendorId'],
+    where,
+    _sum: { grandTotal: true },
+    _count: { _all: true },
+    orderBy: { _sum: { grandTotal: 'desc' } },
+  });
+
+  const vendors = await prisma.vendor.findMany({ where: { id: { in: grouped.map((g) => g.vendorId) } }, select: { id: true, name: true, gstNumber: true } });
+  const vendorMap = new Map(vendors.map((v) => [v.id, v]));
+
+  return grouped.map((g) => ({
+    vendorId: g.vendorId,
+    vendor: vendorMap.get(g.vendorId) ?? null,
+    poCount: g._count._all,
+    totalValue: Number(g._sum.grandTotal ?? 0),
+  }));
+}

@@ -432,6 +432,17 @@ export async function updateInventoryFromGrn(req: Request, id: string, meta?: Re
     });
   });
 
+  if (existing.submittedById) {
+    await createNotification({
+      userId: existing.submittedById,
+      type: 'INVENTORY_UPDATED',
+      title: 'Inventory updated from GRN',
+      message: `Inventory has been updated from GRN ${existing.grnNumber}.`,
+      documentType: 'GRN',
+      documentId: id,
+    });
+  }
+
   await recordAuditLog({
     userId: req.user!.sub,
     action: 'UPDATE',
