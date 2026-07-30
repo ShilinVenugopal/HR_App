@@ -133,6 +133,17 @@ async function main() {
     await prisma.costCode.upsert({ where: { code: cc.code }, update: { name: cc.name }, create: cc });
   }
 
+  // ── Vendors (Procurement) ────────────────────────────────────────────
+  const vendors = [
+    { name: 'Bosch Power Tools India Pvt Ltd', address: 'Adugodi, Bengaluru, Karnataka, India', gstNumber: '29AABCB1234M1Z5', email: 'sales@boschtools.example', phone: '+919876500001', contactPerson: 'Rajesh Kumar' },
+    { name: 'Ashirvad Safety Equipments', address: 'Industrial Area, Vadodara, Gujarat, India', gstNumber: '24AABCA5678N1Z2', email: 'orders@ashirvadsafety.example', phone: '+919876500002', contactPerson: 'Priya Shah' },
+  ];
+  for (const v of vendors) {
+    const existing = await prisma.vendor.findFirst({ where: { name: v.name } });
+    if (existing) await prisma.vendor.update({ where: { id: existing.id }, data: v });
+    else await prisma.vendor.create({ data: v });
+  }
+
   // ── Super Administrator ────────────────────────────────────────────
   const superAdminPasswordHash = await bcrypt.hash(SUPER_ADMIN_PASSWORD, SALT_ROUNDS);
   const superAdmin = await prisma.user.upsert({

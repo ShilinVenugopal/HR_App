@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { costCodesApi, departmentsApi, designationsApi, MasterItem, Project, projectsApi } from '../api/modules';
+import { costCodesApi, departmentsApi, designationsApi, MasterItem, Project, projectsApi, Vendor, vendorsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -16,6 +16,7 @@ const TABS = [
   { key: 'designations', label: 'Designations' },
   { key: 'departments', label: 'Departments' },
   { key: 'costCodes', label: 'Cost Codes' },
+  { key: 'vendors', label: 'Vendors' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -45,6 +46,7 @@ export default function SettingsPage() {
       {tab === 'designations' && <MasterTab entity="designation" />}
       {tab === 'departments' && <MasterTab entity="department" />}
       {tab === 'costCodes' && <MasterTab entity="costCode" />}
+      {tab === 'vendors' && <VendorsTab />}
     </div>
   );
 }
@@ -349,6 +351,175 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' | 'costCod
         open={Boolean(deleteTarget)}
         title={`Delete ${label}`}
         message={`Delete "${deleteTarget?.name}"?`}
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
+    </div>
+  );
+}
+
+const emptyVendorForm = { name: '', address: '', gstNumber: '', email: '', phone: '', contactPerson: '', active: true };
+
+function VendorsTab() {
+  const { can } = useAuth();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Vendor | null>(null);
+  const [form, setForm] = useState(emptyVendorForm);
+  const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['vendors', page, search],
+    queryFn: () => vendorsApi.list({ page, pageSize: 10, search }),
+  });
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyVendorForm);
+    setModalOpen(true);
+  };
+  const openEdit = (v: Vendor) => {
+    setEditing(v);
+    setForm({
+      name: v.name,
+      address: v.address ?? '',
+      gstNumber: v.gstNumber ?? '',
+      email: v.email ?? '',
+      phone: v.phone ?? '',
+      contactPerson: v.contactPerson ?? '',
+      active: v.active,
+    });
+    setModalOpen(true);
+  };
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['vendors'] });
+    queryClient.invalidateQueries({ queryKey: ['lookup-vendors'] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => (editing ? vendorsApi.update(editing.id, form) : vendorsApi.create(form)),
+    onSuccess: () => {
+      toast.success('Saved successfully');
+      setModalOpen(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => vendorsApi.remove(id),
+    onSuccess: () => {
+      toast.success('Deleted successfully');
+      setDeleteTarget(null);
+      invalidate();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const columns: Column<Vendor>[] = [
+    { key: 'name', header: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
+    { key: 'contactPerson', header: 'Contact Person', render: (r) => r.contactPerson ?? '—' },
+    { key: 'phone', header: 'Phone', render: (r) => r.phone ?? '—' },
+    { key: 'email', header: 'Email', render: (r) => r.email ?? '—' },
+    { key: 'gstNumber', header: 'GST No.', render: (r) => r.gstNumber ?? '—' },
+    { key: 'active', header: 'Status', render: (r) => <Badge value={r.active ? 'ACTIVE' : 'INACTIVE'} /> },
+  ];
+
+  return (
+    <div>
+      <DataTable
+        columns={columns}
+        rows={data?.data ?? []}
+        loading={isLoading}
+        meta={data?.meta}
+        onPageChange={setPage}
+        search={search}
+        searchPlaceholder="Search vendors..."
+        onSearchChange={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+        headerActions={
+          can('PURCHASE_ORDER', 'add') && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Vendor
+            </button>
+          )
+        }
+        rowActions={(row) => (
+          <div className="flex justify-end gap-1">
+            {can('PURCHASE_ORDER', 'edit') && (
+              <button className="btn-ghost p-1.5" onClick={() => openEdit(row)}>
+                <Pencil size={15} />
+              </button>
+            )}
+            {can('PURCHASE_ORDER', 'delete') && (
+              <button className="btn-ghost p-1.5 text-red-500" onClick={() => setDeleteTarget(row)}>
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        )}
+      />
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'Edit Vendor' : 'Add Vendor'}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setModalOpen(false)}>
+              Cancel
+            </button>
+            <button className="btn-primary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+              Save
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Vendor Name *</label>
+            <input className="input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <textarea className="input" rows={2} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">GST Number</label>
+              <input className="input" value={form.gstNumber} onChange={(e) => setForm((f) => ({ ...f, gstNumber: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Contact Person</label>
+              <input className="input" value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input className="input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input className="input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} />
+            Active
+          </label>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete Vendor"
+        message={`Delete "${deleteTarget?.name}"? Vendors with linked Purchase Orders cannot be deleted — set them Inactive instead.`}
         confirmLabel="Delete"
         danger
         onCancel={() => setDeleteTarget(null)}

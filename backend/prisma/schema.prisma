@@ -1094,6 +1094,10 @@ model PurchaseOrder {
   projectId             String
   prId                  String?
   poNumber              String
+  /// The printed "P.O. Date" field — distinct from createdAt (which is
+  /// when the draft row was first saved); this is the date shown/used on
+  /// the document itself, and what Search-by-Month/Year filters against.
+  poDate                DateTime  @default(now())
   vendorId              String
   enquiryNoDate         String?
   quotationNo           String?
@@ -1147,6 +1151,7 @@ model PurchaseOrderItem {
   gstPercent    Decimal  @default(0) @db.Decimal(5, 2)
   gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
   extendedPrice Decimal  @default(0) @db.Decimal(14, 2)
+  remarks       String?
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

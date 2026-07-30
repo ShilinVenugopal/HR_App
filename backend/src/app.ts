@@ -17,6 +17,8 @@ import { costCodesRouter, departmentsRouter, designationsRouter } from './module
 import employeesRoutes from './modules/employees/employees.routes';
 import inventoryRoutes from './modules/inventory/inventory.routes';
 import purchaseRequisitionRoutes from './modules/purchaseRequisition/purchaseRequisition.routes';
+import vendorsRoutes from './modules/vendors/vendors.routes';
+import purchaseOrderRoutes from './modules/purchaseOrder/purchaseOrder.routes';
 import recruitmentRoutes from './modules/recruitment/recruitment.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import wagesRoutes from './modules/wages/wages.routes';
@@ -63,6 +65,8 @@ api.use('/cost-codes', costCodesRouter);
 api.use('/employees', employeesRoutes);
 api.use('/inventory', inventoryRoutes);
 api.use('/purchase-requisitions', purchaseRequisitionRoutes);
+api.use('/vendors', vendorsRoutes);
+api.use('/purchase-orders', purchaseOrderRoutes);
 api.use('/recruitment', recruitmentRoutes);
 api.use('/attendance', attendanceRoutes);
 api.use('/wages', wagesRoutes);

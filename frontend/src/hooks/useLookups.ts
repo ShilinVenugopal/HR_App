@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi } from '../api/modules';
+import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi, vendorsApi } from '../api/modules';
 
 export function useProjectOptions() {
   const { data } = useQuery({
@@ -31,6 +31,14 @@ export function useCostCodeOptions() {
     queryFn: () => costCodesApi.list({ pageSize: 100 }),
   });
   return (data?.data ?? []).map((c) => ({ value: c.id, label: `${c.code} — ${c.name}`, code: c.code, name: c.name }));
+}
+
+export function useVendorOptions() {
+  const { data } = useQuery({
+    queryKey: ['lookup-vendors'],
+    queryFn: () => vendorsApi.list({ pageSize: 200 }),
+  });
+  return (data?.data ?? []).filter((v) => v.active).map((v) => ({ value: v.id, label: v.name }));
 }
 
 export function useEmployeeOptions(projectId?: string) {

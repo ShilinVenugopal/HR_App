@@ -696,3 +696,131 @@ export const purchaseRequisitionsApi = {
     apiClient.post(`/purchase-requisitions/${id}/return`, { comments }).then((r) => r.data.data as PurchaseRequisition),
   unlock: (id: string) => apiClient.patch(`/purchase-requisitions/${id}/unlock`).then((r) => r.data.data as PurchaseRequisition),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Vendors
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface Vendor {
+  id: string;
+  name: string;
+  address?: string | null;
+  gstNumber?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  contactPerson?: string | null;
+  active: boolean;
+  createdAt: string;
+}
+export const vendorsApi = createResourceApi<Vendor>('/vendors');
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Purchase Order
+// ─────────────────────────────────────────────────────────────────────────
+
+export type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+
+export interface PurchaseOrderItem {
+  id: string;
+  costCodeId?: string | null;
+  costCode?: { id: string; code: string; name: string } | null;
+  description: string;
+  unit: InventoryUnit;
+  qty: string | number;
+  rate: string | number;
+  amount: string | number;
+  gstPercent: string | number;
+  gstAmount: string | number;
+  extendedPrice: string | number;
+  remarks?: string | null;
+  sortOrder: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  prId?: string | null;
+  pr?: { id: string; requestNumber: string; prNumber?: string | null } | null;
+  poNumber: string;
+  poDate: string;
+  vendorId: string;
+  vendor?: Vendor | null;
+  enquiryNoDate?: string | null;
+  quotationNo?: string | null;
+  ref?: string | null;
+  jobNo?: string | null;
+  deliveryDate?: string | null;
+  packingForwarding: string | number;
+  transportationCharges: string | number;
+  taxesAndDuties: string | number;
+  subtotal: string | number;
+  grandTotal: string | number;
+  billingAddress?: string | null;
+  billingGstNumber?: string | null;
+  termsAndConditions?: Record<string, string> | null;
+  signatureImageUrl?: string | null;
+  authorizedName?: string | null;
+  authorizedDesignation?: string | null;
+  status: POStatus;
+  createdById: string;
+  createdBy?: { id: string; name: string; email: string } | null;
+  approvedById?: string | null;
+  approvedBy?: { id: string; name: string; email: string } | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  items: PurchaseOrderItem[];
+  approvalHistory?: ApprovalRecord[];
+}
+
+export interface PoItemInput {
+  costCodeId?: string;
+  description: string;
+  unit: InventoryUnit;
+  qty: number;
+  rate: number;
+  gstPercent?: number;
+  remarks?: string;
+}
+
+export interface PoCreateInput {
+  projectId: string;
+  prId?: string;
+  poNumber: string;
+  poDate?: string;
+  vendorId: string;
+  enquiryNoDate?: string;
+  quotationNo?: string;
+  ref?: string;
+  jobNo?: string;
+  deliveryDate?: string;
+  packingForwarding?: number;
+  transportationCharges?: number;
+  taxesAndDuties?: number;
+  items: PoItemInput[];
+}
+
+export interface PoSettingsInput {
+  billingAddress?: string;
+  billingGstNumber?: string;
+  termsAndConditions?: Record<string, string>;
+  signatureImageUrl?: string;
+  authorizedName?: string;
+  authorizedDesignation?: string;
+}
+
+export const purchaseOrdersApi = {
+  ...createResourceApi<PurchaseOrder>('/purchase-orders'),
+  // Overridden for the same reason as purchaseRequisitionsApi: the
+  // create/update payload shape differs from PurchaseOrder's read shape.
+  create: (payload: PoCreateInput) => apiClient.post('/purchase-orders', payload).then((r) => r.data as { data: PurchaseOrder }),
+  update: (id: string, payload: Partial<PoCreateInput>) =>
+    apiClient.put(`/purchase-orders/${id}`, payload).then((r) => r.data as { data: PurchaseOrder }),
+  approvers: (projectId: string) => apiClient.get('/purchase-orders/approvers', { params: { projectId } }).then((r) => r.data.data as ApproverOption[]),
+  submit: (id: string, approverId: string) => apiClient.post(`/purchase-orders/${id}/submit`, { approverId }).then((r) => r.data.data as PurchaseOrder),
+  approve: (id: string, comments?: string) => apiClient.post(`/purchase-orders/${id}/approve`, { comments }).then((r) => r.data.data as PurchaseOrder),
+  reject: (id: string, comments: string) => apiClient.post(`/purchase-orders/${id}/reject`, { comments }).then((r) => r.data.data as PurchaseOrder),
+  unlock: (id: string) => apiClient.patch(`/purchase-orders/${id}/unlock`).then((r) => r.data.data as PurchaseOrder),
+  updateSettings: (id: string, payload: PoSettingsInput) =>
+    apiClient.patch(`/purchase-orders/${id}/settings`, payload).then((r) => r.data.data as PurchaseOrder),
+};

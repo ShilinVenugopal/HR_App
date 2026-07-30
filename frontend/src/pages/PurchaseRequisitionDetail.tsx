@@ -13,8 +13,8 @@ import { apiErrorMessage } from '../api/client';
 import { UNIT_OPTIONS, unitLabel } from '../utils/inventoryExcel';
 import { PR_CATEGORIES } from '../utils/purchaseRequisitionCategories';
 import { exportPurchaseRequisitionExcel } from '../utils/purchaseRequisitionExcel';
-import { SubmitForApprovalModal } from '../components/purchaseRequisition/SubmitForApprovalModal';
-import { DecisionModal, DecisionAction } from '../components/purchaseRequisition/DecisionModal';
+import { SubmitForApprovalModal } from '../components/procurement/SubmitForApprovalModal';
+import { DecisionModal, DecisionAction } from '../components/procurement/DecisionModal';
 
 interface DraftItem {
   key: string;
@@ -543,6 +543,9 @@ export default function PurchaseRequisitionDetail() {
       <SubmitForApprovalModal
         open={submitModalOpen}
         projectId={projectId}
+        queryKey="pr-approvers"
+        fetchApprovers={purchaseRequisitionsApi.approvers}
+        moduleLabel="Purchase Requisition"
         onClose={() => setSubmitModalOpen(false)}
         onConfirm={(approverId) => submitMutation.mutate(approverId)}
         submitting={submitMutation.isPending}
@@ -551,6 +554,7 @@ export default function PurchaseRequisitionDetail() {
       <DecisionModal
         open={decisionAction !== null}
         action={decisionAction ?? 'APPROVE'}
+        documentLabel="Purchase Requisition"
         onClose={() => setDecisionAction(null)}
         onConfirm={(comments) => decisionAction && decisionMutation.mutate({ action: decisionAction, comments })}
         submitting={decisionMutation.isPending}

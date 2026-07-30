@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../common/Modal';
-import { purchaseRequisitionsApi } from '../../api/modules';
+import { ApproverOption } from '../../api/modules';
 
 export function SubmitForApprovalModal({
   open,
   projectId,
+  queryKey,
+  fetchApprovers,
+  moduleLabel,
   onClose,
   onConfirm,
   submitting,
 }: {
   open: boolean;
   projectId: string;
+  /// react-query cache key prefix (e.g. 'pr-approvers' / 'po-approvers') so
+  /// PR and PO approver lists don't collide in the cache.
+  queryKey: string;
+  fetchApprovers: (projectId: string) => Promise<ApproverOption[]>;
+  moduleLabel: string;
   onClose: () => void;
   onConfirm: (approverId: string) => void;
   submitting?: boolean;
@@ -19,8 +27,8 @@ export function SubmitForApprovalModal({
   const [approverId, setApproverId] = useState('');
 
   const { data: approvers, isLoading } = useQuery({
-    queryKey: ['pr-approvers', projectId],
-    queryFn: () => purchaseRequisitionsApi.approvers(projectId),
+    queryKey: [queryKey, projectId],
+    queryFn: () => fetchApprovers(projectId),
     enabled: open && Boolean(projectId),
   });
 
@@ -60,8 +68,8 @@ export function SubmitForApprovalModal({
           </select>
         ) : (
           <p className="text-sm text-red-500">
-            No eligible approvers found for this project. A Super Admin must grant "Approve" permission on Purchase Requisition to at least
-            one user assigned to this project.
+            No eligible approvers found for this project. A Super Admin must grant "Approve" permission on {moduleLabel} to at least one
+            user assigned to this project.
           </p>
         )}
       </div>
