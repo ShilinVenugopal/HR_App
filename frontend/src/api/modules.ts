@@ -824,3 +824,128 @@ export const purchaseOrdersApi = {
   updateSettings: (id: string, payload: PoSettingsInput) =>
     apiClient.patch(`/purchase-orders/${id}/settings`, payload).then((r) => r.data.data as PurchaseOrder),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Goods Received Note (GRN)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type GRNStatus = 'DRAFT' | 'SUBMITTED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'RETURNED';
+
+export interface GoodsReceivedNoteItem {
+  id: string;
+  costCodeId?: string | null;
+  costCode?: { id: string; code: string; name: string } | null;
+  description: string;
+  unit: InventoryUnit;
+  qtyAsPerChallan: string | number;
+  actualQtyReceived: string | number;
+  acceptedQty: string | number;
+  rejectedQty: string | number;
+  remarks?: string | null;
+  sortOrder: number;
+}
+
+export interface GoodsReceivedNote {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  poId: string;
+  po?: { id: string; poNumber: string; poDate: string; vendor?: { id: string; name: string } | null } | null;
+  grnNumber: string;
+  grnDate: string;
+  supplierName?: string | null;
+  receiptDate?: string | null;
+  challanNumber?: string | null;
+  challanDate?: string | null;
+  lrNumber?: string | null;
+  lrDate?: string | null;
+  transporterName?: string | null;
+  status: GRNStatus;
+  submittedById?: string | null;
+  submittedBy?: { id: string; name: string; email: string } | null;
+  currentApproverId?: string | null;
+  currentApprover?: { id: string; name: string; email: string } | null;
+  submittedAt?: string | null;
+  decidedAt?: string | null;
+  inventoryUpdatedAt?: string | null;
+  inventoryUpdatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  items: GoodsReceivedNoteItem[];
+  approvalHistory?: ApprovalRecord[];
+}
+
+export interface GrnItemInput {
+  costCodeId?: string;
+  description: string;
+  unit: InventoryUnit;
+  qtyAsPerChallan: number;
+  actualQtyReceived: number;
+  acceptedQty: number;
+  remarks?: string;
+}
+
+export interface GrnCreateInput {
+  projectId: string;
+  poId: string;
+  supplierName?: string;
+  receiptDate?: string;
+  challanNumber?: string;
+  challanDate?: string;
+  lrNumber?: string;
+  lrDate?: string;
+  transporterName?: string;
+  items: GrnItemInput[];
+}
+
+export const grnsApi = {
+  ...createResourceApi<GoodsReceivedNote>('/grns'),
+  // Overridden for the same reason as purchaseRequisitionsApi/purchaseOrdersApi.
+  create: (payload: GrnCreateInput) => apiClient.post('/grns', payload).then((r) => r.data as { data: GoodsReceivedNote }),
+  update: (id: string, payload: Partial<GrnCreateInput>) =>
+    apiClient.put(`/grns/${id}`, payload).then((r) => r.data as { data: GoodsReceivedNote }),
+  approvers: (projectId: string) => apiClient.get('/grns/approvers', { params: { projectId } }).then((r) => r.data.data as ApproverOption[]),
+  submit: (id: string, approverId: string) => apiClient.post(`/grns/${id}/submit`, { approverId }).then((r) => r.data.data as GoodsReceivedNote),
+  approve: (id: string, comments?: string) => apiClient.post(`/grns/${id}/approve`, { comments }).then((r) => r.data.data as GoodsReceivedNote),
+  reject: (id: string, comments: string) => apiClient.post(`/grns/${id}/reject`, { comments }).then((r) => r.data.data as GoodsReceivedNote),
+  returnToSubmitter: (id: string, comments: string) => apiClient.post(`/grns/${id}/return`, { comments }).then((r) => r.data.data as GoodsReceivedNote),
+  unlock: (id: string) => apiClient.patch(`/grns/${id}/unlock`).then((r) => r.data.data as GoodsReceivedNote),
+  updateInventory: (id: string) => apiClient.post(`/grns/${id}/update-inventory`).then((r) => r.data.data as GoodsReceivedNote),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Notifications
+// ─────────────────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'PR_SUBMITTED'
+  | 'PR_APPROVED'
+  | 'PR_REJECTED'
+  | 'PR_RETURNED'
+  | 'PO_PENDING'
+  | 'PO_APPROVED'
+  | 'PO_REJECTED'
+  | 'GRN_PENDING'
+  | 'GRN_APPROVED'
+  | 'GRN_REJECTED'
+  | 'GRN_RETURNED'
+  | 'INVENTORY_UPDATED';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  documentType?: 'PR' | 'PO' | 'GRN' | null;
+  documentId?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  list: (params?: { page?: number; pageSize?: number; unreadOnly?: boolean }) =>
+    apiClient
+      .get('/notifications', { params })
+      .then((r) => r.data as { data: { rows: AppNotification[]; unreadCount: number }; meta: { total: number; page: number; pageSize: number } }),
+  markRead: (id: string) => apiClient.patch(`/notifications/${id}/read`).then((r) => r.data.data as AppNotification),
+  markAllRead: () => apiClient.patch('/notifications/read-all'),
+};

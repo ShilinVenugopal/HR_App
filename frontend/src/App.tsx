@@ -15,6 +15,8 @@ import PurchaseRequisitions from './pages/PurchaseRequisitions';
 import PurchaseRequisitionDetail from './pages/PurchaseRequisitionDetail';
 import PurchaseOrders from './pages/PurchaseOrders';
 import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
+import GoodsReceivedNotes from './pages/GoodsReceivedNotes';
+import GoodsReceivedNoteDetail from './pages/GoodsReceivedNoteDetail';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
@@ -42,6 +44,8 @@ export default function App() {
           <Route path="/purchase-requisitions/:id" element={<PurchaseRequisitionDetail />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/purchase-orders/:id" element={<PurchaseOrderDetail />} />
+          <Route path="/grns" element={<GoodsReceivedNotes />} />
+          <Route path="/grns/:id" element={<GoodsReceivedNoteDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route

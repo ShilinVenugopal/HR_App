@@ -13,6 +13,7 @@ import {
   Boxes,
   FileSpreadsheet,
   ClipboardList,
+  PackageCheck,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -39,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'INVENTORY', label: 'Inventory', path: '/inventory', icon: Boxes },
   { module: 'PURCHASE_REQUISITION', label: 'Purchase Requisition', path: '/purchase-requisitions', icon: FileSpreadsheet },
   { module: 'PURCHASE_ORDER', label: 'Purchase Order', path: '/purchase-orders', icon: ClipboardList },
+  { module: 'GRN', label: 'Goods Received Note', path: '/grns', icon: PackageCheck },
   { module: 'REPORTS', label: 'Reports', path: '/reports', icon: BarChart3 },
   { module: 'SETTINGS', label: 'Settings', path: '/settings', icon: Settings },
   { module: 'USER_MANAGEMENT', label: 'User Management', path: '/user-management', icon: UserCog, superAdminOnly: true },

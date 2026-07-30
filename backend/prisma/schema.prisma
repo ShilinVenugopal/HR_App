@@ -313,6 +313,7 @@ model User {
   posApproved                    PurchaseOrder[]        @relation("POApprovedBy")
   grnsSubmitted                  GoodsReceivedNote[]    @relation("GRNSubmittedBy")
   grnsApproving                  GoodsReceivedNote[]    @relation("GRNCurrentApprover")
+  grnsInventoryUpdated           GoodsReceivedNote[]    @relation("GRNInventoryUpdatedBy")
   approvalsActed                 Approval[]             @relation("ApprovalActedBy")
   attachmentsUploaded            Attachment[]           @relation("AttachmentUploadedBy")
   notifications                  Notification[]
@@ -997,6 +998,11 @@ model InventoryTransaction {
   type                InventoryTransactionType
   workingQtyChange    Decimal                  @default(0) @db.Decimal(14, 2)
   nonWorkingQtyChange Decimal                  @default(0) @db.Decimal(14, 2)
+  /// Rejected quantity from a GRN receipt — recorded here for audit
+  /// history only. It never adds to workingQuantity/nonWorkingQuantity
+  /// (rejected material isn't usable stock), per the design brief's
+  /// "Rejected quantity recorded separately."
+  rejectedQtyChange   Decimal                  @default(0) @db.Decimal(14, 2)
   workingQtyAfter     Decimal                  @db.Decimal(14, 2)
   nonWorkingQtyAfter  Decimal                  @db.Decimal(14, 2)
   referenceGrnId      String?
@@ -1167,29 +1173,38 @@ model PurchaseOrderItem {
 /// — the design brief's document-numbering section didn't override GRN
 /// with a manual-entry instruction the way it did for PR/PO.
 model GoodsReceivedNote {
-  id                String    @id @default(uuid())
-  projectId         String
-  poId              String
-  grnNumber         String
-  supplierName      String?
-  receiptDate       DateTime?
-  challanNumber     String?
-  challanDate       DateTime?
-  lrNumber          String?
-  lrDate            DateTime?
-  transporterName   String?
-  status            GRNStatus @default(DRAFT)
-  submittedById     String?
-  currentApproverId String?
-  submittedAt       DateTime?
-  decidedAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  projectId            String
+  poId                 String
+  grnNumber            String
+  /// The printed "GRN Date" field — distinct from createdAt, same
+  /// reasoning as PurchaseOrder.poDate.
+  grnDate              DateTime  @default(now())
+  supplierName         String?
+  receiptDate          DateTime?
+  challanNumber        String?
+  challanDate          DateTime?
+  lrNumber             String?
+  lrDate               DateTime?
+  transporterName      String?
+  status               GRNStatus @default(DRAFT)
+  submittedById        String?
+  currentApproverId    String?
+  submittedAt          DateTime?
+  decidedAt            DateTime?
+  /// Set once "Update Inventory" (a separate, manual, post-approval
+  /// action per the design brief) has been applied — guards against
+  /// double-crediting working stock if clicked more than once.
+  inventoryUpdatedAt   DateTime?
+  inventoryUpdatedById String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   project               Project                 @relation(fields: [projectId], references: [id])
   po                    PurchaseOrder           @relation(fields: [poId], references: [id])
   submittedBy           User?                   @relation("GRNSubmittedBy", fields: [submittedById], references: [id])
   currentApprover       User?                   @relation("GRNCurrentApprover", fields: [currentApproverId], references: [id])
+  inventoryUpdatedBy    User?                   @relation("GRNInventoryUpdatedBy", fields: [inventoryUpdatedById], references: [id])
   items                 GoodsReceivedNoteItem[]
   inventoryTransactions InventoryTransaction[]
 

@@ -7,6 +7,7 @@ import { assertProjectAccess, projectScopeWhere } from '../../middleware/project
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
 import { listEligibleApprovers } from '../../utils/approvers';
+import { createNotification } from '../notifications/notifications.service';
 
 const includeRelations = {
   project: { select: { id: true, projectName: true, projectNumber: true } },
@@ -349,6 +350,20 @@ export async function decidePurchaseOrder(req: Request, id: string, action: 'APP
     meta,
     details: { poId: id, decision: action, comments },
   });
+
+  if (action === 'APPROVE' && existing.prId) {
+    const pr = await prisma.purchaseRequisition.findUnique({ where: { id: existing.prId }, select: { requesterId: true, requestNumber: true } });
+    if (pr) {
+      await createNotification({
+        userId: pr.requesterId,
+        type: 'PO_APPROVED',
+        title: 'Purchase Order Approved',
+        message: `PO ${po.poNumber} (from your requisition ${pr.requestNumber}) has been approved.`,
+        documentType: 'PO',
+        documentId: id,
+      });
+    }
+  }
 
   return po;
 }
