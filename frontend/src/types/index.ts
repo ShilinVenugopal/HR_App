@@ -29,7 +29,8 @@ export type ModuleName =
   | 'PURCHASE_ORDER'
   | 'GRN'
   | 'PROCUREMENT_DASHBOARD'
-  | 'BILLING_STATUS';
+  | 'BILLING_STATUS'
+  | 'SITE_ACCOUNTS';
 
 export const ALL_MODULES: ModuleName[] = [
   'DASHBOARD',
@@ -48,6 +49,7 @@ export const ALL_MODULES: ModuleName[] = [
   'GRN',
   'PROCUREMENT_DASHBOARD',
   'BILLING_STATUS',
+  'SITE_ACCOUNTS',
 ];
 
 export const MODULE_LABELS: Record<ModuleName, string> = {
@@ -67,6 +69,7 @@ export const MODULE_LABELS: Record<ModuleName, string> = {
   GRN: 'Goods Received Note',
   PROCUREMENT_DASHBOARD: 'Procurement Dashboard',
   BILLING_STATUS: 'Billing Status',
+  SITE_ACCOUNTS: 'Site Accounts',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

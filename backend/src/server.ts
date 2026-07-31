@@ -4,6 +4,7 @@ import { env } from './config/env';
 import { prisma } from './config/database';
 import { startCommunicationWorker } from './jobs/communicationWorker';
 import { syncBuiltInWageTemplates } from './modules/projectWages/templateSync';
+import { syncSiteAccountCostCodes } from './modules/siteAccounts/siteAccountCostCodeSync';
 
 let server: Server;
 
@@ -29,16 +30,20 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 /// immediately — without this, WageProjectTemplate.columns stays whatever
 /// it was when the row was last written (initial seed, or an earlier
 /// deploy), silently drifting out of sync with the source config.
-syncBuiltInWageTemplates()
-  .catch((err) => {
+Promise.all([
+  syncBuiltInWageTemplates().catch((err) => {
     // eslint-disable-next-line no-console
     console.error('Failed to sync built-in wage templates:', err);
-  })
-  .finally(() => {
-    server = app.listen(env.port, () => {
-      // eslint-disable-next-line no-console
-      console.log(`HR App API listening on port ${env.port} [${env.nodeEnv}]`);
-    });
-
-    startCommunicationWorker();
+  }),
+  syncSiteAccountCostCodes().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('Failed to sync Site Account cost codes:', err);
+  }),
+]).finally(() => {
+  server = app.listen(env.port, () => {
+    // eslint-disable-next-line no-console
+    console.log(`HR App API listening on port ${env.port} [${env.nodeEnv}]`);
   });
+
+  startCommunicationWorker();
+});

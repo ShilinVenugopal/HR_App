@@ -1087,3 +1087,118 @@ export const billingStatusApi = {
     apiClient.patch(`/billing-status/items/${itemId}`, payload).then((r) => r.data.data as BillingItem),
   removeItem: (itemId: string) => apiClient.delete(`/billing-status/items/${itemId}`),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// SITE ACCOUNTS
+// ─────────────────────────────────────────────────────────────────────────
+
+export type SiteAccountStatementStatus = 'DRAFT' | 'SAVED';
+export type SiteAccountEntryType = 'OTHER_RECEIPT' | 'EXPENSE';
+
+export interface SiteAccountCostCode {
+  id: string;
+  code: string;
+  description: string;
+  parentCode?: string | null;
+  displayOrder: number;
+  hasSubtotal: boolean;
+  active: boolean;
+}
+
+export interface SiteAccountEntryDateRef {
+  id: string;
+  date: string;
+}
+
+export interface SiteAccountEntry {
+  id: string;
+  statementId: string;
+  entryType: SiteAccountEntryType;
+  costCodeId?: string | null;
+  costCode?: SiteAccountCostCode | null;
+  voucherNo?: string | null;
+  particulars?: string | null;
+  dates: SiteAccountEntryDateRef[];
+  receiptAmount: string | number;
+  depositAdvanceAmount: string | number;
+  paymentAmount: string | number;
+  createdAt: string;
+}
+
+export interface SiteAccountTotals {
+  totalReceipts: number;
+  totalDepositsAdvances: number;
+  totalPayments: number;
+  balanceInHand: number;
+}
+
+export interface SiteAccountStatement {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  statementDate: string;
+  periodFrom: string;
+  periodTo: string;
+  statementMonth: number;
+  statementYear: number;
+  openingBalance: string | number;
+  siteFundReceived: string | number;
+  status: SiteAccountStatementStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  entries: SiteAccountEntry[];
+  totals: SiteAccountTotals;
+  subtotals: Record<string, number>;
+}
+
+export interface SiteAccountEntryInput {
+  entryType: SiteAccountEntryType;
+  costCodeId?: string;
+  voucherNo?: string;
+  particulars?: string;
+  dates?: string[];
+  receiptAmount?: number;
+  depositAdvanceAmount?: number;
+  paymentAmount?: number;
+}
+
+export interface SiteAccountStatementCreateInput {
+  projectId: string;
+  statementDate: string;
+  periodFrom: string;
+  periodTo: string;
+  openingBalance?: number;
+  siteFundReceived?: number;
+  entries?: SiteAccountEntryInput[];
+}
+
+export interface SiteAccountStatementFilters {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  projectId?: string;
+  projectNumber?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  statementMonth?: number;
+  statementYear?: number;
+  status?: SiteAccountStatementStatus;
+  voucherNo?: string;
+  costCode?: string;
+}
+
+export const siteAccountsApi = {
+  listCostCodes: () => apiClient.get('/site-accounts/cost-codes').then((r) => r.data.data as SiteAccountCostCode[]),
+  list: (params?: SiteAccountStatementFilters) =>
+    apiClient
+      .get('/site-accounts', { params })
+      .then((r) => r.data as { data: SiteAccountStatement[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }),
+  get: (id: string) => apiClient.get(`/site-accounts/${id}`).then((r) => r.data.data as SiteAccountStatement),
+  create: (payload: SiteAccountStatementCreateInput) => apiClient.post('/site-accounts', payload).then((r) => r.data.data as SiteAccountStatement),
+  update: (id: string, payload: Partial<Omit<SiteAccountStatementCreateInput, 'projectId'>>) =>
+    apiClient.patch(`/site-accounts/${id}`, payload).then((r) => r.data.data as SiteAccountStatement),
+  save: (id: string) => apiClient.post(`/site-accounts/${id}/save`).then((r) => r.data.data as SiteAccountStatement),
+  remove: (id: string) => apiClient.delete(`/site-accounts/${id}`),
+};

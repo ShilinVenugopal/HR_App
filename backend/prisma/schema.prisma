@@ -58,6 +58,7 @@ enum ModuleName {
   GRN
   PROCUREMENT_DASHBOARD
   BILLING_STATUS
+  SITE_ACCOUNTS
 }
 
 enum CandidateStatus {
@@ -284,6 +285,27 @@ enum BillingItemStatus {
   INVOICE_DONE
 }
 
+/// DRAFT is freely editable by the site team (canEdit). Once SAVED, the
+/// site team can no longer edit it — only a user holding canApprove on
+/// SITE_ACCOUNTS (granted by Super Admin for corrections, per the design
+/// brief) may still modify it. There is no revert-to-DRAFT step; a
+/// correction is made in place while the statement stays SAVED.
+enum SiteAccountStatementStatus {
+  DRAFT
+  SAVED
+}
+
+/// EXPENSE entries post against a static SiteAccountCostCode row (the
+/// F01-F24 hierarchy). OTHER_RECEIPT entries are free-text fund/deposit
+/// lines in the statement's header block (Opening Balance and Site Fund
+/// Received are their own fields on SiteAccountStatement, not entries —
+/// see the model comment — so OTHER_RECEIPT only covers additional ad-hoc
+/// receipt/deposit lines beyond those two).
+enum SiteAccountEntryType {
+  OTHER_RECEIPT
+  EXPENSE
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RBAC CORE
 // ─────────────────────────────────────────────────────────────────────────
@@ -335,6 +357,11 @@ model User {
   billingItemsCreated   BillingItem[]   @relation("BillingItemCreatedBy")
   billingItemsUpdated   BillingItem[]   @relation("BillingItemUpdatedBy")
 
+  siteAccountStatementsCreated SiteAccountStatement[] @relation("SiteAccountStatementCreatedBy")
+  siteAccountStatementsUpdated SiteAccountStatement[] @relation("SiteAccountStatementUpdatedBy")
+  siteAccountEntriesCreated    SiteAccountEntry[]      @relation("SiteAccountEntryCreatedBy")
+  siteAccountEntriesUpdated    SiteAccountEntry[]      @relation("SiteAccountEntryUpdatedBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -373,6 +400,7 @@ model Project {
   goodsReceivedNotes    GoodsReceivedNote[]
   documentSequences     DocumentSequence[]
   billingRecords        BillingRecord[]
+  siteAccountStatements SiteAccountStatement[]
 
   @@index([status])
   @@map("projects")
@@ -1384,4 +1412,133 @@ model BillingItem {
   @@index([billingRecordId])
   @@index([status])
   @@map("billing_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SITE ACCOUNTS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// The static F01-F24 cost-code/particulars hierarchy from the reference
+/// "Forays Account Statement" template — a separate master from
+/// Procurement's CostCode (that one is a flat inventory/PO/GRN lookup;
+/// this one is a fixed, ordered, protected hierarchy with parent/child
+/// grouping used only to lay out the Site Accounts statement). Rows are
+/// seeded/self-healed by syncSiteAccountCostCodes() on server startup
+/// (same pattern as templateSync.ts's built-in wage templates) rather than
+/// hand-edited — normal users never modify this table.
+model SiteAccountCostCode {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  description  String
+  /// Null for the 24 top-level groups (F01, F02, ... F24); set to the
+  /// owning group's code for a child row (e.g. F01I.parentCode = "F01").
+  parentCode   String?
+  /// Matches the reference statement's row order exactly (multiples of 10
+  /// so a future child/group can be inserted without renumbering everything).
+  displayOrder Int
+  /// True only on F01, F02 and F03 — the only groups the reference
+  /// statement renders a "Subtotal" row after. Purely a display/aggregation
+  /// flag; the Subtotal row itself is computed on read, never stored, and
+  /// is never folded into Total Payments (see SiteAccountEntry comment).
+  hasSubtotal  Boolean  @default(false)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entries SiteAccountEntry[]
+
+  @@index([parentCode])
+  @@map("site_account_cost_codes")
+}
+
+/// One statement header per project + statement period. "Plant/Site",
+/// "Project No." and "Name of Job" from the reference template are all
+/// pulled live from the linked Project (projectName/projectNumber) rather
+/// than duplicated here — only genuinely statement-specific header fields
+/// live on this model.
+model SiteAccountStatement {
+  id               String                     @id @default(uuid())
+  projectId        String
+  statementDate    DateTime
+  periodFrom       DateTime
+  periodTo         DateTime
+  /// Denormalized from periodFrom purely for the Month/Year filter the
+  /// design brief asks for — same convention as BillingRecord's
+  /// billingMonth/billingYear.
+  statementMonth   Int
+  statementYear    Int
+  /// "Opening Balance" and "Amount Received as site fund" are the reference
+  /// template's two fixed, always-present receipt rows — modeled as direct
+  /// fields (not SiteAccountEntry rows) per the design brief's own
+  /// suggestion to store Opening Balance "as a separate field ... rather
+  /// than treating it as a normal expense transaction", so it can never be
+  /// counted as a payment or duplicated as a generic entry.
+  openingBalance   Decimal                    @default(0) @db.Decimal(14, 2)
+  siteFundReceived Decimal                    @default(0) @db.Decimal(14, 2)
+  status           SiteAccountStatementStatus @default(DRAFT)
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project   Project            @relation(fields: [projectId], references: [id])
+  createdBy User               @relation("SiteAccountStatementCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?              @relation("SiteAccountStatementUpdatedBy", fields: [updatedById], references: [id])
+  entries   SiteAccountEntry[]
+
+  @@index([projectId])
+  @@index([statementMonth, statementYear])
+  @@index([status])
+  @@map("site_account_statements")
+}
+
+/// One row per transaction line. Multiple entries may share the same
+/// costCodeId (e.g. three separate vouchers all posted under F01) — the
+/// Excel-style Subtotal/Total figures are always computed by summing these
+/// leaf rows, so there is nothing to double-count even though the
+/// displayed statement groups several entries under one cost code.
+model SiteAccountEntry {
+  id                   String               @id @default(uuid())
+  statementId          String
+  entryType            SiteAccountEntryType
+  /// Required for EXPENSE, always null for OTHER_RECEIPT.
+  costCodeId           String?
+  voucherNo            String?
+  /// Free text, only meaningful for OTHER_RECEIPT — an EXPENSE entry's
+  /// particulars are always the linked cost code's own description, never
+  /// stored redundantly here.
+  particulars          String?
+  receiptAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  depositAdvanceAmount Decimal              @default(0) @db.Decimal(14, 2)
+  paymentAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  createdById          String
+  updatedById          String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  statement SiteAccountStatement    @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  costCode  SiteAccountCostCode?    @relation(fields: [costCodeId], references: [id])
+  createdBy User                    @relation("SiteAccountEntryCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?                   @relation("SiteAccountEntryUpdatedBy", fields: [updatedById], references: [id])
+  dates     SiteAccountEntryDate[]
+
+  @@index([statementId])
+  @@index([costCodeId])
+  @@map("site_account_entries")
+}
+
+/// Normalized transaction dates — a voucher may be dated across several
+/// receipts/payments (e.g. "01.03.2026, 05.03.2026"); stored one row per
+/// date rather than a comma-joined string, per the design brief's own
+/// preference, and joined back into the comma-separated display format
+/// only at render/export time.
+model SiteAccountEntryDate {
+  id      String   @id @default(uuid())
+  entryId String
+  date    DateTime
+
+  entry SiteAccountEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
+  @@map("site_account_entry_dates")
 }

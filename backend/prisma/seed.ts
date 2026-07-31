@@ -185,6 +185,10 @@ async function main() {
       REPORTS: { view: true },
       SETTINGS: { view: true, add: true, edit: true },
       BILLING_STATUS: { view: true, add: true, edit: true },
+      // Site team: drafts and saves statements, but cannot re-open a
+      // Saved statement — that "correction" right (canApprove) is reserved
+      // for the office-side users below.
+      SITE_ACCOUNTS: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });
@@ -233,13 +237,20 @@ async function main() {
     email: 'finance@foraysgroup.com',
     mobile: '+919999999904',
     role: Role.FINANCE,
-    projectNames: ['OPaL'],
+    // Also assigned RIL Jamnagar (alongside Site Administrator) so the
+    // Site Accounts DRAFT (site team) -> SAVED -> correction (office team,
+    // canApprove) workflow can actually be exercised end to end on the
+    // same project in this demo dataset.
+    projectNames: ['OPaL', 'RIL Jamnagar'],
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       WAGES: { view: true, add: true, edit: true, approve: true },
       ADVANCES: { view: true, add: true, edit: true, approve: true },
       REPORTS: { view: true },
       BILLING_STATUS: { view: true, add: true, edit: true, delete: true },
+      // Office team: views every statement and holds the "correction"
+      // right (canApprove) to re-open a Saved statement.
+      SITE_ACCOUNTS: { view: true, approve: true },
     }),
     projectIdByName,
   });
@@ -339,6 +350,7 @@ async function main() {
       GRN: { view: true },
       REPORTS: { view: true },
       BILLING_STATUS: { view: true, add: true, edit: true },
+      SITE_ACCOUNTS: { view: true, approve: true },
     }),
     projectIdByName,
   });

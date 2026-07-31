@@ -19,6 +19,8 @@ import GoodsReceivedNotes from './pages/GoodsReceivedNotes';
 import GoodsReceivedNoteDetail from './pages/GoodsReceivedNoteDetail';
 import ProcurementDashboard from './pages/ProcurementDashboard';
 import BillingStatus from './pages/BillingStatus';
+import SiteAccounts from './pages/SiteAccounts';
+import SiteAccountDetail from './pages/SiteAccountDetail';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
@@ -50,6 +52,8 @@ export default function App() {
           <Route path="/grns/:id" element={<GoodsReceivedNoteDetail />} />
           <Route path="/procurement-dashboard" element={<ProcurementDashboard />} />
           <Route path="/billing-status" element={<BillingStatus />} />
+          <Route path="/site-accounts" element={<SiteAccounts />} />
+          <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route
