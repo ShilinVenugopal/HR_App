@@ -184,6 +184,7 @@ async function main() {
       ADVANCES: { view: true, approve: true },
       REPORTS: { view: true },
       SETTINGS: { view: true, add: true, edit: true },
+      BILLING_STATUS: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });
@@ -238,6 +239,7 @@ async function main() {
       WAGES: { view: true, add: true, edit: true, approve: true },
       ADVANCES: { view: true, add: true, edit: true, approve: true },
       REPORTS: { view: true },
+      BILLING_STATUS: { view: true, add: true, edit: true, delete: true },
     }),
     projectIdByName,
   });
@@ -336,6 +338,7 @@ async function main() {
       PURCHASE_ORDER: { view: true },
       GRN: { view: true },
       REPORTS: { view: true },
+      BILLING_STATUS: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });

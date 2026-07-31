@@ -57,6 +57,7 @@ enum ModuleName {
   PURCHASE_ORDER
   GRN
   PROCUREMENT_DASHBOARD
+  BILLING_STATUS
 }
 
 enum CandidateStatus {
@@ -272,6 +273,17 @@ enum AttachmentOwnerType {
   VENDOR
 }
 
+/// The billing workflow progresses strictly forward through these values
+/// over the life of one BillingItem row — controlled values rather than
+/// free text so the status summary/filter dropdowns stay meaningful.
+enum BillingItemStatus {
+  PENDING_CERTIFICATION
+  A1_PENDING
+  A2_PENDING
+  ACCOUNTS_PENDING
+  INVOICE_DONE
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RBAC CORE
 // ─────────────────────────────────────────────────────────────────────────
@@ -318,6 +330,11 @@ model User {
   attachmentsUploaded            Attachment[]           @relation("AttachmentUploadedBy")
   notifications                  Notification[]
 
+  billingRecordsCreated BillingRecord[] @relation("BillingRecordCreatedBy")
+  billingRecordsUpdated BillingRecord[] @relation("BillingRecordUpdatedBy")
+  billingItemsCreated   BillingItem[]   @relation("BillingItemCreatedBy")
+  billingItemsUpdated   BillingItem[]   @relation("BillingItemUpdatedBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -355,6 +372,7 @@ model Project {
   purchaseOrders        PurchaseOrder[]
   goodsReceivedNotes    GoodsReceivedNote[]
   documentSequences     DocumentSequence[]
+  billingRecords        BillingRecord[]
 
   @@index([status])
   @@map("projects")
@@ -1303,4 +1321,67 @@ model DocumentSequence {
 
   @@unique([projectId, type])
   @@map("document_sequences")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BILLING STATUS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One header per project + billing month/year + optional period range.
+/// Deliberately NOT unique on (projectId, billingMonth, billingYear) —
+/// a project can have several records for the same month when billing is
+/// split into sub-periods (e.g. 1-15 and 16-31 March), each tracked
+/// separately per the business's real paper-based billing sheets.
+model BillingRecord {
+  id           String    @id @default(uuid())
+  projectId    String
+  billingMonth Int
+  billingYear  Int
+  periodFrom   DateTime?
+  periodTo     DateTime?
+  createdById  String
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project   Project       @relation(fields: [projectId], references: [id])
+  createdBy User          @relation("BillingRecordCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?         @relation("BillingRecordUpdatedBy", fields: [updatedById], references: [id])
+  items     BillingItem[]
+
+  @@index([projectId])
+  @@index([billingMonth, billingYear])
+  @@map("billing_records")
+}
+
+/// One row per plant/unit bill. The same row is edited in place as its
+/// status progresses (Pending Certification -> A1 Pending -> A2 Pending ->
+/// Accounts Pending -> Invoice Done) rather than duplicated on every status
+/// change — the row's own id is the stable reference the audit trail
+/// (AuditLog.details, module BILLING_STATUS) keys off.
+model BillingItem {
+  id              String            @id @default(uuid())
+  billingRecordId String
+  srNo            Int
+  plantUnit       String
+  invoiceNo       String?
+  jmsNo           String?
+  abstractAmount  Decimal           @db.Decimal(14, 2)
+  taxAmount       Decimal           @default(0) @db.Decimal(14, 2)
+  /// Always server-computed as abstractAmount + taxAmount — never trust a
+  /// client-submitted total, same rule PR/PO totals follow.
+  totalAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  status          BillingItemStatus @default(PENDING_CERTIFICATION)
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  billingRecord BillingRecord @relation(fields: [billingRecordId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation("BillingItemCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?         @relation("BillingItemUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([billingRecordId])
+  @@index([status])
+  @@map("billing_items")
 }

@@ -973,3 +973,117 @@ export const notificationsApi = {
   markRead: (id: string) => apiClient.patch(`/notifications/${id}/read`).then((r) => r.data.data as AppNotification),
   markAllRead: () => apiClient.patch('/notifications/read-all'),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// BILLING STATUS
+// ─────────────────────────────────────────────────────────────────────────
+
+export type BillingItemStatus = 'PENDING_CERTIFICATION' | 'A1_PENDING' | 'A2_PENDING' | 'ACCOUNTS_PENDING' | 'INVOICE_DONE';
+
+export const BILLING_STATUS_OPTIONS: { value: BillingItemStatus; label: string }[] = [
+  { value: 'PENDING_CERTIFICATION', label: 'Pending Certification' },
+  { value: 'A1_PENDING', label: 'A1 Pending' },
+  { value: 'A2_PENDING', label: 'A2 Pending' },
+  { value: 'ACCOUNTS_PENDING', label: 'Accounts Pending' },
+  { value: 'INVOICE_DONE', label: 'Invoice Done' },
+];
+
+export interface BillingRecordRef {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  billingMonth: number;
+  billingYear: number;
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  createdAt: string;
+}
+
+export interface BillingItem {
+  id: string;
+  billingRecordId: string;
+  billingRecord?: BillingRecordRef;
+  srNo: number;
+  plantUnit: string;
+  invoiceNo?: string | null;
+  jmsNo?: string | null;
+  abstractAmount: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  status: BillingItemStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface BillingRecord extends BillingRecordRef {
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  items: BillingItem[];
+}
+
+export interface BillingItemInput {
+  plantUnit: string;
+  invoiceNo?: string;
+  jmsNo?: string;
+  abstractAmount: number;
+  taxAmount?: number;
+  status?: BillingItemStatus;
+}
+
+export interface BillingRecordCreateInput {
+  projectId: string;
+  billingMonth: number;
+  billingYear: number;
+  periodFrom?: string;
+  periodTo?: string;
+  items: BillingItemInput[];
+}
+
+export interface BillingItemUpdateInput {
+  plantUnit?: string;
+  invoiceNo?: string;
+  jmsNo?: string;
+  abstractAmount?: number;
+  taxAmount?: number;
+  status?: BillingItemStatus;
+}
+
+export interface BillingSummary {
+  totalBills: number;
+  totalAbstractAmount: number;
+  totalTaxAmount: number;
+  totalAmount: number;
+  statusCounts: Record<BillingItemStatus, number>;
+}
+
+export interface BillingItemFilters {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  projectId?: string;
+  billingMonth?: number;
+  billingYear?: number;
+  periodFrom?: string;
+  periodTo?: string;
+  plantUnit?: string;
+  status?: BillingItemStatus;
+  invoiceNo?: string;
+  jmsNo?: string;
+}
+
+export const billingStatusApi = {
+  list: (params?: BillingItemFilters) =>
+    apiClient.get('/billing-status', { params }).then((r) => r.data as { data: BillingItem[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }),
+  summary: (params?: BillingItemFilters) => apiClient.get('/billing-status/summary', { params }).then((r) => r.data.data as BillingSummary),
+  get: (id: string) => apiClient.get(`/billing-status/${id}`).then((r) => r.data.data as BillingRecord),
+  create: (payload: BillingRecordCreateInput) => apiClient.post('/billing-status', payload).then((r) => r.data.data as BillingRecord),
+  updateRecord: (id: string, payload: { periodFrom?: string | null; periodTo?: string | null }) =>
+    apiClient.patch(`/billing-status/${id}`, payload).then((r) => r.data.data as BillingRecord),
+  removeRecord: (id: string) => apiClient.delete(`/billing-status/${id}`),
+  updateItem: (itemId: string, payload: BillingItemUpdateInput) =>
+    apiClient.patch(`/billing-status/items/${itemId}`, payload).then((r) => r.data.data as BillingItem),
+  removeItem: (itemId: string) => apiClient.delete(`/billing-status/items/${itemId}`),
+};

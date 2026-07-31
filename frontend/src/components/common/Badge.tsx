@@ -32,6 +32,13 @@ const COLOR_MAP: Record<string, string> = {
   SENDING: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   EMAIL: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   OPENED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  // Billing Status progression: Pending Certification -> A1 Pending ->
+  // A2 Pending -> Accounts Pending -> Invoice Done.
+  PENDING_CERTIFICATION: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  A1_PENDING: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  A2_PENDING: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  ACCOUNTS_PENDING: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  INVOICE_DONE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {
