@@ -7,6 +7,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column, SortState } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 import { useAuth } from '../context/AuthContext';
 import { useCostCodeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
@@ -232,21 +233,18 @@ export default function Inventory() {
                 </option>
               ))}
             </select>
-            <select
-              className="input w-auto"
-              value={filters.costCodeId}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, costCodeId: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All Cost Codes</option>
-              {costCodeOptions.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-56">
+              <SearchableSelect
+                options={[{ value: '', label: 'All Cost Codes' }, ...costCodeOptions]}
+                value={filters.costCodeId}
+                onChange={(value) => {
+                  setFilters((f) => ({ ...f, costCodeId: value }));
+                  setPage(1);
+                }}
+                placeholder="All Cost Codes"
+                searchPlaceholder="Search code or description..."
+              />
+            </div>
             <input
               type="date"
               className="input w-auto"
@@ -323,14 +321,13 @@ export default function Inventory() {
             </div>
             <div>
               <label className="label">Cost Code *</label>
-              <select className="input" value={form.costCodeId} onChange={(e) => setForm((f) => ({ ...f, costCodeId: e.target.value }))}>
-                <option value="">Select cost code...</option>
-                {costCodeOptions.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.code} — {c.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={costCodeOptions}
+                value={form.costCodeId}
+                onChange={(value) => setForm((f) => ({ ...f, costCodeId: value }))}
+                placeholder="Select cost code..."
+                searchPlaceholder="Search code or description..."
+              />
               {errors.costCodeId && <p className="mt-1 text-xs text-red-500">{errors.costCodeId}</p>}
             </div>
           </div>

@@ -5,7 +5,7 @@ import { PaginationParams } from '../../utils/pagination';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
 
-type MasterEntity = 'department' | 'designation' | 'costCode';
+type MasterEntity = 'department' | 'designation';
 
 interface MasterDelegate {
   findMany: (args: any) => Promise<any[]>;
@@ -16,37 +16,30 @@ interface MasterDelegate {
   delete: (args: any) => Promise<any>;
 }
 
-const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation', costCode: 'Cost Code' };
+const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation' };
 
-/// Departments, Designations and Cost Codes are structurally near-identical
-/// master-data tables, so one generic service backs all three REST
-/// resources instead of duplicating CRUD blocks. Cost Codes are the one
-/// entity keyed by a separate `code` field (e.g. "F05A") rather than
-/// `name` — everything else about them is identical.
+/// Departments and Designations are structurally identical master-data
+/// tables, so one generic service backs both REST resources instead of
+/// duplicating CRUD blocks. Cost Codes used to be a third entity here, but
+/// graduated into its own dedicated module (backend/src/modules/costCodes)
+/// once its requirements diverged — Super-Admin-only mutations instead of
+/// the SETTINGS permission matrix, plus extra fields Department/Designation
+/// don't have — rather than bending this generic pattern to fit both.
 function delegateFor(entity: MasterEntity): MasterDelegate {
   if (entity === 'department') return prisma.department as unknown as MasterDelegate;
-  if (entity === 'designation') return prisma.designation as unknown as MasterDelegate;
-  return prisma.costCode as unknown as MasterDelegate;
-}
-
-function uniqueKeyField(entity: MasterEntity): 'name' | 'code' {
-  return entity === 'costCode' ? 'code' : 'name';
+  return prisma.designation as unknown as MasterDelegate;
 }
 
 export async function listMasters(entity: MasterEntity, pagination: PaginationParams) {
   const delegate = delegateFor(entity);
-  const where = pagination.search
-    ? entity === 'costCode'
-      ? { OR: [{ name: { contains: pagination.search, mode: 'insensitive' } }, { code: { contains: pagination.search, mode: 'insensitive' } }] }
-      : { name: { contains: pagination.search, mode: 'insensitive' } }
-    : {};
+  const where = pagination.search ? { name: { contains: pagination.search, mode: 'insensitive' } } : {};
 
   const [rows, total] = await Promise.all([
     delegate.findMany({
       where,
       skip: pagination.skip,
       take: pagination.take,
-      orderBy: { [pagination.sortBy ?? uniqueKeyField(entity)]: pagination.sortOrder },
+      orderBy: { [pagination.sortBy ?? 'name']: pagination.sortOrder },
     }),
     delegate.count({ where }),
   ]);
@@ -54,22 +47,13 @@ export async function listMasters(entity: MasterEntity, pagination: PaginationPa
   return { rows, total };
 }
 
-export async function createMaster(
-  entity: MasterEntity,
-  input: { code?: string; name: string; status?: ProjectStatus },
-  actingUserId: string,
-  meta?: RequestMeta
-) {
+export async function createMaster(entity: MasterEntity, input: { name: string; status?: ProjectStatus }, actingUserId: string, meta?: RequestMeta) {
   const delegate = delegateFor(entity);
-  const keyField = uniqueKeyField(entity);
-  if (keyField === 'code' && !input.code) throw ApiError.badRequest('Code is required');
-  const keyValue = keyField === 'code' ? input.code : input.name;
 
-  const existing = await delegate.findUnique({ where: { [keyField]: keyValue } });
-  if (existing) throw ApiError.conflict(`${LABEL[entity]} "${keyValue}" already exists`);
+  const existing = await delegate.findUnique({ where: { name: input.name } });
+  if (existing) throw ApiError.conflict(`${LABEL[entity]} "${input.name}" already exists`);
 
-  const data = entity === 'costCode' ? { code: input.code, name: input.name, status: input.status } : { name: input.name, status: input.status };
-  const row = await delegate.create({ data });
+  const row = await delegate.create({ data: { name: input.name, status: input.status } });
   await recordAuditLog({
     userId: actingUserId,
     action: 'CREATE',
@@ -84,7 +68,7 @@ export async function createMaster(
 export async function updateMaster(
   entity: MasterEntity,
   id: string,
-  input: { code?: string; name?: string; status?: ProjectStatus },
+  input: { name?: string; status?: ProjectStatus },
   actingUserId: string,
   meta?: RequestMeta
 ) {
@@ -92,8 +76,7 @@ export async function updateMaster(
   const existing = await delegate.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound(`${LABEL[entity]} not found`);
 
-  const data = entity === 'costCode' ? { code: input.code, name: input.name, status: input.status } : { name: input.name, status: input.status };
-  const row = await delegate.update({ where: { id }, data });
+  const row = await delegate.update({ where: { id }, data: { name: input.name, status: input.status } });
   await recordAuditLog({
     userId: actingUserId,
     action: 'UPDATE',

@@ -362,6 +362,9 @@ model User {
   siteAccountEntriesCreated    SiteAccountEntry[]      @relation("SiteAccountEntryCreatedBy")
   siteAccountEntriesUpdated    SiteAccountEntry[]      @relation("SiteAccountEntryUpdatedBy")
 
+  costCodesCreated CostCode[] @relation("CostCodeCreatedBy")
+  costCodesUpdated CostCode[] @relation("CostCodeUpdatedBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -973,13 +976,30 @@ model WageEntry {
 // are looked up by that composite index instead.
 // ─────────────────────────────────────────────────────────────────────────
 
+/// The single source of truth for cost codes across the app — Inventory,
+/// Purchase Requisition, Purchase Order and GRN line items all reference
+/// this same table via costCodeId rather than each maintaining their own
+/// list. Mutations are Super-Admin-only (see costCodes.routes.ts); every
+/// other authenticated user has read-only access, since Recruitment/
+/// Employees-style "any user may read reference data" doesn't apply here —
+/// this master specifically must not be editable by non-Super-Admins.
 model CostCode {
   id        String        @id @default(uuid())
   code      String        @unique
   name      String
-  status    ProjectStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  /// Supplementary fields carried over from the reference "Cost Code
+  /// Summary" import — optional since most codes only ever need code+name.
+  itemsToConsider   String?
+  remarks           String?
+  responsiblePerson String?
+  status            ProjectStatus @default(ACTIVE)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  createdBy User? @relation("CostCodeCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("CostCodeUpdatedBy", fields: [updatedById], references: [id])
 
   inventoryItems InventoryItem[]
   prItems        PurchaseRequisitionItem[]

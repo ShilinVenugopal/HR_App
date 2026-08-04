@@ -16,21 +16,31 @@ import {
   PackageCheck,
   Receipt,
   BookOpenText,
+  Tags,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
 
 export interface NavItem {
-  module: ModuleName;
+  /// Omit only when `alwaysVisible` is set — every other item is gated by
+  /// `can(module, 'view')`.
+  module?: ModuleName;
   label: string;
   path: string;
   icon: LucideIcon;
   superAdminOnly?: boolean;
+  /// Shown to every authenticated user regardless of the permission
+  /// matrix — for reference data like Cost Code Master, where mutations
+  /// are Super-Admin-gated directly rather than through a per-user
+  /// permission a Super Admin would otherwise have to remember to grant
+  /// just so people can view it.
+  alwaysVisible?: boolean;
 }
 
 /// Single source of truth for the sidebar. Every entry is gated by
-/// `can(module, 'view')` at render time — this list defines what's
-/// *possible* to see, permissions decide what's *actually* shown.
+/// `can(module, 'view')` at render time (unless `alwaysVisible` or
+/// `superAdminOnly`) — this list defines what's *possible* to see,
+/// permissions decide what's *actually* shown.
 export const NAV_ITEMS: NavItem[] = [
   { module: 'DASHBOARD', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { module: 'RECRUITMENT', label: 'Recruitment', path: '/recruitment', icon: UserPlus },
@@ -46,6 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'PROCUREMENT_DASHBOARD', label: 'Procurement Dashboard', path: '/procurement-dashboard', icon: LayoutDashboard },
   { module: 'BILLING_STATUS', label: 'Billing Status', path: '/billing-status', icon: Receipt },
   { module: 'SITE_ACCOUNTS', label: 'Site Accounts', path: '/site-accounts', icon: BookOpenText },
+  { label: 'Cost Code Master', path: '/cost-code-master', icon: Tags, alwaysVisible: true },
   { module: 'REPORTS', label: 'Reports', path: '/reports', icon: BarChart3 },
   { module: 'SETTINGS', label: 'Settings', path: '/settings', icon: Settings },
   { module: 'USER_MANAGEMENT', label: 'User Management', path: '/user-management', icon: UserCog, superAdminOnly: true },

@@ -25,10 +25,15 @@ export function useDepartmentOptions() {
   return (data?.data ?? []).map((d) => ({ value: d.id, label: d.name }));
 }
 
+/// Only ACTIVE cost codes are ever offered for new selections (Inventory,
+/// PR/PO/GRN items etc.) — a code a Super Admin deactivates disappears
+/// from here immediately, but existing records that already reference it
+/// keep displaying it unchanged, since they store the costCodeId, not this
+/// list.
 export function useCostCodeOptions() {
   const { data } = useQuery({
     queryKey: ['lookup-cost-codes'],
-    queryFn: () => costCodesApi.list({ pageSize: 100 }),
+    queryFn: () => costCodesApi.list({ pageSize: 300, status: 'ACTIVE' }),
   });
   return (data?.data ?? []).map((c) => ({ value: c.id, label: `${c.code} — ${c.name}`, code: c.code, name: c.name }));
 }

@@ -1,6 +1,7 @@
 import { ModuleName, PrismaClient, Role, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSync';
+import { seedCostCodeMasterData } from '../src/modules/costCodes/costCodeMasterSeed';
 
 const prisma = new PrismaClient();
 
@@ -132,6 +133,11 @@ async function main() {
   for (const cc of costCodes) {
     await prisma.costCode.upsert({ where: { code: cc.code }, update: { name: cc.name }, create: cc });
   }
+
+  // ── Cost Code Master (full reference import) ─────────────────────────
+  // The broader F01-F24 Cost Code Summary — create-only, never overwrites
+  // the 8 PUR-01-specific codes above or any future Super Admin edit.
+  await seedCostCodeMasterData();
 
   // ── Vendors (Procurement) ────────────────────────────────────────────
   const vendors = [

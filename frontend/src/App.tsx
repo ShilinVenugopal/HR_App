@@ -21,6 +21,7 @@ import ProcurementDashboard from './pages/ProcurementDashboard';
 import BillingStatus from './pages/BillingStatus';
 import SiteAccounts from './pages/SiteAccounts';
 import SiteAccountDetail from './pages/SiteAccountDetail';
+import CostCodeMaster from './pages/CostCodeMaster';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/billing-status" element={<BillingStatus />} />
           <Route path="/site-accounts" element={<SiteAccounts />} />
           <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
+          <Route path="/cost-code-master" element={<CostCodeMaster />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route

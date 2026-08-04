@@ -8,7 +8,8 @@ export function Sidebar({ open }: { open: boolean }) {
 
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (item.superAdminOnly) return isSuperAdmin;
-    return can(item.module, 'view');
+    if (item.alwaysVisible) return true;
+    return item.module ? can(item.module, 'view') : false;
   });
 
   return (

@@ -25,7 +25,14 @@ export interface CostCode {
   id: string;
   code: string;
   name: string;
+  itemsToConsider?: string | null;
+  remarks?: string | null;
+  responsiblePerson?: string | null;
   status: 'ACTIVE' | 'INACTIVE';
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 export const costCodesApi = createResourceApi<CostCode>('/cost-codes');
 
