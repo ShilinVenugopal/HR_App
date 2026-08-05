@@ -18,6 +18,8 @@ import {
   BookOpenText,
   Tags,
   Store,
+  PieChart,
+  LayoutGrid,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -47,6 +49,8 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'RECRUITMENT', label: 'Recruitment', path: '/recruitment', icon: UserPlus },
   { module: 'EMPLOYEES', label: 'Employees', path: '/employees', icon: Users },
   { module: 'ATTENDANCE', label: 'Attendance', path: '/attendance', icon: CalendarCheck },
+  { module: 'ATTENDANCE', label: 'Manpower Summary', path: '/manpower-summary', icon: PieChart },
+  { module: 'ATTENDANCE', label: 'Unit Management', path: '/unit-management', icon: LayoutGrid },
   { module: 'WAGES', label: 'Wages', path: '/wages', icon: Wallet },
   { module: 'COMPLIANCE', label: 'Compliance', path: '/compliance', icon: ShieldCheck },
   { module: 'ADVANCES', label: 'Advances', path: '/advances', icon: HandCoins },

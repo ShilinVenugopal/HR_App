@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi, vendorsApi } from '../api/modules';
+import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi, projectUnitsApi, vendorsApi } from '../api/modules';
 
 export function useProjectOptions() {
   const { data } = useQuery({
@@ -55,6 +55,21 @@ export function useVendorOptions() {
     label: v.name,
     searchText: v.productName ? `${v.name} ${v.productName}` : v.name,
   }));
+}
+
+/// Active Units for one Project — Unit is Project-specific, so this only
+/// fetches (and only returns options) once a Project is actually known,
+/// e.g. from the Employee selected in Mark Attendance. Deactivated Units
+/// disappear from here immediately but existing attendance rows keep
+/// showing whichever Unit they already reference (they store unitId, not
+/// this list) — same rule as Cost Code's active-only lookup.
+export function useProjectUnitOptions(projectId?: string) {
+  const { data } = useQuery({
+    queryKey: ['lookup-project-units', projectId],
+    queryFn: () => projectUnitsApi.listByProject(projectId!, 'ACTIVE'),
+    enabled: Boolean(projectId),
+  });
+  return (data ?? []).map((u) => ({ value: u.id, label: u.name }));
 }
 
 export function useEmployeeOptions(projectId?: string) {

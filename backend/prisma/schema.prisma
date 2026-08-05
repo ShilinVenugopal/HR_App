@@ -369,6 +369,11 @@ model User {
   vendorsUpdated Vendor[]            @relation("VendorUpdatedBy")
   poTermsUpdated PurchaseOrderTerm[] @relation("PoTermUpdatedBy")
 
+  projectUnitsCreated ProjectUnit[] @relation("ProjectUnitCreatedBy")
+  projectUnitsUpdated ProjectUnit[] @relation("ProjectUnitUpdatedBy")
+  attendanceCreated   Attendance[]  @relation("AttendanceCreatedBy")
+  attendanceUpdated   Attendance[]  @relation("AttendanceUpdatedBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -392,6 +397,7 @@ model Project {
   employees       Employee[]
   candidates      RecruitmentCandidate[]
   attendance      Attendance[]
+  units           ProjectUnit[]
   wages           WageRecord[]
   compliance      Compliance[]
   advances        Advance[]
@@ -731,6 +737,11 @@ model Attendance {
   id             String           @id @default(uuid())
   employeeId     String
   projectId      String
+  /// Nullable at the DB level only for historical rows created before this
+  /// field existed — the API requires it on every new Mark Attendance
+  /// (create) call; see attendance.validation.ts / attendance.service.ts.
+  /// Never auto-backfilled onto old records (would be a guess).
+  unitId         String?
   date           DateTime
   shift          Shift            @default(GENERAL)
   inTime         String?
@@ -742,18 +753,50 @@ model Attendance {
   approvedAt     DateTime?
   isLocked       Boolean          @default(false)
   remarks        String?
+  createdById    String?
+  updatedById    String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  project    Project  @relation(fields: [projectId], references: [id])
-  approvedBy User?    @relation("AttendanceApprover", fields: [approvedById], references: [id])
+  employee   Employee     @relation(fields: [employeeId], references: [id])
+  project    Project      @relation(fields: [projectId], references: [id])
+  unit       ProjectUnit? @relation(fields: [unitId], references: [id])
+  approvedBy User?        @relation("AttendanceApprover", fields: [approvedById], references: [id])
+  createdBy  User?        @relation("AttendanceCreatedBy", fields: [createdById], references: [id])
+  updatedBy  User?        @relation("AttendanceUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([employeeId, date])
   @@index([projectId])
   @@index([date])
   @@index([approvalStatus])
+  @@index([unitId])
   @@map("attendance")
+}
+
+/// Project-specific sub-division used to tally manpower deployment (e.g.
+/// "Unit A" / "Unit B") — distinct from the unrelated `Unit` enum (NOS,
+/// MTR, ...), which is a procurement unit-of-measure. Named ProjectUnit to
+/// avoid colliding with that enum in Prisma's shared model/enum namespace.
+model ProjectUnit {
+  id          String        @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy User?   @relation("ProjectUnitCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?   @relation("ProjectUnitUpdatedBy", fields: [updatedById], references: [id])
+
+  attendance Attendance[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_units")
 }
 
 // ─────────────────────────────────────────────────────────────────────────

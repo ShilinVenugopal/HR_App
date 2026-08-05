@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSync';
 import { seedCostCodeMasterData } from '../src/modules/costCodes/costCodeMasterSeed';
 import { seedDefaultPoTerms, backfillPurchaseOrderTermsSnapshot } from '../src/modules/poTerms/poTermsSeed';
+import { seedDemoProjectUnits } from '../src/modules/projectUnits/projectUnitsSeed';
 
 const prisma = new PrismaClient();
 
@@ -147,6 +148,9 @@ async function main() {
   // currently in the table, so it must run after the seed.
   await seedDefaultPoTerms();
   await backfillPurchaseOrderTermsSnapshot();
+
+  // ── Attendance Units (per-project demo data) ──────────────────────────
+  await seedDemoProjectUnits();
 
   // ── Vendors (Procurement) ────────────────────────────────────────────
   const vendors = [

@@ -191,6 +191,11 @@ export interface AttendanceRecord {
   employee?: { id: string; name: string; employeeCode: string };
   projectId: string;
   project?: { id: string; projectName: string };
+  /// Nullable only for attendance rows marked before Unit existed —
+  /// mandatory on every new Mark Attendance save (enforced both here and
+  /// on the backend).
+  unitId?: string | null;
+  unit?: { id: string; name: string } | null;
   date: string;
   shift: string;
   inTime?: string | null;
@@ -207,6 +212,64 @@ export const attendanceApi = {
   reject: (id: string) => apiClient.patch(`/attendance/${id}/reject`).then((r) => r.data),
   lock: (id: string) => apiClient.patch(`/attendance/${id}/lock`).then((r) => r.data),
   unlock: (id: string) => apiClient.patch(`/attendance/${id}/unlock`).then((r) => r.data),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// ATTENDANCE — Project Units (Mark Attendance's mandatory Unit field)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ProjectUnit {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string };
+  name: string;
+  description?: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+export const projectUnitsApi = {
+  ...createResourceApi<ProjectUnit>('/project-units'),
+  listByProject: (projectId: string, status?: string) =>
+    apiClient.get('/project-units', { params: { projectId, status } }).then((r) => r.data.data as ProjectUnit[]),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// ATTENDANCE — Project-wise Manpower Summary
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ManpowerSummaryUnit {
+  unitId: string | null;
+  unitName: string;
+  manpower: number;
+  attendanceDays: number;
+}
+export interface ManpowerSummary {
+  projectId: string;
+  month: number;
+  year: number;
+  totalUniqueManpower: number;
+  totalUnits: number;
+  totalAttendanceDays: number;
+  units: ManpowerSummaryUnit[];
+}
+export interface ManpowerSummaryEmployee {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  unitId: string | null;
+  unitName: string;
+  attendanceDays: number;
+}
+export const manpowerSummaryApi = {
+  get: (projectId: string, month: number, year: number) =>
+    apiClient.get('/attendance/manpower-summary', { params: { projectId, month, year } }).then((r) => r.data.data as ManpowerSummary),
+  employees: (projectId: string, month: number, year: number, unitId?: string) =>
+    apiClient
+      .get('/attendance/manpower-summary/employees', { params: { projectId, month, year, unitId } })
+      .then((r) => r.data.data as ManpowerSummaryEmployee[]),
 };
 
 export interface WageRecord {

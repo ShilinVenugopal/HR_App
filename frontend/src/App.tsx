@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import Recruitment from './pages/Recruitment';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
+import ManpowerSummary from './pages/ManpowerSummary';
+import UnitManagement from './pages/UnitManagement';
 import Wages from './pages/Wages';
 import ProjectWagesPage from './pages/ProjectWagesPage';
 import Compliance from './pages/Compliance';
@@ -41,6 +43,8 @@ export default function App() {
           <Route path="/recruitment" element={<Recruitment />} />
           <Route path="/employees" element={<Employees />} />
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/manpower-summary" element={<ManpowerSummary />} />
+          <Route path="/unit-management" element={<UnitManagement />} />
           <Route path="/wages" element={<Wages />} />
           <Route path="/wages/:code" element={<ProjectWagesPage />} />
           <Route path="/compliance" element={<Compliance />} />
