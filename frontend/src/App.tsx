@@ -15,6 +15,7 @@ import PurchaseRequisitions from './pages/PurchaseRequisitions';
 import PurchaseRequisitionDetail from './pages/PurchaseRequisitionDetail';
 import PurchaseOrders from './pages/PurchaseOrders';
 import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
+import VendorManagement from './pages/VendorManagement';
 import GoodsReceivedNotes from './pages/GoodsReceivedNotes';
 import GoodsReceivedNoteDetail from './pages/GoodsReceivedNoteDetail';
 import ProcurementDashboard from './pages/ProcurementDashboard';
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/purchase-requisitions/:id" element={<PurchaseRequisitionDetail />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/purchase-orders/:id" element={<PurchaseOrderDetail />} />
+          <Route path="/vendors" element={<VendorManagement />} />
           <Route path="/grns" element={<GoodsReceivedNotes />} />
           <Route path="/grns/:id" element={<GoodsReceivedNoteDetail />} />
           <Route path="/procurement-dashboard" element={<ProcurementDashboard />} />

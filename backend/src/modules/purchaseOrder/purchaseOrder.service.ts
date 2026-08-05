@@ -156,6 +156,12 @@ export async function createPurchaseOrder(req: Request, input: CreatePoInput, me
   const itemsData = input.items.map((it, idx) => computeItemData(it, idx));
   const { subtotal, grandTotal } = computeTotals(itemsData, input.packingForwarding ?? 0, input.transportationCharges ?? 0, input.taxesAndDuties ?? 0);
 
+  // Snapshot the *current* default Terms & Conditions template into this
+  // PO at creation time — editing the template later only changes what
+  // future POs get; this PO keeps exactly what it was created with.
+  const currentTerms = await prisma.purchaseOrderTerm.findMany({ orderBy: { sortOrder: 'asc' } });
+  const termsSnapshot = currentTerms.map((t) => ({ id: t.id, heading: t.heading, body: t.body }));
+
   const po = await prisma.purchaseOrder.create({
     data: {
       projectId: input.projectId,
@@ -175,6 +181,7 @@ export async function createPurchaseOrder(req: Request, input: CreatePoInput, me
       grandTotal,
       status: 'DRAFT',
       createdById: req.user!.sub,
+      termsAndConditions: termsSnapshot,
       items: { create: itemsData },
     },
     include: includeRelations,
@@ -427,7 +434,6 @@ export async function unlockPurchaseOrder(req: Request, id: string, meta?: Reque
 export interface PoSettingsInput {
   billingAddress?: string;
   billingGstNumber?: string;
-  termsAndConditions?: Record<string, string>;
   signatureImageUrl?: string;
   authorizedName?: string;
   authorizedDesignation?: string;
@@ -446,7 +452,6 @@ export async function updatePurchaseOrderSettings(req: Request, id: string, inpu
     data: {
       billingAddress: input.billingAddress !== undefined ? input.billingAddress || null : undefined,
       billingGstNumber: input.billingGstNumber !== undefined ? input.billingGstNumber || null : undefined,
-      termsAndConditions: input.termsAndConditions,
       signatureImageUrl: input.signatureImageUrl !== undefined ? input.signatureImageUrl || null : undefined,
       authorizedName: input.authorizedName !== undefined ? input.authorizedName || null : undefined,
       authorizedDesignation: input.authorizedDesignation !== undefined ? input.authorizedDesignation || null : undefined,

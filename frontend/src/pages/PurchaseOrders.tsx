@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Store } from 'lucide-react';
 import { PurchaseOrder, purchaseOrdersApi, purchaseRequisitionsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column, SortState } from '../components/common/DataTable';
@@ -70,11 +70,16 @@ export default function PurchaseOrders() {
         title="Purchase Order"
         description="Create, approve, and track project-wise purchase orders"
         actions={
-          can('PURCHASE_ORDER', 'add') && (
-            <button className="btn-primary" onClick={() => navigate('/purchase-orders/new')}>
-              <Plus size={16} /> New Purchase Order
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-secondary" onClick={() => navigate('/vendors')}>
+              <Store size={16} /> Vendor Management
             </button>
-          )
+            {can('PURCHASE_ORDER', 'add') && (
+              <button className="btn-primary" onClick={() => navigate('/purchase-orders/new')}>
+                <Plus size={16} /> New Purchase Order
+              </button>
+            )}
+          </div>
         }
       />
 

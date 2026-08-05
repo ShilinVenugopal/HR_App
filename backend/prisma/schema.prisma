@@ -359,11 +359,15 @@ model User {
 
   siteAccountStatementsCreated SiteAccountStatement[] @relation("SiteAccountStatementCreatedBy")
   siteAccountStatementsUpdated SiteAccountStatement[] @relation("SiteAccountStatementUpdatedBy")
-  siteAccountEntriesCreated    SiteAccountEntry[]      @relation("SiteAccountEntryCreatedBy")
-  siteAccountEntriesUpdated    SiteAccountEntry[]      @relation("SiteAccountEntryUpdatedBy")
+  siteAccountEntriesCreated    SiteAccountEntry[]     @relation("SiteAccountEntryCreatedBy")
+  siteAccountEntriesUpdated    SiteAccountEntry[]     @relation("SiteAccountEntryUpdatedBy")
 
   costCodesCreated CostCode[] @relation("CostCodeCreatedBy")
   costCodesUpdated CostCode[] @relation("CostCodeUpdatedBy")
+
+  vendorsCreated Vendor[]            @relation("VendorCreatedBy")
+  vendorsUpdated Vendor[]            @relation("VendorUpdatedBy")
+  poTermsUpdated PurchaseOrderTerm[] @relation("PoTermUpdatedBy")
 
   @@index([role])
   @@index([status])
@@ -984,9 +988,9 @@ model WageEntry {
 /// Employees-style "any user may read reference data" doesn't apply here —
 /// this master specifically must not be editable by non-Super-Admins.
 model CostCode {
-  id        String        @id @default(uuid())
-  code      String        @unique
-  name      String
+  id                String        @id @default(uuid())
+  code              String        @unique
+  name              String
   /// Supplementary fields carried over from the reference "Cost Code
   /// Summary" import — optional since most codes only ever need code+name.
   itemsToConsider   String?
@@ -1010,21 +1014,56 @@ model CostCode {
 }
 
 model Vendor {
-  id            String   @id @default(uuid())
-  name          String
-  address       String?
-  gstNumber     String?
-  email         String?
-  phone         String?
-  contactPerson String?
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String
+  address           String?
+  /// Free-text product/product-category label — searched alongside name
+  /// when selecting a vendor for a Purchase Order (e.g. "Cable" matches
+  /// "Power Cable", "Instrument Cable", ...).
+  productName       String?
+  gstNumber         String?
+  email             String?
+  phone             String?
+  contactPerson     String?
+  /// Banking details — never returned to a caller who lacks
+  /// PURCHASE_ORDER edit permission (or Super Admin); redacted in
+  /// vendors.controller.ts, not just hidden in the UI.
+  bankAccountNumber String?
+  bankIfscCode      String?
+  active            Boolean  @default(true)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdBy User? @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
 
   purchaseOrders PurchaseOrder[]
 
   @@index([name])
+  @@index([productName])
   @@map("vendors")
+}
+
+/// Global default Terms & Conditions template shown on new Purchase
+/// Orders and editable only by Super Admin. A PurchaseOrder's own
+/// `termsAndConditions` JSON column is a point-in-time snapshot of this
+/// template taken at creation — editing the template here only changes
+/// what *future* POs get; already-created POs keep displaying whatever
+/// they were created with, unaffected by later template edits.
+model PurchaseOrderTerm {
+  id          String   @id @default(uuid())
+  heading     String
+  body        String
+  sortOrder   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  updatedBy User? @relation("PoTermUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("purchase_order_terms")
 }
 
 model InventoryItem {
@@ -1536,10 +1575,10 @@ model SiteAccountEntry {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
-  statement SiteAccountStatement    @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  costCode  SiteAccountCostCode?    @relation(fields: [costCodeId], references: [id])
-  createdBy User                    @relation("SiteAccountEntryCreatedBy", fields: [createdById], references: [id])
-  updatedBy User?                   @relation("SiteAccountEntryUpdatedBy", fields: [updatedById], references: [id])
+  statement SiteAccountStatement   @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  costCode  SiteAccountCostCode?   @relation(fields: [costCodeId], references: [id])
+  createdBy User                   @relation("SiteAccountEntryCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?                  @relation("SiteAccountEntryUpdatedBy", fields: [updatedById], references: [id])
   dates     SiteAccountEntryDate[]
 
   @@index([statementId])

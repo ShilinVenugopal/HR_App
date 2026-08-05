@@ -736,14 +736,46 @@ export interface Vendor {
   id: string;
   name: string;
   address?: string | null;
+  productName?: string | null;
   gstNumber?: string | null;
   email?: string | null;
   phone?: string | null;
   contactPerson?: string | null;
+  /// Redacted (always null) by the API for callers without PURCHASE_ORDER
+  /// edit permission / Super Admin — see backend vendors.controller.ts.
+  bankAccountNumber?: string | null;
+  bankIfscCode?: string | null;
   active: boolean;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
   createdAt: string;
+  updatedAt?: string;
 }
-export const vendorsApi = createResourceApi<Vendor>('/vendors');
+export const vendorsApi = {
+  ...createResourceApi<Vendor>('/vendors'),
+  checkDuplicate: (name: string, phone: string) =>
+    apiClient.get('/vendors/check-duplicate', { params: { name, phone } }).then((r) => r.data.data as { id: string; name: string; phone: string } | null),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Purchase Order Terms & Conditions (global default template)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PoTermItem {
+  id: string;
+  heading: string;
+  body: string;
+  sortOrder: number;
+}
+export interface PoTermSnapshot {
+  id: string;
+  heading: string;
+  body: string;
+}
+export const poTermsApi = {
+  list: () => apiClient.get('/po-terms').then((r) => r.data.data as PoTermItem[]),
+  replace: (items: { heading: string; body: string }[]) => apiClient.put('/po-terms', { items }).then((r) => r.data.data as PoTermItem[]),
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // PROCUREMENT — Purchase Order
@@ -789,7 +821,10 @@ export interface PurchaseOrder {
   grandTotal: string | number;
   billingAddress?: string | null;
   billingGstNumber?: string | null;
-  termsAndConditions?: Record<string, string> | null;
+  /// A snapshot taken at creation time from the (Super-Admin-editable)
+  /// default template — see poTermsApi. Later edits to the template never
+  /// change what an already-created PO displays here.
+  termsAndConditions?: PoTermSnapshot[] | null;
   signatureImageUrl?: string | null;
   authorizedName?: string | null;
   authorizedDesignation?: string | null;
@@ -834,7 +869,6 @@ export interface PoCreateInput {
 export interface PoSettingsInput {
   billingAddress?: string;
   billingGstNumber?: string;
-  termsAndConditions?: Record<string, string>;
   signatureImageUrl?: string;
   authorizedName?: string;
   authorizedDesignation?: string;

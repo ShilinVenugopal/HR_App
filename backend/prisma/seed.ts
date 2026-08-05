@@ -2,6 +2,7 @@ import { ModuleName, PrismaClient, Role, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSync';
 import { seedCostCodeMasterData } from '../src/modules/costCodes/costCodeMasterSeed';
+import { seedDefaultPoTerms, backfillPurchaseOrderTermsSnapshot } from '../src/modules/poTerms/poTermsSeed';
 
 const prisma = new PrismaClient();
 
@@ -138,6 +139,14 @@ async function main() {
   // The broader F01-F24 Cost Code Summary — create-only, never overwrites
   // the 8 PUR-01-specific codes above or any future Super Admin edit.
   await seedCostCodeMasterData();
+
+  // ── Purchase Order Terms & Conditions template ────────────────────────
+  // Create-only default template, then freeze every pre-existing PO at
+  // exactly what it already displays before the template becomes
+  // Super-Admin-editable. Order matters: the backfill reads whatever is
+  // currently in the table, so it must run after the seed.
+  await seedDefaultPoTerms();
+  await backfillPurchaseOrderTermsSnapshot();
 
   // ── Vendors (Procurement) ────────────────────────────────────────────
   const vendors = [

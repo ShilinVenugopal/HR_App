@@ -49,12 +49,14 @@ export const approversQuerySchema = z.object({ query: z.object({ projectId: z.st
 /// The "static yellow fields" — editable only by authorized administrators
 /// per the design brief — gated to Super Admin at the route level
 /// (requireSuperAdmin), separate from the regular PURCHASE_ORDER edit
-/// permission that covers vendor/items/dates.
+/// permission that covers vendor/items/dates. termsAndConditions is
+/// deliberately not editable here — it's set once at PO creation as a
+/// snapshot of the global default template (see purchaseOrder.service.ts
+/// createPurchaseOrder / the poTerms module), not per-PO.
 export const updatePoSettingsSchema = z.object({
   body: z.object({
     billingAddress: z.string().trim().optional(),
     billingGstNumber: z.string().trim().optional(),
-    termsAndConditions: z.record(z.string()).optional(),
     signatureImageUrl: z.string().trim().optional(),
     authorizedName: z.string().trim().optional(),
     authorizedDesignation: z.string().trim().optional(),

@@ -13,6 +13,7 @@ router.use(authenticate);
 // PURCHASE_ORDER write permission. Writes are gated by the permission
 // matrix, same as every other module.
 router.get('/', vendorsController.listVendorsHandler);
+router.get('/check-duplicate', vendorsController.checkDuplicateVendorHandler);
 router.get('/:id', validate(idParamSchema), vendorsController.getVendorHandler);
 router.post('/', requirePermission('PURCHASE_ORDER', 'add'), validate(createVendorSchema), vendorsController.createVendorHandler);
 router.put(

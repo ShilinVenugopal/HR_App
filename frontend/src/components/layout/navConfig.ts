@@ -17,6 +17,7 @@ import {
   Receipt,
   BookOpenText,
   Tags,
+  Store,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -52,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'INVENTORY', label: 'Inventory', path: '/inventory', icon: Boxes },
   { module: 'PURCHASE_REQUISITION', label: 'Purchase Requisition', path: '/purchase-requisitions', icon: FileSpreadsheet },
   { module: 'PURCHASE_ORDER', label: 'Purchase Order', path: '/purchase-orders', icon: ClipboardList },
+  { module: 'PURCHASE_ORDER', label: 'Vendor Management', path: '/vendors', icon: Store },
   { module: 'GRN', label: 'Goods Received Note', path: '/grns', icon: PackageCheck },
   { module: 'PROCUREMENT_DASHBOARD', label: 'Procurement Dashboard', path: '/procurement-dashboard', icon: LayoutDashboard },
   { module: 'BILLING_STATUS', label: 'Billing Status', path: '/billing-status', icon: Receipt },

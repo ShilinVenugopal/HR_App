@@ -2,21 +2,22 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Copy, FileDown, Plus, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
+import { ArrowLeft, Copy, FileDown, ListChecks, Plus, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 import { useAuth } from '../context/AuthContext';
-import { useCostCodeOptions, useProjectOptions, useVendorOptions } from '../hooks/useLookups';
-import { InventoryUnit, PoItemInput, PoSettingsInput, purchaseOrdersApi, purchaseRequisitionsApi, uploadsApi } from '../api/modules';
+import { useCostCodeOptions, useProjectOptions, useVendorOptions, useVendors } from '../hooks/useLookups';
+import { InventoryUnit, PoItemInput, PoSettingsInput, PoTermSnapshot, poTermsApi, purchaseOrdersApi, purchaseRequisitionsApi, uploadsApi } from '../api/modules';
 import { apiErrorMessage } from '../api/client';
 import { UNIT_OPTIONS, unitLabel } from '../utils/inventoryExcel';
 import { amountToWords } from '../utils/numberToWords';
-import { DEFAULT_PO_TERMS, resolveTermBody } from '../utils/purchaseOrderTerms';
 import { exportPurchaseOrderExcel } from '../utils/purchaseOrderExcel';
 import { SubmitForApprovalModal } from '../components/procurement/SubmitForApprovalModal';
 import { DecisionModal, DecisionAction } from '../components/procurement/DecisionModal';
+import { PoTermsTemplateModal } from '../components/procurement/PoTermsTemplateModal';
 
 interface DraftItem {
   key: string;
@@ -46,9 +47,11 @@ export default function PurchaseOrderDetail() {
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
   const { can, session } = useAuth();
+  const isSuperAdmin = session?.user.role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
 
   const projectOptions = useProjectOptions();
+  const vendors = useVendors();
   const vendorOptions = useVendorOptions();
   const costCodeOptions = useCostCodeOptions();
 
@@ -70,11 +73,20 @@ export default function PurchaseOrderDetail() {
   const [decisionAction, setDecisionAction] = useState<DecisionAction | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [termsTemplateModalOpen, setTermsTemplateModalOpen] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['po', id],
     queryFn: () => purchaseOrdersApi.get(id!),
     enabled: !isNew,
+  });
+
+  // Only needed for a not-yet-saved PO, to preview what terms it will get
+  // — once a PO exists it already carries its own frozen snapshot.
+  const { data: liveTerms } = useQuery({
+    queryKey: ['po-terms'],
+    queryFn: () => poTermsApi.list(),
+    enabled: isNew,
   });
 
   const { data: sourcePr } = useQuery({
@@ -136,6 +148,13 @@ export default function PurchaseOrderDetail() {
 
   const isEditable = isNew || po?.status === 'DRAFT';
   const canDecide = po?.status === 'PENDING_APPROVAL' && can('PURCHASE_ORDER', 'approve');
+
+  const selectedVendor = vendors.find((v) => v.id === vendorId);
+  // An existing PO always renders its own frozen snapshot; a brand-new,
+  // not-yet-saved PO previews whatever the live default template
+  // currently contains (it snapshots this exact list the moment it's
+  // first saved).
+  const termsToShow: PoTermSnapshot[] = po?.termsAndConditions ?? liveTerms ?? [];
 
   const addRow = () => setItems((prev) => [...prev, emptyDraftItem()]);
   const duplicateRow = (key: string) =>
@@ -342,17 +361,29 @@ export default function PurchaseOrderDetail() {
           <div>
             <label className="label">Vendor *</label>
             {isEditable ? (
-              <select className="input" value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-                <option value="">Select vendor...</option>
-                {vendorOptions.map((v) => (
-                  <option key={v.value} value={v.value}>
-                    {v.label}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={vendorOptions}
+                value={vendorId}
+                onChange={setVendorId}
+                placeholder="Select vendor..."
+                searchPlaceholder="Search by vendor name or product..."
+              />
             ) : (
               <p className="font-medium">{po?.vendor?.name ?? '—'}</p>
             )}
+            {(() => {
+              const v = isEditable ? selectedVendor : po?.vendor;
+              if (!v) return null;
+              return (
+                <div className="mt-2 space-y-0.5 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
+                  <p>{v.address || '—'}</p>
+                  <p>
+                    {v.phone || '—'} {v.email ? `· ${v.email}` : ''}
+                  </p>
+                  <p>GST: {v.gstNumber || '—'}</p>
+                </div>
+              );
+            })()}
           </div>
           <div>
             <label className="label">P.O. Number *</label>
@@ -587,15 +618,27 @@ export default function PurchaseOrderDetail() {
         </div>
 
         <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
-          <h3 className="mb-3 text-sm font-semibold">Terms & Conditions</h3>
+          <div className="mb-3 flex items-center justify-between print:mb-2">
+            <h3 className="text-sm font-semibold">Terms & Conditions</h3>
+            {isSuperAdmin && (
+              <button className="btn-ghost px-2 py-1 text-xs print:hidden" onClick={() => setTermsTemplateModalOpen(true)}>
+                <ListChecks size={14} /> Edit Terms & Conditions
+              </button>
+            )}
+          </div>
           <div className="space-y-3 text-xs">
-            {DEFAULT_PO_TERMS.map((term) => (
+            {termsToShow.map((term) => (
               <div key={term.id}>
                 <p className="font-semibold">{term.heading}</p>
-                <p className="whitespace-pre-line text-slate-600 dark:text-slate-400">{resolveTermBody(term, po?.termsAndConditions)}</p>
+                <p className="whitespace-pre-line text-slate-600 dark:text-slate-400">{term.body}</p>
               </div>
             ))}
           </div>
+          {isNew && (
+            <p className="mt-2 text-[11px] italic text-slate-400 print:hidden">
+              These are the current default terms — saving this PO will lock in exactly what's shown here as its own permanent record.
+            </p>
+          )}
         </div>
 
         {!isNew && po && (
@@ -687,6 +730,15 @@ export default function PurchaseOrderDetail() {
           }}
         />
       )}
+
+      <PoTermsTemplateModal
+        open={termsTemplateModalOpen}
+        onClose={() => setTermsTemplateModalOpen(false)}
+        onSaved={() => {
+          setTermsTemplateModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['po-terms'] });
+        }}
+      />
     </div>
   );
 }

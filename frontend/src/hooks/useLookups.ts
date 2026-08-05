@@ -38,12 +38,23 @@ export function useCostCodeOptions() {
   return (data?.data ?? []).map((c) => ({ value: c.id, label: `${c.code} — ${c.name}`, code: c.code, name: c.name }));
 }
 
-export function useVendorOptions() {
+/// Raw active-vendor rows (not just {value,label}) — used both to build
+/// searchable-select options (name + product in one search box) and to
+/// look up a selected vendor's full details for PO auto-fill.
+export function useVendors() {
   const { data } = useQuery({
     queryKey: ['lookup-vendors'],
-    queryFn: () => vendorsApi.list({ pageSize: 200 }),
+    queryFn: () => vendorsApi.list({ pageSize: 500 }),
   });
-  return (data?.data ?? []).filter((v) => v.active).map((v) => ({ value: v.id, label: v.name }));
+  return (data?.data ?? []).filter((v) => v.active);
+}
+
+export function useVendorOptions() {
+  return useVendors().map((v) => ({
+    value: v.id,
+    label: v.name,
+    searchText: v.productName ? `${v.name} ${v.productName}` : v.name,
+  }));
 }
 
 export function useEmployeeOptions(projectId?: string) {

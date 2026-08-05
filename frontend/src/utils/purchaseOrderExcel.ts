@@ -5,7 +5,6 @@ import type ExcelJS from 'exceljs';
 import { PurchaseOrder } from '../api/modules';
 import { unitLabel } from './inventoryExcel';
 import { amountToWords } from './numberToWords';
-import { DEFAULT_PO_TERMS, resolveTermBody } from './purchaseOrderTerms';
 
 function fmtDate(value?: string | null): string {
   if (!value) return '';
@@ -114,13 +113,13 @@ export async function exportPurchaseOrderExcel(po: PurchaseOrder) {
   sheet.getCell(`A${row}`).font = { bold: true, size: 12 };
   row += 1;
 
-  for (const term of DEFAULT_PO_TERMS) {
+  for (const term of po.termsAndConditions ?? []) {
     sheet.mergeCells(`A${row}:J${row}`);
     sheet.getCell(`A${row}`).value = term.heading;
     sheet.getCell(`A${row}`).font = { bold: true };
     row += 1;
     sheet.mergeCells(`A${row}:J${row}`);
-    sheet.getCell(`A${row}`).value = resolveTermBody(term, po.termsAndConditions);
+    sheet.getCell(`A${row}`).value = term.body;
     sheet.getCell(`A${row}`).alignment = { wrapText: true };
     row += 1;
   }
