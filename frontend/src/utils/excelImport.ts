@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from './candidateConstants';
+import { APP_NAME } from '../config/branding';
 
 /// Column order/labels here are the single source of truth for both the
 /// downloadable template and the uploaded-file header mapping — keep them
@@ -58,7 +59,7 @@ function downloadWorkbook(workbook: ExcelJS.Workbook, filename: string) {
 
 export async function downloadCandidateTemplate(projectNames: string[]) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Forays Group HR Solutions';
+  workbook.creator = APP_NAME;
 
   const sheet = workbook.addWorksheet('Candidates');
   sheet.columns = CANDIDATE_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 22 }));

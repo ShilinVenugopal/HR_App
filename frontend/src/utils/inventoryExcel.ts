@@ -3,6 +3,7 @@
 /// bloats the main bundle (see wageExcel.ts / employeeExcel.ts for the
 /// same pattern explained in full).
 import type ExcelJS from 'exceljs';
+import { APP_NAME } from '../config/branding';
 import { InventoryItem } from '../api/modules';
 
 export const INVENTORY_FIELDS = [
@@ -93,7 +94,7 @@ const SAMPLE_ROW: Record<InventoryFieldKey, string> = {
 export async function downloadInventoryTemplate(lookups: Lookups) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Forays Group HR Solutions';
+  workbook.creator = APP_NAME;
 
   const sheet = workbook.addWorksheet('Inventory');
   sheet.columns = INVENTORY_FIELDS.map((f) => ({ header: f.label, key: f.key, width: f.key === 'itemDescription' || f.key === 'remarks' ? 30 : 20 }));

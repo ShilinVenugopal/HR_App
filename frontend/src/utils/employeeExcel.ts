@@ -3,6 +3,7 @@
 /// never bloats the main bundle, matching the rest of the app's Excel
 /// handling (see wageExcel.ts for the same pattern explained in full).
 import type ExcelJS from 'exceljs';
+import { APP_NAME } from '../config/branding';
 import { Employee } from '../api/modules';
 
 /// Single source of truth for field labels — drives the downloadable
@@ -113,7 +114,7 @@ const SAMPLE_ROW: Record<EmployeeFieldKey, string> = {
 export async function downloadEmployeeTemplate(lookups: Lookups) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Forays Group HR Solutions';
+  workbook.creator = APP_NAME;
 
   const sheet = workbook.addWorksheet('Employees');
   sheet.columns = EMPLOYEE_FIELDS.map((f) => ({ header: f.label, key: f.key, width: 22 }));

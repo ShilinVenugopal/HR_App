@@ -52,7 +52,7 @@ export const env = {
     user: process.env.SMTP_USER,
     password: process.env.SMTP_PASSWORD,
     fromAddress: process.env.SMTP_FROM_ADDRESS ?? process.env.SMTP_USER,
-    fromName: process.env.SMTP_FROM_NAME ?? 'Forays Group HR Solutions',
+    fromName: process.env.SMTP_FROM_NAME ?? 'FORAYS ERP',
   },
 
   whatsapp: {
