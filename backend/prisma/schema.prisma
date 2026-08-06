@@ -59,6 +59,7 @@ enum ModuleName {
   PROCUREMENT_DASHBOARD
   BILLING_STATUS
   SITE_ACCOUNTS
+  EXPENSE
 }
 
 enum CandidateStatus {
@@ -373,6 +374,8 @@ model User {
   projectUnitsUpdated ProjectUnit[] @relation("ProjectUnitUpdatedBy")
   attendanceCreated   Attendance[]  @relation("AttendanceCreatedBy")
   attendanceUpdated   Attendance[]  @relation("AttendanceUpdatedBy")
+  expensesCreated     Expense[]     @relation("ExpenseCreatedBy")
+  expensesUpdated     Expense[]     @relation("ExpenseUpdatedBy")
 
   @@index([role])
   @@index([status])
@@ -414,6 +417,7 @@ model Project {
   documentSequences     DocumentSequence[]
   billingRecords        BillingRecord[]
   siteAccountStatements SiteAccountStatement[]
+  expenses              Expense[]
 
   @@index([status])
   @@map("projects")
@@ -1643,4 +1647,67 @@ model SiteAccountEntryDate {
 
   @@index([entryId])
   @@map("site_account_entry_dates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXPENSE
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One flat row per Project + Year + Month — the reference "Expense
+/// adding.xlsx" template's columns mapped 1:1 (Sr.No. is the row's
+/// position within a query result, not stored). `month` follows the same
+/// Int(1-12)/"...Year" naming idiom as BillingRecord.billingMonth /
+/// SiteAccountStatement.statementMonth. `uom` reuses the existing
+/// procurement Unit enum (NOS/MTR/.../LITER) rather than introducing a
+/// new UOM master — no dedicated UOM table existed anywhere in the app to
+/// build on, and this enum already serves the same purpose elsewhere.
+model Expense {
+  id                     String   @id @default(uuid())
+  projectId              String
+  year                   Int
+  month                  Int
+  uom                    Unit?
+  /// Manpower headcount for the month — a quantity, deliberately never
+  /// summed into totalAmount (see totalAmount's own comment).
+  manpower               Decimal  @db.Decimal(10, 2)
+  basicSalary            Decimal  @default(0) @db.Decimal(14, 2)
+  /// Column G in the reference template — first column counted into
+  /// totalAmount.
+  totalManpowerNetSalary Decimal  @db.Decimal(14, 2)
+  leavePay               Decimal  @default(0) @db.Decimal(14, 2)
+  bonus                  Decimal  @default(0) @db.Decimal(14, 2)
+  pf                     Decimal  @default(0) @db.Decimal(14, 2)
+  esic                   Decimal  @default(0) @db.Decimal(14, 2)
+  transportation         Decimal  @default(0) @db.Decimal(14, 2)
+  accommodation          Decimal  @default(0) @db.Decimal(14, 2)
+  operationalCost        Decimal  @default(0) @db.Decimal(14, 2)
+  labLicenseBgFund       Decimal  @default(0) @db.Decimal(14, 2)
+  ppe                    Decimal  @default(0) @db.Decimal(14, 2)
+  coverall               Decimal  @default(0) @db.Decimal(14, 2)
+  medicalExpense         Decimal  @default(0) @db.Decimal(14, 2)
+  toolsAndMachinery      Decimal  @default(0) @db.Decimal(14, 2)
+  mobDemobCost           Decimal  @default(0) @db.Decimal(14, 2)
+  insurance              Decimal  @default(0) @db.Decimal(14, 2)
+  consumables            Decimal  @default(0) @db.Decimal(14, 2)
+  /// Column W — last column counted into totalAmount.
+  misc                   Decimal  @default(0) @db.Decimal(14, 2)
+  /// Server-computed, always: SUM(totalManpowerNetSalary..misc) — i.e.
+  /// columns G through W in the reference template. Never accepted from
+  /// client input; recomputed on every create/update. Explicitly excludes
+  /// manpower (a quantity, not money) and basicSalary (the template's own
+  /// =SUM(G:W) formula excludes it too).
+  totalAmount            Decimal  @default(0) @db.Decimal(14, 2)
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy User    @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?   @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([projectId, year, month])
+  @@index([projectId])
+  @@index([year, month])
+  @@map("expenses")
 }

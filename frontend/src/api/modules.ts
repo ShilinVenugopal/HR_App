@@ -1306,3 +1306,50 @@ export const siteAccountsApi = {
   save: (id: string) => apiClient.post(`/site-accounts/${id}/save`).then((r) => r.data.data as SiteAccountStatement),
   remove: (id: string) => apiClient.delete(`/site-accounts/${id}`),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXPENSE — project-wise monthly expense sheet
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface Expense {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null };
+  year: number;
+  month: number;
+  uom?: InventoryUnit | null;
+  manpower: string | number;
+  basicSalary: string | number;
+  totalManpowerNetSalary: string | number;
+  leavePay: string | number;
+  bonus: string | number;
+  pf: string | number;
+  esic: string | number;
+  transportation: string | number;
+  accommodation: string | number;
+  operationalCost: string | number;
+  labLicenseBgFund: string | number;
+  ppe: string | number;
+  coverall: string | number;
+  medicalExpense: string | number;
+  toolsAndMachinery: string | number;
+  mobDemobCost: string | number;
+  insurance: string | number;
+  consumables: string | number;
+  misc: string | number;
+  /// Always server-computed — SUM(totalManpowerNetSalary..misc). Never
+  /// send this back on create/update; the API ignores/rejects it.
+  totalAmount: string | number;
+  createdBy?: { id: string; name: string } | null;
+  createdAt?: string;
+  updatedBy?: { id: string; name: string } | null;
+  updatedAt?: string;
+}
+
+export type ExpenseAmountInput = Omit<Expense, 'id' | 'project' | 'totalAmount' | 'createdBy' | 'createdAt' | 'updatedBy' | 'updatedAt'>;
+
+export const expensesApi = {
+  ...createResourceApi<Expense>('/expenses'),
+  lookup: (projectId: string, year: number, month: number) =>
+    apiClient.get('/expenses/lookup', { params: { projectId, year, month } }).then((r) => r.data.data as Expense | null),
+};

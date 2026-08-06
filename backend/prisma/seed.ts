@@ -208,6 +208,10 @@ async function main() {
       // Saved statement — that "correction" right (canApprove) is reserved
       // for the office-side users below.
       SITE_ACCOUNTS: { view: true, add: true, edit: true },
+      // Site team enters/updates the monthly expense sheet; delete is
+      // reserved for Finance below, same office-oversight split as
+      // BILLING_STATUS/SITE_ACCOUNTS.
+      EXPENSE: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });
@@ -246,6 +250,7 @@ async function main() {
       ATTENDANCE: { view: true, approve: true },
       REPORTS: { view: true },
       WAGES: { view: true },
+      EXPENSE: { view: true },
     }),
     projectIdByName,
   });
@@ -270,6 +275,9 @@ async function main() {
       // Office team: views every statement and holds the "correction"
       // right (canApprove) to re-open a Saved statement.
       SITE_ACCOUNTS: { view: true, approve: true },
+      // Office/finance oversight: full CRUD, unlike the site team's
+      // view+add+edit-only grant above.
+      EXPENSE: { view: true, add: true, edit: true, delete: true },
     }),
     projectIdByName,
   });
@@ -370,6 +378,7 @@ async function main() {
       REPORTS: { view: true },
       BILLING_STATUS: { view: true, add: true, edit: true },
       SITE_ACCOUNTS: { view: true, approve: true },
+      EXPENSE: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });

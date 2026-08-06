@@ -12,6 +12,7 @@ import Wages from './pages/Wages';
 import ProjectWagesPage from './pages/ProjectWagesPage';
 import Compliance from './pages/Compliance';
 import Advances from './pages/Advances';
+import Expense from './pages/Expense';
 import Inventory from './pages/Inventory';
 import PurchaseRequisitions from './pages/PurchaseRequisitions';
 import PurchaseRequisitionDetail from './pages/PurchaseRequisitionDetail';
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/wages/:code" element={<ProjectWagesPage />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/advances" element={<Advances />} />
+          <Route path="/expense" element={<Expense />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
           <Route path="/purchase-requisitions/:id" element={<PurchaseRequisitionDetail />} />

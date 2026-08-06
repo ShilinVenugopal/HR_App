@@ -20,6 +20,7 @@ import {
   Store,
   PieChart,
   LayoutGrid,
+  Banknote,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -54,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'WAGES', label: 'Wages', path: '/wages', icon: Wallet },
   { module: 'COMPLIANCE', label: 'Compliance', path: '/compliance', icon: ShieldCheck },
   { module: 'ADVANCES', label: 'Advances', path: '/advances', icon: HandCoins },
+  { module: 'EXPENSE', label: 'Expense', path: '/expense', icon: Banknote },
   { module: 'INVENTORY', label: 'Inventory', path: '/inventory', icon: Boxes },
   { module: 'PURCHASE_REQUISITION', label: 'Purchase Requisition', path: '/purchase-requisitions', icon: FileSpreadsheet },
   { module: 'PURCHASE_ORDER', label: 'Purchase Order', path: '/purchase-orders', icon: ClipboardList },
