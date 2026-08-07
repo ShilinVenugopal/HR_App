@@ -44,6 +44,12 @@ COPY --from=build /app/dist ./dist
 # prisma/ (schema + migrations) is needed at runtime for `prisma migrate
 # deploy`, which runs as this container's entrypoint on every start.
 COPY --from=build /app/prisma ./prisma
+# `npm run seed` executes prisma/seed.ts directly via tsx (not the
+# compiled dist/) and seed.ts imports several helpers from ../src/ by
+# relative path — so src/ has to exist at runtime for the one-time
+# `docker compose exec backend npm run seed` step to work.
+COPY --from=build /app/src ./src
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY package.json ./
 
 RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app
