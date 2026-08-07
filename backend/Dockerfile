@@ -6,6 +6,14 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
+# Prisma's engine binaries need libssl at both `prisma generate` (this
+# stage) and `prisma migrate deploy` (runtime stage) time — the bare
+# bookworm-slim image doesn't include it, which makes Prisma silently
+# fall back to a guessed OpenSSL version and fail with an opaque
+# "Schema engine error".
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -25,6 +33,9 @@ RUN npm prune --omit=dev
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system appgroup && useradd --system --create-home --gid appgroup appuser
 
