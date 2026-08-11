@@ -471,6 +471,6 @@ export async function handleWhatsappStatusUpdate(
 }
 
 export const communicationConfig = {
-  emailConfigured: Boolean(env.smtp.host && env.smtp.user && env.smtp.password),
+  emailConfigured: Boolean(env.brevo.apiKey && env.brevo.fromAddress) || Boolean(env.smtp.host && env.smtp.user && env.smtp.password),
   whatsappConfigured: Boolean(env.whatsapp.phoneNumberId && env.whatsapp.accessToken),
 };
