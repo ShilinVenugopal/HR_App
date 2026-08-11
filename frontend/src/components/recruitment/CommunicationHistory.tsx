@@ -13,7 +13,7 @@ import { useProjectOptions } from '../../hooks/useLookups';
 import { MESSAGE_STATUS_OPTIONS } from '../../utils/communicationConstants';
 
 export function CommunicationHistory() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin } = useAuth();
   const canManage = can('RECRUITMENT', 'approve');
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
@@ -42,7 +42,7 @@ export function CommunicationHistory() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => communicationApi.deleteHistory(id),
     onSuccess: () => {
-      toast.success('Message deleted');
+      toast.success('Communication deleted successfully.');
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ['comm-history'] });
     },
@@ -178,8 +178,13 @@ export function CommunicationHistory() {
                 <RotateCw size={14} />
               </button>
             )}
-            {canManage && (
-              <button className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete" onClick={() => setDeleteTarget(r)}>
+            {isSuperAdmin && (
+              <button
+                className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
+                title="Delete"
+                disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
+                onClick={() => setDeleteTarget(r)}
+              >
                 <Trash2 size={14} />
               </button>
             )}
@@ -189,10 +194,17 @@ export function CommunicationHistory() {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete Message"
-        message={`Delete this message to ${deleteTarget?.recipientEmail ?? deleteTarget?.recipientPhone ?? 'this recipient'}? This only removes it from history — it does not unsend anything already delivered.`}
+        title="Delete Communication?"
+        message={
+          `Are you sure you want to delete this communication record? This only removes it from the ERP history — it does not unsend or recall anything already delivered.\n\n` +
+          `Candidate: ${deleteTarget?.candidate?.candidateName ?? '—'}\n` +
+          `Recipient: ${deleteTarget?.recipientEmail ?? deleteTarget?.recipientPhone ?? '—'}\n` +
+          `Subject: ${deleteTarget?.subject || deleteTarget?.body || '—'}\n` +
+          `Status: ${deleteTarget?.status ?? '—'}`
+        }
         confirmLabel="Delete"
         danger
+        confirmDisabled={deleteMutation.isPending}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         onCancel={() => setDeleteTarget(null)}
       />

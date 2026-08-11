@@ -276,6 +276,9 @@ export interface HistoryFilters {
 export async function listHistory(req: Request, pagination: PaginationParams, filters: HistoryFilters) {
   const where: Prisma.CommunicationMessageLogWhereInput = {
     ...projectScopeWhere(req),
+    // Soft-deleted rows (Super Admin only, see deleteMessage) never appear
+    // in the normal history list — only in listDeletedHistory.
+    deletedAt: null,
     ...(filters.channel ? { channel: filters.channel as CommChannel } : {}),
     ...(filters.status ? { status: filters.status as any } : {}),
     ...(filters.projectId ? { projectId: filters.projectId } : {}),
@@ -331,7 +334,7 @@ export async function getCandidateTimeline(req: Request, candidateId: string) {
   assertProjectAccess(req, candidate.projectId);
 
   return prisma.communicationMessageLog.findMany({
-    where: { candidateId },
+    where: { candidateId, deletedAt: null },
     include: { batch: { select: { template: { select: { name: true } }, createdBy: { select: { name: true } } } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -340,6 +343,7 @@ export async function getCandidateTimeline(req: Request, candidateId: string) {
 export async function resendMessage(req: Request, id: string, meta?: RequestMeta) {
   const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
   if (!log) throw ApiError.notFound('Message not found');
+  if (log.deletedAt) throw ApiError.badRequest('This communication record has been deleted and cannot be resent');
   assertProjectAccess(req, log.projectId);
 
   const updated = await prisma.communicationMessageLog.update({
@@ -367,22 +371,23 @@ export async function resendMessage(req: Request, id: string, meta?: RequestMeta
   return updated;
 }
 
+/// Soft delete only — Super Admin only (enforced by requireSuperAdmin at
+/// the route level, not the RECRUITMENT permission matrix). The row, its
+/// delivery status history, and provider tracking data are never touched
+/// or physically removed; deletedAt/deletedById just hide it from the
+/// normal history list (see listHistory) and the candidate timeline.
+/// Does not affect the batch's own counters — those reflect what was
+/// actually sent, independent of what's since been archived from the ERP
+/// view.
 export async function deleteMessage(req: Request, id: string, meta?: RequestMeta) {
   const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
   if (!log) throw ApiError.notFound('Message not found');
-  assertProjectAccess(req, log.projectId);
+  if (log.deletedAt) throw ApiError.badRequest('This communication record has already been deleted');
 
-  await prisma.communicationMessageLog.delete({ where: { id } });
-
-  // Batch counters/status were computed from this row at send time —
-  // recompute so the batch-level view (and any list filtered by batch)
-  // stays consistent after removing one of its messages.
-  const remaining = await prisma.communicationMessageLog.count({ where: { batchId: log.batchId } });
-  if (remaining === 0) {
-    await prisma.communicationBatch.delete({ where: { id: log.batchId } }).catch(() => undefined);
-  } else {
-    await recomputeBatchCounts(log.batchId);
-  }
+  await prisma.communicationMessageLog.update({
+    where: { id },
+    data: { deletedAt: new Date(), deletedById: req.user!.sub },
+  });
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -391,35 +396,87 @@ export async function deleteMessage(req: Request, id: string, meta?: RequestMeta
     projectId: log.projectId,
     status: 'SUCCESS',
     meta,
-    details: { communicationDelete: true, messageLogId: id },
+    details: {
+      communicationSoftDelete: true,
+      messageLogId: id,
+      recipient: log.recipientEmail ?? log.recipientPhone,
+      previousStatus: log.status,
+    },
   });
 }
 
-async function recomputeBatchCounts(batchId: string) {
-  const grouped = await prisma.communicationMessageLog.groupBy({
-    by: ['status'],
-    where: { batchId },
-    _count: { _all: true },
-  });
-  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count._all])) as Record<string, number>;
-  const total = grouped.reduce((sum, g) => sum + g._count._all, 0);
-  const sentCount = (counts.SENT ?? 0) + (counts.DELIVERED ?? 0) + (counts.OPENED ?? 0);
-  const remaining = (counts.QUEUED ?? 0) + (counts.SENDING ?? 0);
-  const failedTotal = (counts.FAILED ?? 0) + (counts.BOUNCED ?? 0);
-  const status = remaining > 0 ? 'SENDING' : failedTotal === total ? 'FAILED' : 'COMPLETED';
+/// Reverses deleteMessage — Super Admin only (same route gate). Clears
+/// deletedAt/deletedById so the record reappears in the normal history
+/// list exactly as it was before deletion; nothing about the original
+/// send/status data was ever changed by the delete, so there's nothing
+/// else to restore.
+export async function restoreMessage(req: Request, id: string, meta?: RequestMeta) {
+  const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
+  if (!log) throw ApiError.notFound('Message not found');
+  if (!log.deletedAt) throw ApiError.badRequest('This communication record is not deleted');
 
-  await prisma.communicationBatch.update({
-    where: { id: batchId },
-    data: {
-      totalRecipients: total,
-      sentCount,
-      deliveredCount: counts.DELIVERED ?? 0,
-      openedCount: counts.OPENED ?? 0,
-      failedCount: counts.FAILED ?? 0,
-      bouncedCount: counts.BOUNCED ?? 0,
-      status: status as Prisma.CommunicationBatchUpdateInput['status'],
-    },
+  const restored = await prisma.communicationMessageLog.update({
+    where: { id },
+    data: { deletedAt: null, deletedById: null },
   });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'RECRUITMENT',
+    projectId: log.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { communicationRestore: true, messageLogId: id },
+  });
+
+  return restored;
+}
+
+/// Super Admin only (route-gated) — mirrors listHistory but scoped to
+/// deleted rows, with deletedBy included for the "Deleted Communications"
+/// view.
+export async function listDeletedHistory(req: Request, pagination: PaginationParams, filters: HistoryFilters) {
+  const where: Prisma.CommunicationMessageLogWhereInput = {
+    ...projectScopeWhere(req),
+    deletedAt: { not: null },
+    ...(filters.channel ? { channel: filters.channel as CommChannel } : {}),
+    ...(filters.projectId ? { projectId: filters.projectId } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { candidate: { candidateName: { contains: filters.search, mode: 'insensitive' } } },
+            { recipientEmail: { contains: filters.search, mode: 'insensitive' } },
+            { recipientPhone: { contains: filters.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.communicationMessageLog.findMany({
+      where,
+      include: {
+        candidate: { select: { id: true, candidateName: true, email: true, contactNumber: true } },
+        project: { select: { id: true, projectName: true } },
+        deletedBy: { select: { id: true, name: true } },
+        batch: {
+          select: {
+            id: true,
+            template: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
+            attachments: true,
+          },
+        },
+      },
+      skip: pagination.skip,
+      take: pagination.take,
+      orderBy: { deletedAt: pagination.sortOrder },
+    }),
+    prisma.communicationMessageLog.count({ where }),
+  ]);
+
+  return { rows, total };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -338,6 +338,7 @@ model User {
   createdCandidates    RecruitmentCandidate[]  @relation("CandidateCreatedBy")
   createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
   createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
+  deletedCommMessages  CommunicationMessageLog[] @relation("CommMessageDeletedBy")
   wageUploads          WageUpload[]            @relation("WageUploadedBy")
 
   inventoryItemsCreated          InventoryItem[]        @relation("InventoryItemCreatedBy")
@@ -665,18 +666,25 @@ model CommunicationMessageLog {
   openedAt          DateTime?
   failedAt          DateTime?
   bouncedAt         DateTime?
+  /// Soft delete — Super Admin only (see communication.routes.ts). The row,
+  /// its status history, and provider tracking data are never physically
+  /// removed; deletedAt just excludes it from the normal history list.
+  deletedAt         DateTime?
+  deletedById       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
   batch     CommunicationBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
   candidate RecruitmentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   project   Project?             @relation(fields: [projectId], references: [id])
+  deletedBy User?                @relation("CommMessageDeletedBy", fields: [deletedById], references: [id])
 
   @@index([batchId])
   @@index([candidateId])
   @@index([projectId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([deletedAt])
   @@map("communication_message_logs")
 }
 

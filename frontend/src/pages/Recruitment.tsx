@@ -17,6 +17,7 @@ import { BulkSendModal } from '../components/recruitment/BulkSendModal';
 import { CommunicationStats } from '../components/recruitment/CommunicationStats';
 import { TemplateManager } from '../components/recruitment/TemplateManager';
 import { CommunicationHistory } from '../components/recruitment/CommunicationHistory';
+import { DeletedCommunications } from '../components/recruitment/DeletedCommunications';
 import { CandidateTimelineModal } from '../components/recruitment/CandidateTimelineModal';
 
 const emptyForm = {
@@ -36,7 +37,7 @@ const emptyForm = {
 };
 
 export default function Recruitment() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
   const designationOptions = useDesignationOptions();
@@ -53,7 +54,7 @@ export default function Recruitment() {
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [exportingCandidates, setExportingCandidates] = useState(false);
   const [activeTab, setActiveTab] = useState<'candidates' | 'communication'>('candidates');
-  const [commSubTab, setCommSubTab] = useState<'history' | 'templates'>('history');
+  const [commSubTab, setCommSubTab] = useState<'history' | 'templates' | 'deleted'>('history');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false);
@@ -394,7 +395,7 @@ export default function Recruitment() {
         <div>
           <CommunicationStats />
           <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
-            {(['history', 'templates'] as const).map((tab) => (
+            {(isSuperAdmin ? (['history', 'templates', 'deleted'] as const) : (['history', 'templates'] as const)).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setCommSubTab(tab)}
@@ -404,11 +405,11 @@ export default function Recruitment() {
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                {tab === 'history' ? 'Communication History' : 'Message Templates'}
+                {tab === 'history' ? 'Communication History' : tab === 'templates' ? 'Message Templates' : 'Deleted Communications'}
               </button>
             ))}
           </div>
-          {commSubTab === 'history' ? <CommunicationHistory /> : <TemplateManager />}
+          {commSubTab === 'history' ? <CommunicationHistory /> : commSubTab === 'templates' ? <TemplateManager /> : <DeletedCommunications />}
         </div>
       )}
 

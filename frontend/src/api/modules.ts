@@ -559,6 +559,9 @@ export interface CommunicationMessageLog {
   failedAt?: string | null;
   bouncedAt?: string | null;
   createdAt: string;
+  deletedAt?: string | null;
+  deletedById?: string | null;
+  deletedBy?: { id: string; name: string } | null;
   candidate?: { id: string; candidateName: string; email?: string | null; contactNumber: string };
   project?: { id: string; projectName: string } | null;
   batch?: {
@@ -617,6 +620,8 @@ export const communicationApi = {
   history: (params?: Record<string, unknown>) => apiClient.get('/communication/history', { params }).then((r) => r.data),
   resend: (id: string) => apiClient.patch(`/communication/history/${id}/resend`).then((r) => r.data.data as CommunicationMessageLog),
   deleteHistory: (id: string) => apiClient.delete(`/communication/history/${id}`),
+  restoreHistory: (id: string) => apiClient.patch(`/communication/history/${id}/restore`).then((r) => r.data.data as CommunicationMessageLog),
+  deletedHistory: (params?: Record<string, unknown>) => apiClient.get('/communication/history/deleted', { params }).then((r) => r.data),
   timeline: (candidateId: string) =>
     apiClient.get(`/communication/candidates/${candidateId}/timeline`).then((r) => r.data.data as CommunicationMessageLog[]),
   stats: () => apiClient.get('/communication/stats').then((r) => r.data.data as CommunicationStats),
