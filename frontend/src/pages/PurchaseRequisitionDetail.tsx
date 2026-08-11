@@ -303,7 +303,20 @@ export default function PurchaseRequisitionDetail() {
           </div>
           <div>
             <label className="label">Project No.</label>
-            <p className="font-medium">{pr?.project?.projectNumber ?? selectedProject?.label ?? '—'}</p>
+            {/* Read-only, auto-populated from the Project master by projectId —
+                never editable here and never falls back to the project name.
+                pr.project.projectNumber (live join data) is authoritative once
+                a PR is saved; selectedProject covers the create-new case where
+                pr doesn't exist yet, both keyed off the same projectId. */}
+            {!projectId ? (
+              <p className="font-medium">—</p>
+            ) : (pr?.project?.projectNumber ?? selectedProject?.projectNumber) ? (
+              <p className="font-medium">{pr?.project?.projectNumber ?? selectedProject?.projectNumber}</p>
+            ) : (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                Project Number is not assigned for this project. Please update the project master.
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Purchase Req. No.</label>

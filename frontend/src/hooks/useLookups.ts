@@ -6,7 +6,12 @@ export function useProjectOptions() {
     queryKey: ['lookup-projects'],
     queryFn: () => projectsApi.list({ pageSize: 100 }),
   });
-  return (data?.data ?? []).map((p) => ({ value: p.id, label: p.projectName }));
+  // projectNumber is carried alongside value/label (not just id+name) so
+  // forms that need to auto-populate a project's number — e.g. Purchase
+  // Requisition — can look it up by the selected project's id without a
+  // second fetch. Existing consumers that only use value/label are
+  // unaffected by this extra field.
+  return (data?.data ?? []).map((p) => ({ value: p.id, label: p.projectName, projectNumber: p.projectNumber ?? null }));
 }
 
 export function useDesignationOptions() {
