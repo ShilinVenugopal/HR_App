@@ -66,6 +66,11 @@ export const resendHandler = asyncHandler(async (req: Request, res: Response) =>
   return sendSuccess(res, updated, 'Message re-queued for sending');
 });
 
+export const deleteHistoryHandler = asyncHandler(async (req: Request, res: Response) => {
+  await communicationService.deleteMessage(req, req.params.id, req.meta);
+  return sendSuccess(res, null, 'Message deleted successfully');
+});
+
 export const getStatsHandler = asyncHandler(async (req: Request, res: Response) => {
   const stats = await communicationService.getCommunicationStats(req);
   return sendSuccess(res, stats, 'Communication stats fetched');

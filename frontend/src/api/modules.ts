@@ -616,6 +616,7 @@ export const communicationApi = {
     apiClient.post('/communication/send-test', payload).then((r) => r.data.data as TestSendResult),
   history: (params?: Record<string, unknown>) => apiClient.get('/communication/history', { params }).then((r) => r.data),
   resend: (id: string) => apiClient.patch(`/communication/history/${id}/resend`).then((r) => r.data.data as CommunicationMessageLog),
+  deleteHistory: (id: string) => apiClient.delete(`/communication/history/${id}`),
   timeline: (candidateId: string) =>
     apiClient.get(`/communication/candidates/${candidateId}/timeline`).then((r) => r.data.data as CommunicationMessageLog[]),
   stats: () => apiClient.get('/communication/stats').then((r) => r.data.data as CommunicationStats),

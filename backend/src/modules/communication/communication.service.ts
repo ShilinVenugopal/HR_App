@@ -367,6 +367,61 @@ export async function resendMessage(req: Request, id: string, meta?: RequestMeta
   return updated;
 }
 
+export async function deleteMessage(req: Request, id: string, meta?: RequestMeta) {
+  const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
+  if (!log) throw ApiError.notFound('Message not found');
+  assertProjectAccess(req, log.projectId);
+
+  await prisma.communicationMessageLog.delete({ where: { id } });
+
+  // Batch counters/status were computed from this row at send time —
+  // recompute so the batch-level view (and any list filtered by batch)
+  // stays consistent after removing one of its messages.
+  const remaining = await prisma.communicationMessageLog.count({ where: { batchId: log.batchId } });
+  if (remaining === 0) {
+    await prisma.communicationBatch.delete({ where: { id: log.batchId } }).catch(() => undefined);
+  } else {
+    await recomputeBatchCounts(log.batchId);
+  }
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'DELETE',
+    module: 'RECRUITMENT',
+    projectId: log.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { communicationDelete: true, messageLogId: id },
+  });
+}
+
+async function recomputeBatchCounts(batchId: string) {
+  const grouped = await prisma.communicationMessageLog.groupBy({
+    by: ['status'],
+    where: { batchId },
+    _count: { _all: true },
+  });
+  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count._all])) as Record<string, number>;
+  const total = grouped.reduce((sum, g) => sum + g._count._all, 0);
+  const sentCount = (counts.SENT ?? 0) + (counts.DELIVERED ?? 0) + (counts.OPENED ?? 0);
+  const remaining = (counts.QUEUED ?? 0) + (counts.SENDING ?? 0);
+  const failedTotal = (counts.FAILED ?? 0) + (counts.BOUNCED ?? 0);
+  const status = remaining > 0 ? 'SENDING' : failedTotal === total ? 'FAILED' : 'COMPLETED';
+
+  await prisma.communicationBatch.update({
+    where: { id: batchId },
+    data: {
+      totalRecipients: total,
+      sentCount,
+      deliveredCount: counts.DELIVERED ?? 0,
+      openedCount: counts.OPENED ?? 0,
+      failedCount: counts.FAILED ?? 0,
+      bouncedCount: counts.BOUNCED ?? 0,
+      status: status as Prisma.CommunicationBatchUpdateInput['status'],
+    },
+  });
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function getCommunicationStats(req: Request) {

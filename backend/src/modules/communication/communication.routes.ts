@@ -71,6 +71,12 @@ router.patch(
   validate(idParamSchema),
   communicationController.resendHandler
 );
+router.delete(
+  '/history/:id',
+  requirePermission('RECRUITMENT', 'approve'),
+  validate(idParamSchema),
+  communicationController.deleteHistoryHandler
+);
 router.get('/stats', requirePermission('RECRUITMENT', 'view'), communicationController.getStatsHandler);
 router.get('/config', requirePermission('RECRUITMENT', 'view'), communicationController.getConfigHandler);
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Paperclip, RotateCw } from 'lucide-react';
+import { Download, Paperclip, RotateCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DataTable, Column } from '../common/DataTable';
 import { Modal } from '../common/Modal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Badge } from '../common/Badge';
 import { apiErrorMessage } from '../../api/client';
 import { CommChannel, CommunicationMessageLog, communicationApi } from '../../api/modules';
@@ -22,6 +23,7 @@ export function CommunicationHistory() {
   const [filters, setFilters] = useState({ channel: '', status: '', projectId: '', dateFrom: '', dateTo: '' });
   const [detail, setDetail] = useState<CommunicationMessageLog | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CommunicationMessageLog | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['comm-history', page, search, filters],
@@ -32,6 +34,16 @@ export function CommunicationHistory() {
     mutationFn: (id: string) => communicationApi.resend(id),
     onSuccess: () => {
       toast.success('Message re-queued for sending');
+      queryClient.invalidateQueries({ queryKey: ['comm-history'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => communicationApi.deleteHistory(id),
+    onSuccess: () => {
+      toast.success('Message deleted');
+      setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ['comm-history'] });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -166,8 +178,23 @@ export function CommunicationHistory() {
                 <RotateCw size={14} />
               </button>
             )}
+            {canManage && (
+              <button className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete" onClick={() => setDeleteTarget(r)}>
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         )}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete Message"
+        message={`Delete this message to ${deleteTarget?.recipientEmail ?? deleteTarget?.recipientPhone ?? 'this recipient'}? This only removes it from history — it does not unsend anything already delivered.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Message Detail" size="lg">
