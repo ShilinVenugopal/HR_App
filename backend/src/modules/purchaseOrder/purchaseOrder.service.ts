@@ -1,4 +1,4 @@
-import { Prisma, POStatus } from '@prisma/client';
+import { Prisma, POStatus, Role } from '@prisma/client';
 import { Request } from 'express';
 import { prisma } from '../../config/database';
 import { ApiError } from '../../utils/apiError';
@@ -260,13 +260,41 @@ export async function updatePurchaseOrder(req: Request, id: string, input: Updat
   return po;
 }
 
+/// Regular users (whoever holds the PURCHASE_ORDER 'delete' permission)
+/// may only ever remove their own Draft POs — unchanged from before.
+/// Super Admin additionally gets a permanent-delete power that works on a
+/// PO in any status, including Approved — same endpoint, same permission
+/// gate, just an extra bypass on the status check below.
+///
+/// The GRN check is NOT bypassed for Super Admin: a Goods Received Note
+/// is a real receipt event, and "Update Inventory" against a GRN may
+/// already have credited live stock quantities — permanently deleting the
+/// PO out from under that would leave inventory numbers with no
+/// underlying paper trail. Matches the existing Vendor/CostCode
+/// delete-blocked-by-dependents precedent elsewhere in this codebase.
 export async function deletePurchaseOrder(req: Request, id: string, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
-  if (existing.status !== 'DRAFT') {
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  if (!isSuperAdmin && existing.status !== 'DRAFT') {
     throw ApiError.badRequest('Only Draft Purchase Orders can be deleted');
   }
 
-  await prisma.purchaseOrder.delete({ where: { id } });
+  const grnCount = await prisma.goodsReceivedNote.count({ where: { poId: id } });
+  if (grnCount > 0) {
+    throw ApiError.conflict(
+      'This Purchase Order has Goods Received Notes recorded against it and cannot be deleted — that receipt history (and any inventory already updated from it) must be preserved.'
+    );
+  }
+
+  await prisma.$transaction([
+    // Approval/Attachment are intentionally polymorphic (not typed Prisma
+    // relations), so nothing FK-cascades them; clean them up explicitly
+    // to avoid leaving orphan rows.
+    prisma.attachment.deleteMany({ where: { ownerType: 'PO', ownerId: id } }),
+    prisma.approval.deleteMany({ where: { documentType: 'PO', documentId: id } }),
+    // PurchaseOrderItem cascades automatically (onDelete: Cascade).
+    prisma.purchaseOrder.delete({ where: { id } }),
+  ]);
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -275,7 +303,7 @@ export async function deletePurchaseOrder(req: Request, id: string, meta?: Reque
     projectId: existing.projectId,
     status: 'SUCCESS',
     meta,
-    details: { poId: id },
+    details: { poId: id, poNumber: existing.poNumber, permanentDelete: existing.status !== 'DRAFT' },
   });
 }
 

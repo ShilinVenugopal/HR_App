@@ -1,4 +1,4 @@
-import { Prisma, PRStatus } from '@prisma/client';
+import { Prisma, PRStatus, Role } from '@prisma/client';
 import { Request } from 'express';
 import { prisma } from '../../config/database';
 import { ApiError } from '../../utils/apiError';
@@ -190,13 +190,35 @@ export async function updatePurchaseRequisition(req: Request, id: string, input:
   return pr;
 }
 
+/// Regular users (whoever holds the PURCHASE_REQUISITION 'delete'
+/// permission) may only ever remove their own Draft PRs — unchanged from
+/// before. Super Admin additionally gets a permanent-delete power that
+/// works on a PR in any status, including Approved, per the "Super Admin
+/// can permanently delete" requirement — same endpoint, same permission
+/// gate (requirePermission already lets Super Admin through
+/// unconditionally), just an extra bypass on the status check below.
 export async function deletePurchaseRequisition(req: Request, id: string, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
-  if (existing.status !== 'DRAFT') {
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  if (!isSuperAdmin && existing.status !== 'DRAFT') {
     throw ApiError.badRequest('Only Draft Purchase Requisitions can be deleted');
   }
 
-  await prisma.purchaseRequisition.delete({ where: { id } });
+  await prisma.$transaction([
+    // POs raised from this PR are complete, self-contained documents (own
+    // vendor/items/amounts) — they survive the PR's deletion, just losing
+    // the "raised from" backlink, rather than being cascade-deleted or
+    // blocking this delete outright.
+    prisma.purchaseOrder.updateMany({ where: { prId: id }, data: { prId: null } }),
+    // Approval/Attachment are intentionally polymorphic (not typed Prisma
+    // relations — see the schema comment above PurchaseRequisitionItem),
+    // so nothing FK-cascades them; clean them up explicitly to avoid
+    // leaving orphan rows.
+    prisma.attachment.deleteMany({ where: { ownerType: 'PR', ownerId: id } }),
+    prisma.approval.deleteMany({ where: { documentType: 'PR', documentId: id } }),
+    // PurchaseRequisitionItem cascades automatically (onDelete: Cascade).
+    prisma.purchaseRequisition.delete({ where: { id } }),
+  ]);
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -205,7 +227,7 @@ export async function deletePurchaseRequisition(req: Request, id: string, meta?:
     projectId: existing.projectId,
     status: 'SUCCESS',
     meta,
-    details: { prId: id },
+    details: { prId: id, requestNumber: existing.requestNumber, permanentDelete: existing.status !== 'DRAFT' },
   });
 }
 

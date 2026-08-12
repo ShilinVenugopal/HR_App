@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Store } from 'lucide-react';
+import { Plus, Store, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { PurchaseOrder, purchaseOrdersApi, purchaseRequisitionsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column, SortState } from '../components/common/DataTable';
 import { Badge } from '../components/common/Badge';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useProjectOptions, useVendorOptions } from '../hooks/useLookups';
+import { apiErrorMessage } from '../api/client';
 
 const STATUS_OPTIONS = [
   { value: 'DRAFT', label: 'Draft' },
@@ -19,16 +22,18 @@ const STATUS_OPTIONS = [
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function PurchaseOrders() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const projectOptions = useProjectOptions();
   const vendorOptions = useVendorOptions();
+  const queryClient = useQueryClient();
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ projectId: '', vendorId: '', status: '', month: '', year: '' });
   const [sort, setSort] = useState<SortState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -53,6 +58,16 @@ export default function PurchaseOrders() {
         ...filters,
         ...(sort ? { sortBy: sort.key, sortOrder: sort.dir } : {}),
       }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => purchaseOrdersApi.remove(id),
+    onSuccess: () => {
+      toast.success('Purchase Order permanently deleted');
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
   const columns: Column<PurchaseOrder>[] = [
@@ -190,10 +205,38 @@ export default function PurchaseOrders() {
           </>
         }
         rowActions={(row) => (
-          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => navigate(`/purchase-orders/${row.id}`)}>
-            View
-          </button>
+          <div className="flex justify-end gap-1">
+            <button className="btn-ghost px-2 py-1 text-xs" onClick={() => navigate(`/purchase-orders/${row.id}`)}>
+              View
+            </button>
+            {isSuperAdmin && (
+              <button
+                className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
+                title="Delete"
+                disabled={deleteMutation.isPending && deleteMutation.variables === row.id}
+                onClick={() => setDeleteTarget(row)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
         )}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Permanently Delete Purchase Order?"
+        message={
+          `Are you sure you want to permanently delete this Purchase Order? This action cannot be undone.\n\n` +
+          `PO Number: ${deleteTarget?.poNumber ?? '—'}\n` +
+          `Vendor: ${deleteTarget?.vendor?.name ?? '—'}\n` +
+          `Status: ${deleteTarget?.status ?? '—'}`
+        }
+        confirmLabel="Permanently Delete"
+        danger
+        confirmDisabled={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );
