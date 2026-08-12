@@ -27,6 +27,7 @@ export const UNIT_OPTIONS = [
   { value: 'KG', label: 'Kg' },
   { value: 'TON', label: 'Ton' },
   { value: 'LITER', label: 'Liter' },
+  { value: 'PAIR', label: 'Pair' },
 ] as const;
 
 export function unitLabel(value: string): string {

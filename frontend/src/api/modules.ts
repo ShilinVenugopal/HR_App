@@ -632,7 +632,7 @@ export const communicationApi = {
 // PROCUREMENT — Inventory
 // ─────────────────────────────────────────────────────────────────────────
 
-export type InventoryUnit = 'NOS' | 'MTR' | 'LOT' | 'EA' | 'KG' | 'TON' | 'LITER';
+export type InventoryUnit = 'NOS' | 'MTR' | 'LOT' | 'EA' | 'KG' | 'TON' | 'LITER' | 'PAIR';
 
 export interface InventoryItem {
   id: string;

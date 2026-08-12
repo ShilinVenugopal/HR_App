@@ -198,6 +198,7 @@ enum Unit {
   KG
   TON
   LITER
+  PAIR
 }
 
 enum PRStatus {
