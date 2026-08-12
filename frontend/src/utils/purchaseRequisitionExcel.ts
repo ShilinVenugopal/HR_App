@@ -111,9 +111,9 @@ export async function exportPurchaseRequisitionExcel(pr: PurchaseRequisition) {
 
   const nameRow = row + 1;
   sheet.mergeCells(`A${nameRow}:C${nameRow}`);
-  sheet.getCell(`A${nameRow}`).value = `Name: ${pr.requester?.name ?? ''}`;
+  sheet.getCell(`A${nameRow}`).value = `Name: ${pr.storeInchargeName ?? ''}`;
   sheet.mergeCells(`D${nameRow}:F${nameRow}`);
-  sheet.getCell(`D${nameRow}`).value = `Name: ${pr.storeInchargeName ?? pr.siteInchargeName ?? ''}`;
+  sheet.getCell(`D${nameRow}`).value = `Name: ${pr.siteInchargeName ?? ''}`;
   sheet.mergeCells(`G${nameRow}:J${nameRow}`);
   sheet.getCell(`G${nameRow}`).value = `Name: ${pr.currentApprover?.name ?? ''}`;
 

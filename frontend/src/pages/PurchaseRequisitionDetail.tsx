@@ -352,7 +352,12 @@ export default function PurchaseRequisitionDetail() {
           <div>
             <label className="label">Name of Site Incharge</label>
             {isEditable ? (
-              <input className="input" value={siteInchargeName} onChange={(e) => setSiteInchargeName(e.target.value)} />
+              <input
+                className="input"
+                value={siteInchargeName}
+                onChange={(e) => setSiteInchargeName(e.target.value)}
+                placeholder="Person recommending the request on-site"
+              />
             ) : (
               <p className="font-medium">{pr?.siteInchargeName ?? '—'}</p>
             )}
@@ -360,7 +365,12 @@ export default function PurchaseRequisitionDetail() {
           <div>
             <label className="label">Name of Store Incharge</label>
             {isEditable ? (
-              <input className="input" value={storeInchargeName} onChange={(e) => setStoreInchargeName(e.target.value)} />
+              <input
+                className="input"
+                value={storeInchargeName}
+                onChange={(e) => setStoreInchargeName(e.target.value)}
+                placeholder="Person raising/requesting the item(s)"
+              />
             ) : (
               <p className="font-medium">{pr?.storeInchargeName ?? '—'}</p>
             )}
@@ -507,12 +517,12 @@ export default function PurchaseRequisitionDetail() {
           <div className="mt-10 grid grid-cols-3 gap-6 border-t border-slate-200 pt-6 text-sm dark:border-slate-800">
             <div>
               <p className="font-semibold">REQUESTED BY (STORE INCHARGE)</p>
-              <p className="mt-6">Name: {pr.requester?.name ?? '—'}</p>
+              <p className="mt-6">Name: {pr.storeInchargeName ?? '—'}</p>
               <p>Date: {new Date(pr.createdAt).toLocaleDateString()}</p>
             </div>
             <div>
               <p className="font-semibold">RECOMMENDED BY (SITE INCHARGE)</p>
-              <p className="mt-6">Name: {pr.storeInchargeName ?? pr.siteInchargeName ?? '—'}</p>
+              <p className="mt-6">Name: {pr.siteInchargeName ?? '—'}</p>
               <p>Date: —</p>
             </div>
             <div>
