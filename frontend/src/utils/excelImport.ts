@@ -1,29 +1,12 @@
 import ExcelJS from 'exceljs';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from './candidateConstants';
-import { EMPLOYEE_COST_CODE_OPTIONS } from './employeeCostCode';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from './employeeCostCode';
+import { CANDIDATE_COLUMNS, CandidateColumnKey } from './candidateColumns';
 import { APP_NAME } from '../config/branding';
+import type { Candidate } from '../api/modules';
 
-/// Column order/labels here are the single source of truth for both the
-/// downloadable template and the uploaded-file header mapping — keep them
-/// in sync with the Recruitment "Add Candidate" form fields.
-export const CANDIDATE_COLUMNS = [
-  { key: 'candidateName', header: 'Candidate Name' },
-  { key: 'contactNumber', header: 'Contact Number' },
-  { key: 'dateOfBirth', header: 'Date of Birth' },
-  { key: 'email', header: 'Email' },
-  { key: 'qualification', header: 'Qualification' },
-  { key: 'experience', header: 'Experience' },
-  { key: 'designation', header: 'Designation' },
-  { key: 'project', header: 'Assigned Project' },
-  { key: 'costCode', header: 'Employee Cost Code' },
-  { key: 'foraysInterviewStatus', header: 'Forays Interview Status' },
-  { key: 'clientInterviewStatus', header: 'Client Interview Status' },
-  { key: 'status', header: 'Candidate Status' },
-  { key: 'resumeUrl', header: 'Resume URL' },
-  { key: 'remarks', header: 'Remarks' },
-] as const;
-
-export type CandidateColumnKey = (typeof CANDIDATE_COLUMNS)[number]['key'];
+export { CANDIDATE_COLUMNS, DEFAULT_VISIBLE_CANDIDATE_COLUMNS } from './candidateColumns';
+export type { CandidateColumnKey } from './candidateColumns';
 
 const SAMPLE_ROW: Record<CandidateColumnKey, string> = {
   candidateName: 'Ramesh Kumar',
@@ -70,6 +53,22 @@ export async function downloadCandidateTemplate(projectNames: string[]) {
   sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
   sheet.addRow(SAMPLE_ROW);
 
+  // Restrict the Employee Cost Code column to an in-cell dropdown of only
+  // the three permitted codes, so a user filling the template in Excel
+  // can't type anything else in the first place.
+  const costCodeColNumber = CANDIDATE_COLUMNS.findIndex((c) => c.key === 'costCode') + 1;
+  const costCodeFormula = `"${EMPLOYEE_COST_CODE_OPTIONS.map((o) => o.value).join(',')}"`;
+  for (let row = 2; row <= 501; row += 1) {
+    sheet.getCell(row, costCodeColNumber).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [costCodeFormula],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Employee Cost Code',
+      error: 'Please choose one of F01A, F02A, or F03A from the dropdown.',
+    };
+  }
+
   const guidance = workbook.addWorksheet('Guidance (read me)');
   guidance.columns = [
     { header: 'Field', key: 'field', width: 28 },
@@ -100,6 +99,58 @@ export async function downloadCandidateTemplate(projectNames: string[]) {
   ]);
 
   await downloadWorkbook(workbook, 'Candidate_Template.xlsx');
+}
+
+function valueForCandidate(c: Candidate, key: CandidateColumnKey): string {
+  switch (key) {
+    case 'candidateName':
+      return c.candidateName;
+    case 'contactNumber':
+      return c.contactNumber;
+    case 'dateOfBirth':
+      return c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().slice(0, 10) : '';
+    case 'email':
+      return c.email ?? '';
+    case 'qualification':
+      return c.qualification ?? '';
+    case 'experience':
+      return c.experience ?? '';
+    case 'designation':
+      return c.designation?.name ?? '';
+    case 'project':
+      return c.project?.projectName ?? '';
+    case 'costCode':
+      return c.costCode ? `${c.costCode} – ${employeeCostCodeLabel(c.costCode)}` : '';
+    case 'foraysInterviewStatus':
+      return c.foraysInterviewStatus;
+    case 'clientInterviewStatus':
+      return c.clientInterviewStatus;
+    case 'status':
+      return c.status;
+    case 'resumeUrl':
+      return c.resumeUrl ?? '';
+    case 'remarks':
+      return c.remarks ?? '';
+    default:
+      return '';
+  }
+}
+
+/// Exports only the currently visible (Customize Columns) fields, reading
+/// every value straight off the Candidate record — CANDIDATE_COLUMNS is the
+/// same header/key registry used by the downloadable template, so Template,
+/// Export, and Customize Columns can never drift apart.
+export async function exportCandidatesExcel(candidates: Candidate[], visibleKeys: CandidateColumnKey[]) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = APP_NAME;
+
+  const sheet = workbook.addWorksheet('Candidates');
+  const fields = CANDIDATE_COLUMNS.filter((c) => visibleKeys.includes(c.key));
+  sheet.columns = fields.map((f) => ({ header: f.header, key: f.key, width: 24 }));
+  sheet.getRow(1).font = { bold: true };
+  sheet.addRows(candidates.map((c) => Object.fromEntries(fields.map((f) => [f.key, valueForCandidate(c, f.key)]))));
+
+  await downloadWorkbook(workbook, 'Candidates_Export.xlsx');
 }
 
 export interface RawCandidateRow {
