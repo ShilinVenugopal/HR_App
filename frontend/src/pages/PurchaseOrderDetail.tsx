@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Copy, FileDown, ListChecks, Plus, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
+import { ArrowLeft, Copy, FileDown, FileText, ListChecks, Plus, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -74,6 +74,7 @@ export default function PurchaseOrderDetail() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [termsTemplateModalOpen, setTermsTemplateModalOpen] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['po', id],
@@ -271,6 +272,19 @@ export default function PurchaseOrderDetail() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
+  const handleDownloadPdf = async () => {
+    if (!po) return;
+    setDownloadingPdf(true);
+    try {
+      const { downloadPurchaseOrderPdf } = await import('../utils/purchaseOrderPdf');
+      await downloadPurchaseOrderPdf('po-print-content', `PO_${po.poNumber}.pdf`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not generate PDF'));
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   if (!isNew && isLoading) return <p className="text-sm text-slate-400">Loading...</p>;
 
   return (
@@ -292,6 +306,11 @@ export default function PurchaseOrderDetail() {
                 <button className="btn-secondary" onClick={() => exportPurchaseOrderExcel(po)}>
                   <FileDown size={16} /> Export Excel
                 </button>
+                {po.status === 'APPROVED' && (
+                  <button className="btn-secondary" disabled={downloadingPdf} onClick={handleDownloadPdf}>
+                    <FileText size={16} /> {downloadingPdf ? 'Generating PDF...' : 'Download PDF'}
+                  </button>
+                )}
               </>
             )}
             {isEditable && can('PURCHASE_ORDER', isNew ? 'add' : 'edit') && (
@@ -333,8 +352,8 @@ export default function PurchaseOrderDetail() {
         }
       />
 
-      <div className="card p-6">
-        <div className="mb-6 flex items-start justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+      <div id="po-print-content" className="card p-6 print:p-3">
+        <div className="mb-4 flex items-start justify-between border-b border-slate-200 pb-3 print:mb-2 print:pb-2 dark:border-slate-800">
           <div>
             <p className="text-lg font-bold">FORAYS INNOVATIONS PVT LTD</p>
             <p className="text-xs text-slate-500">Mankanthanam Building, Mukkoottuthara, Kanjirappally, Kottayam Dist., Kerala, India – 686 510</p>
@@ -342,7 +361,7 @@ export default function PurchaseOrderDetail() {
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-4">
+        <div className="mb-4 grid grid-cols-2 gap-4">
           <div>
             <label className="label">Project *</label>
             {isEditable ? (
@@ -385,12 +404,20 @@ export default function PurchaseOrderDetail() {
               );
             })()}
           </div>
+        </div>
+
+        {/* PO reference details — 2 rows x 4 columns wherever page width
+            permits (lg+), so both the on-screen view and the printed/PDF
+            output stay compact instead of one field per row. */}
+        <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
           <div>
             <label className="label">P.O. Number *</label>
             {isEditable ? (
               <input className="input" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
             ) : (
-              <p className="font-mono text-sm">{po?.poNumber}</p>
+              <p className="truncate font-mono text-sm print:overflow-visible print:whitespace-normal" title={po?.poNumber}>
+                {po?.poNumber}
+              </p>
             )}
           </div>
           <div>
@@ -406,7 +433,9 @@ export default function PurchaseOrderDetail() {
             {isEditable ? (
               <input className="input" value={enquiryNoDate} onChange={(e) => setEnquiryNoDate(e.target.value)} />
             ) : (
-              <p className="font-medium">{po?.enquiryNoDate ?? '—'}</p>
+              <p className="truncate font-medium print:overflow-visible print:whitespace-normal" title={po?.enquiryNoDate ?? undefined}>
+                {po?.enquiryNoDate ?? '—'}
+              </p>
             )}
           </div>
           <div>
@@ -414,19 +443,29 @@ export default function PurchaseOrderDetail() {
             {isEditable ? (
               <input className="input" value={quotationNo} onChange={(e) => setQuotationNo(e.target.value)} />
             ) : (
-              <p className="font-medium">{po?.quotationNo ?? '—'}</p>
+              <p className="truncate font-medium print:overflow-visible print:whitespace-normal" title={po?.quotationNo ?? undefined}>
+                {po?.quotationNo ?? '—'}
+              </p>
             )}
           </div>
           <div>
             <label className="label">Ref</label>
-            {isEditable ? <input className="input" value={ref} onChange={(e) => setRef(e.target.value)} /> : <p className="font-medium">{po?.ref ?? '—'}</p>}
+            {isEditable ? (
+              <input className="input" value={ref} onChange={(e) => setRef(e.target.value)} />
+            ) : (
+              <p className="truncate font-medium print:overflow-visible print:whitespace-normal" title={po?.ref ?? undefined}>
+                {po?.ref ?? '—'}
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Job No. (Project No.)</label>
             {isEditable ? (
               <input className="input" value={jobNo} onChange={(e) => setJobNo(e.target.value)} />
             ) : (
-              <p className="font-medium">{po?.jobNo ?? '—'}</p>
+              <p className="truncate font-medium print:overflow-visible print:whitespace-normal" title={po?.jobNo ?? undefined}>
+                {po?.jobNo ?? '—'}
+              </p>
             )}
           </div>
           <div>
@@ -440,7 +479,9 @@ export default function PurchaseOrderDetail() {
           {po?.pr && (
             <div>
               <label className="label">Source PR</label>
-              <p className="font-mono text-sm">{po.pr.requestNumber}</p>
+              <p className="truncate font-mono text-sm print:overflow-visible print:whitespace-normal" title={po.pr.requestNumber}>
+                {po.pr.requestNumber}
+              </p>
             </div>
           )}
         </div>
