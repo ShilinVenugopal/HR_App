@@ -116,6 +116,7 @@ export function EmployeeBulkImportModal({
           bankAccountName: r.bankAccountName,
           address: r.address,
           status: r.status,
+          costCode: r.costCode,
         })),
         duplicateStrategy
       );
@@ -209,6 +210,7 @@ export function EmployeeBulkImportModal({
                   <th className="px-3 py-2 font-semibold">Name</th>
                   <th className="px-3 py-2 font-semibold">Project</th>
                   <th className="px-3 py-2 font-semibold">Status</th>
+                  <th className="px-3 py-2 font-semibold">Cost Code</th>
                   <th className="px-3 py-2 font-semibold">Errors</th>
                 </tr>
               </thead>
@@ -220,6 +222,7 @@ export function EmployeeBulkImportModal({
                     <td className="px-3 py-2">{r.name || <span className="text-slate-400">—</span>}</td>
                     <td className="px-3 py-2">{projectOptions.find((p) => p.value === r.projectId)?.label ?? '—'}</td>
                     <td className="px-3 py-2">{statusLabel(r.status)}</td>
+                    <td className="px-3 py-2">{r.costCode || '—'}</td>
                     <td className="px-3 py-2">
                       {r.isValid ? (
                         <CheckCircle2 size={15} className="text-emerald-500" />

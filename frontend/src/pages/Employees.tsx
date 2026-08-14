@@ -15,7 +15,7 @@ import { EmployeeBulkImportModal } from '../components/employees/EmployeeBulkImp
 import { ColumnCustomizerModal } from '../components/common/ColumnCustomizerModal';
 import { EmployeeProfileModal } from '../components/employees/EmployeeProfileModal';
 import { DEFAULT_VISIBLE_COLUMNS, EMPLOYEE_FIELDS, EmployeeFieldKey, STATUS_OPTIONS, downloadEmployeeTemplate, exportEmployeesExcel, statusLabel } from '../utils/employeeExcel';
-import { EMPLOYEE_COST_CODE_OPTIONS } from '../utils/employeeCostCode';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from '../utils/employeeCostCode';
 import { useColumnPreference } from '../hooks/useColumnPreference';
 
 const CONTACT_RE = /^\d{10}$/;
@@ -220,6 +220,7 @@ export default function Employees() {
       dateOfBirth: (r) => (r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleDateString() : '—'),
       joiningDate: (r) => (r.joiningDate ? new Date(r.joiningDate).toLocaleDateString() : '—'),
       status: (r) => <Badge value={r.status} label={statusLabel(r.status)} />,
+      costCode: (r) => (r.costCode ? `${r.costCode} – ${employeeCostCodeLabel(r.costCode)}` : '—'),
     }),
     []
   );
