@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from './candidateConstants';
+import { EMPLOYEE_COST_CODE_OPTIONS } from './employeeCostCode';
 import { APP_NAME } from '../config/branding';
 
 /// Column order/labels here are the single source of truth for both the
@@ -14,6 +15,7 @@ export const CANDIDATE_COLUMNS = [
   { key: 'experience', header: 'Experience' },
   { key: 'designation', header: 'Designation' },
   { key: 'project', header: 'Assigned Project' },
+  { key: 'costCode', header: 'Employee Cost Code' },
   { key: 'foraysInterviewStatus', header: 'Forays Interview Status' },
   { key: 'clientInterviewStatus', header: 'Client Interview Status' },
   { key: 'status', header: 'Candidate Status' },
@@ -32,6 +34,7 @@ const SAMPLE_ROW: Record<CandidateColumnKey, string> = {
   experience: '3 Years',
   designation: 'Technician',
   project: 'RIL Jamnagar',
+  costCode: 'F01A',
   foraysInterviewStatus: 'NOT_STARTED',
   clientInterviewStatus: 'NOT_STARTED',
   status: 'APPLIED',
@@ -85,6 +88,10 @@ export async function downloadCandidateTemplate(projectNames: string[]) {
       notes: projectNames.length
         ? `Optional, but must match one of your assigned projects if provided: ${projectNames.join(', ')}`
         : 'Optional. Must match an existing project name if provided.',
+    },
+    {
+      field: 'Employee Cost Code',
+      notes: `Optional. If provided, must be exactly one of: ${EMPLOYEE_COST_CODE_OPTIONS.map((o) => `${o.value} (${o.label})`).join(', ')}. Any other value is rejected and that row will not be imported.`,
     },
     { field: 'Forays Interview Status / Client Interview Status', notes: `One of: ${INTERVIEW_STAGES.join(', ')}` },
     { field: 'Candidate Status', notes: `One of: ${CANDIDATE_STATUSES.join(', ')}` },
@@ -189,6 +196,7 @@ export interface ValidatedCandidateRow {
   experience: string | null;
   designationId: string | null;
   projectId: string | null;
+  costCode: string | null;
   foraysInterviewStatus: string;
   clientInterviewStatus: string;
   status: string;
@@ -266,6 +274,23 @@ export function validateCandidateRows(
       else projectId = found.id;
     }
 
+    // Cost code is optional, but unlike the other enum-ish fields above
+    // (which silently fall back to a default on a bad value), an invalid
+    // code must block the row outright per spec — there's no sensible
+    // default to substitute for "wrong cost category."
+    let costCode: string | null = null;
+    if (v.costCode) {
+      const norm = normalize(v.costCode);
+      const match = EMPLOYEE_COST_CODE_OPTIONS.find((o) => normalize(o.value) === norm || normalize(o.label) === norm);
+      if (!match) {
+        errors.push(
+          `Employee Cost Code "${v.costCode}" is not valid — must be one of ${EMPLOYEE_COST_CODE_OPTIONS.map((o) => o.value).join(', ')}`
+        );
+      } else {
+        costCode = match.value;
+      }
+    }
+
     const forays = matchEnum(v.foraysInterviewStatus, INTERVIEW_STAGES, 'NOT_STARTED');
     if (forays.error) errors.push(`Forays Interview Status: ${forays.error}`);
 
@@ -286,6 +311,7 @@ export function validateCandidateRows(
       experience: v.experience.trim() || null,
       designationId,
       projectId,
+      costCode,
       foraysInterviewStatus: forays.value,
       clientInterviewStatus: client.value,
       status: status.value,

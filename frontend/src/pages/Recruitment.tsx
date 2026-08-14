@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDesignationOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from '../utils/candidateConstants';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from '../utils/employeeCostCode';
 import { BulkImportModal } from '../components/recruitment/BulkImportModal';
 import { BulkSendModal } from '../components/recruitment/BulkSendModal';
 import { CommunicationStats } from '../components/recruitment/CommunicationStats';
@@ -34,6 +35,7 @@ const emptyForm = {
   clientInterviewStatus: 'NOT_STARTED',
   remarks: '',
   status: 'APPLIED',
+  costCode: '',
 };
 
 export default function Recruitment() {
@@ -93,6 +95,7 @@ export default function Recruitment() {
       clientInterviewStatus: candidate.clientInterviewStatus,
       remarks: candidate.remarks ?? '',
       status: candidate.status,
+      costCode: candidate.costCode ?? '',
     });
     setErrors({});
     setModalOpen(true);
@@ -106,6 +109,7 @@ export default function Recruitment() {
         designationId: form.designationId || null,
         projectId: form.projectId || null,
         email: form.email || null,
+        costCode: form.costCode || null,
       };
       if (editing) return recruitmentApi.update(editing.id, payload);
       return recruitmentApi.create(payload);
@@ -174,6 +178,7 @@ export default function Recruitment() {
         { header: 'Experience', key: 'experience', width: 14 },
         { header: 'Designation', key: 'designation', width: 18 },
         { header: 'Assigned Project', key: 'project', width: 18 },
+        { header: 'Employee Cost Code', key: 'costCode', width: 26 },
         { header: 'Forays Interview Status', key: 'forays', width: 20 },
         { header: 'Client Interview Status', key: 'client', width: 20 },
         { header: 'Candidate Status', key: 'status', width: 18 },
@@ -190,6 +195,7 @@ export default function Recruitment() {
           experience: c.experience ?? '',
           designation: c.designation?.name ?? '',
           project: c.project?.projectName ?? '',
+          costCode: c.costCode ? `${c.costCode} – ${employeeCostCodeLabel(c.costCode)}` : '',
           forays: c.foraysInterviewStatus,
           client: c.clientInterviewStatus,
           status: c.status,
@@ -465,6 +471,17 @@ export default function Recruitment() {
               {designationOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Employee Cost Code</label>
+            <select className="input" value={form.costCode} onChange={(e) => setForm((f) => ({ ...f, costCode: e.target.value }))}>
+              <option value="">Select</option>
+              {EMPLOYEE_COST_CODE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.value} – {o.label}
                 </option>
               ))}
             </select>

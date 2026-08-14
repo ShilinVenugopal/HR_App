@@ -538,6 +538,17 @@ model Designation {
 // RECRUITMENT
 // ─────────────────────────────────────────────────────────────────────────
 
+/// Fixed 3-option payroll cost category, distinct from the (unrelated)
+/// procurement `CostCode` master (F05A/F08/etc. used by PR/PO/GRN/
+/// Inventory) — deliberately named EmployeeCostCode to avoid confusion.
+/// A closed enum rather than a master-data table on purpose: the request
+/// is exactly these three fixed values with no admin UI to add more.
+enum EmployeeCostCode {
+  F01A
+  F02A
+  F03A
+}
+
 model RecruitmentCandidate {
   id                    String          @id @default(uuid())
   candidateName         String
@@ -553,6 +564,10 @@ model RecruitmentCandidate {
   clientInterviewStatus InterviewStage  @default(NOT_STARTED)
   remarks               String?
   status                CandidateStatus @default(APPLIED)
+  /// Carried over to the Employee record on conversion (see
+  /// createEmployeeFromCandidate) — Employee is the source of truth once
+  /// converted, but this is where it's first captured.
+  costCode              EmployeeCostCode?
   createdById           String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -719,6 +734,11 @@ model Employee {
   address            String?
   documents          Json?
   status             EmployeeStatus @default(ACTIVE)
+  /// Single source of truth for the employee's payroll cost category —
+  /// every module that lets a user pick an employee (Attendance, Wages,
+  /// etc.) reads this off the Employee record rather than capturing its
+  /// own copy. See EmployeeCostCode above.
+  costCode           EmployeeCostCode?
   candidateId        String?        @unique
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt

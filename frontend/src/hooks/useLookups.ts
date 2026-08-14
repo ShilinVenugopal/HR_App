@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi, projectUnitsApi, vendorsApi } from '../api/modules';
+import { employeeCostCodeLabel } from '../utils/employeeCostCode';
 
 export function useProjectOptions() {
   const { data } = useQuery({
@@ -82,5 +83,14 @@ export function useEmployeeOptions(projectId?: string) {
     queryKey: ['lookup-employees', projectId],
     queryFn: () => employeesApi.list({ pageSize: 200, projectId }),
   });
-  return (data?.data ?? []).map((e) => ({ value: e.id, label: `${e.name} (${e.employeeCode})`, projectId: e.projectId }));
+  // Cost code is read straight off the Employee record (single source of
+  // truth — see EmployeeCostCode in schema.prisma) and shown alongside the
+  // name/code in every picker that uses this shared hook (Attendance,
+  // Wages, Employees, Compliance, Advances, ...), so nothing downstream
+  // has to fetch or duplicate it separately.
+  return (data?.data ?? []).map((e) => ({
+    value: e.id,
+    label: e.costCode ? `${e.name} (${e.employeeCode}) – ${employeeCostCodeLabel(e.costCode)}` : `${e.name} (${e.employeeCode})`,
+    projectId: e.projectId,
+  }));
 }

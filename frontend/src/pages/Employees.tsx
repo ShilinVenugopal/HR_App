@@ -15,6 +15,7 @@ import { EmployeeBulkImportModal } from '../components/employees/EmployeeBulkImp
 import { ColumnCustomizerModal } from '../components/employees/ColumnCustomizerModal';
 import { EmployeeProfileModal } from '../components/employees/EmployeeProfileModal';
 import { DEFAULT_VISIBLE_COLUMNS, EMPLOYEE_FIELDS, EmployeeFieldKey, STATUS_OPTIONS, downloadEmployeeTemplate, exportEmployeesExcel, statusLabel } from '../utils/employeeExcel';
+import { EMPLOYEE_COST_CODE_OPTIONS } from '../utils/employeeCostCode';
 
 const CONTACT_RE = /^\d{10}$/;
 const AADHAAR_RE = /^\d{12}$/;
@@ -45,6 +46,7 @@ const emptyForm = {
   bankAccountName: '',
   address: '',
   status: 'ACTIVE',
+  costCode: '',
 };
 
 function useColumnPreference(userId: string | undefined) {
@@ -137,6 +139,7 @@ export default function Employees() {
       bankAccountName: employee.bankAccountName ?? '',
       address: employee.address ?? '',
       status: employee.status,
+      costCode: employee.costCode ?? '',
     });
     setErrors({});
     setModalOpen(true);
@@ -163,6 +166,7 @@ export default function Employees() {
         bankName: form.bankName || null,
         bankAccountName: form.bankAccountName || null,
         address: form.address || null,
+        costCode: form.costCode || null,
       };
       if (editing) return employeesApi.update(editing.id, payload);
       return employeesApi.create(payload);
@@ -439,6 +443,17 @@ export default function Employees() {
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s.value} value={s.value}>
                       {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Employee Cost Code</label>
+                <select className="input" value={form.costCode} onChange={(e) => setForm((f) => ({ ...f, costCode: e.target.value }))}>
+                  <option value="">Select</option>
+                  {EMPLOYEE_COST_CODE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.value} – {o.label}
                     </option>
                   ))}
                 </select>

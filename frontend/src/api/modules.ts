@@ -73,6 +73,7 @@ export interface Candidate {
   clientInterviewStatus: string;
   remarks?: string | null;
   status: string;
+  costCode?: string | null;
   createdAt: string;
   employee?: { id: string } | null;
 }
@@ -93,6 +94,7 @@ export interface BulkCandidateRowInput {
   clientInterviewStatus: string;
   status: string;
   remarks?: string | null;
+  costCode?: string | null;
 }
 export interface DuplicateMatch {
   id: string;
@@ -149,6 +151,7 @@ export interface Employee {
   bankAccountName?: string | null;
   address?: string | null;
   status: string;
+  costCode?: string | null;
   createdAt: string;
 }
 

@@ -181,6 +181,7 @@ export async function createEmployeeFromCandidate(req: Request, candidateId: str
       projectId: candidate.projectId,
       joiningDate: new Date(),
       candidateId: candidate.id,
+      costCode: candidate.costCode,
     },
     include: includeRelations,
   });
