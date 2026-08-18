@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { departmentsApi, designationsApi, MasterItem, Project, projectsApi } from '../api/modules';
+import { departmentsApi, designationsApi, MasterItem, Project, projectsApi, ticketCategoriesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -15,6 +15,7 @@ const TABS = [
   { key: 'projects', label: 'Projects' },
   { key: 'designations', label: 'Designations' },
   { key: 'departments', label: 'Departments' },
+  { key: 'ticketCategories', label: 'Ticket Categories' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       {tab === 'projects' && <ProjectsTab isSuperAdmin={isSuperAdmin} />}
       {tab === 'designations' && <MasterTab entity="designation" />}
       {tab === 'departments' && <MasterTab entity="department" />}
+      {tab === 'ticketCategories' && <MasterTab entity="ticketCategory" />}
     </div>
   );
 }
@@ -204,11 +206,12 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   );
 }
 
-function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
+function MasterTab({ entity }: { entity: 'designation' | 'department' | 'ticketCategory' }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const api = entity === 'designation' ? designationsApi : departmentsApi;
-  const queryKey = entity === 'designation' ? 'designations' : 'departments';
+  const api = entity === 'designation' ? designationsApi : entity === 'department' ? departmentsApi : ticketCategoriesApi;
+  const queryKey = entity === 'designation' ? 'designations' : entity === 'department' ? 'departments' : 'ticketCategories';
+  const lookupInvalidationKey = entity === 'ticketCategory' ? 'lookup-ticket-categories' : `lookup-${queryKey}`;
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -235,7 +238,7 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [queryKey] });
-    queryClient.invalidateQueries({ queryKey: [`lookup-${queryKey}`] });
+    queryClient.invalidateQueries({ queryKey: [lookupInvalidationKey] });
   };
 
   const saveMutation = useMutation({
@@ -263,7 +266,7 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
   ];
 
-  const label = entity === 'designation' ? 'Designation' : 'Department';
+  const label = entity === 'designation' ? 'Designation' : entity === 'department' ? 'Department' : 'Ticket Category';
 
   return (
     <div>
