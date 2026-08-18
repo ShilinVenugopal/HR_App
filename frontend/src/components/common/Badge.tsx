@@ -42,6 +42,18 @@ const COLOR_MAP: Record<string, string> = {
   // Site Accounts: DRAFT (editable by the site team) -> SAVED (locked,
   // correction rights only).
   SAVED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  // Ticket workflow: Open -> In Progress -> Waiting for User <-> In
+  // Progress -> Resolved -> Closed.
+  OPEN: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  WAITING_FOR_USER: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  RESOLVED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  // Ticket priority — CRITICAL is deliberately the same red already used
+  // for REJECTED/EXPIRED so it reads as urgent without a new color.
+  LOW: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  MEDIUM: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  HIGH: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  CRITICAL: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {

@@ -34,3 +34,4 @@ function buildMasterRouter() {
 
 export const departmentsRouter = buildMasterRouter();
 export const designationsRouter = buildMasterRouter();
+export const ticketCategoriesRouter = buildMasterRouter();

@@ -9,7 +9,7 @@ export function Sidebar({ open }: { open: boolean }) {
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (item.superAdminOnly) return isSuperAdmin;
     if (item.alwaysVisible) return true;
-    return item.module ? can(item.module, 'view') : false;
+    return item.module ? can(item.module, item.requiredAction ?? 'view') : false;
   });
 
   return (

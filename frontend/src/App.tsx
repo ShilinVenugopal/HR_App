@@ -30,6 +30,12 @@ import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import AuditLogs from './pages/AuditLogs';
+import TicketsDashboard from './pages/TicketsDashboard';
+import MyTickets from './pages/MyTickets';
+import AssignedToMe from './pages/AssignedToMe';
+import AllTickets from './pages/AllTickets';
+import RaiseTicket from './pages/RaiseTicket';
+import TicketDetail from './pages/TicketDetail';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -64,6 +70,12 @@ export default function App() {
           <Route path="/site-accounts" element={<SiteAccounts />} />
           <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
           <Route path="/cost-code-master" element={<CostCodeMaster />} />
+          <Route path="/tickets/dashboard" element={<TicketsDashboard />} />
+          <Route path="/tickets/my" element={<MyTickets />} />
+          <Route path="/tickets/assigned" element={<AssignedToMe />} />
+          <Route path="/tickets/all" element={<AllTickets />} />
+          <Route path="/tickets/new" element={<RaiseTicket />} />
+          <Route path="/tickets/:id" element={<TicketDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route

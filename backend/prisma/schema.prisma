@@ -60,6 +60,7 @@ enum ModuleName {
   BILLING_STATUS
   SITE_ACCOUNTS
   EXPENSE
+  TICKETS
 }
 
 enum CandidateStatus {
@@ -259,6 +260,27 @@ enum NotificationType {
   GRN_REJECTED
   GRN_RETURNED
   INVENTORY_UPDATED
+  TICKET_ASSIGNED
+  TICKET_COMMENT_ADDED
+  TICKET_STATUS_CHANGED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Progresses forward through the helpdesk workflow (Open -> In Progress ->
+/// Waiting for User <-> In Progress -> Resolved -> Closed); ticket.service.ts
+/// enforces the allowed transitions rather than accepting any status value.
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
 }
 
 enum NotificationChannel {
@@ -378,6 +400,13 @@ model User {
   attendanceUpdated   Attendance[]  @relation("AttendanceUpdatedBy")
   expensesCreated     Expense[]     @relation("ExpenseCreatedBy")
   expensesUpdated     Expense[]     @relation("ExpenseUpdatedBy")
+
+  ticketsRaised          Ticket[]           @relation("TicketRaisedBy")
+  ticketAssignments      TicketAssignee[]   @relation("TicketAssigneeUser")
+  ticketAssignmentsMade  TicketAssignee[]   @relation("TicketAssigneeAssignedBy")
+  ticketComments         TicketComment[]    @relation("TicketCommentUser")
+  ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  ticketActivity         TicketActivity[]   @relation("TicketActivityUser")
 
   @@index([role])
   @@index([status])
@@ -1739,4 +1768,149 @@ model Expense {
   @@index([projectId])
   @@index([year, month])
   @@map("expenses")
+}
+
+// ── Ticket / Complaint Management ─────────────────────────────────────────
+
+/// Configurable ticket categories (HR, Payroll, IT/Technical, etc.) — a
+/// third entity in the Department/Designation generic masters pattern (see
+/// masters.service.ts's header comment), managed the same way rather than a
+/// bespoke CRUD module.
+model TicketCategory {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  tickets Ticket[]
+
+  @@map("ticket_categories")
+}
+
+/// Single-row atomic counter for TKT-000001-style ticket numbers — the same
+/// upsert+increment pattern as DocumentSequence (utils/documentSequence.ts:
+/// the increment compiles to one INSERT ... ON CONFLICT DO UPDATE, so
+/// concurrent ticket creation can never collide on the same number), but a
+/// single global row rather than per-project since a ticket isn't tied to
+/// one project.
+model TicketSequence {
+  id         Int @id @default(1)
+  lastNumber Int @default(0)
+
+  @@map("ticket_sequence")
+}
+
+model Ticket {
+  id          String         @id @default(uuid())
+  ticketNo    String         @unique
+  raisedById  String
+  /// Which HR_App module the issue relates to (Attendance, Wages, Purchase
+  /// Order, ...) — optional since not every ticket maps to one (e.g. IT/
+  /// Technical, Website). Reuses ModuleName rather than a parallel enum.
+  module      ModuleName?
+  categoryId  String
+  subject     String
+  description String
+  priority    TicketPriority @default(MEDIUM)
+  status      TicketStatus   @default(OPEN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+
+  raisedBy    User               @relation("TicketRaisedBy", fields: [raisedById], references: [id])
+  category    TicketCategory     @relation(fields: [categoryId], references: [id])
+  assignees   TicketAssignee[]
+  comments    TicketComment[]
+  attachments TicketAttachment[]
+  activity    TicketActivity[]
+
+  @@index([raisedById])
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+/// Many-to-many ticket <-> assignee — a ticket may be assigned to any
+/// number of users, each of whom sees it under "Assigned to Me".
+model TicketAssignee {
+  id           String   @id @default(uuid())
+  ticketId     String
+  userId       String
+  assignedAt   DateTime @default(now())
+  assignedById String
+
+  ticket     Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user       User   @relation("TicketAssigneeUser", fields: [userId], references: [id])
+  assignedBy User   @relation("TicketAssigneeAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([ticketId, userId])
+  @@index([userId])
+  @@map("ticket_assignees")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User               @relation("TicketCommentUser", fields: [userId], references: [id])
+  attachments TicketAttachment[]
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+/// Metadata only — the actual file lives on disk under backend/uploads via
+/// the existing POST /api/v1/uploads endpoint (utils/upload.ts), same as
+/// every other attachment in this app. commentId is nullable: an attachment
+/// can be added directly to the ticket (at creation) or to a specific reply.
+model TicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  commentId    String?
+  uploadedById String
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String?
+  createdAt    DateTime @default(now())
+
+  ticket     Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  comment    TicketComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation("TicketAttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([ticketId])
+  @@index([commentId])
+  @@map("ticket_attachments")
+}
+
+/// Append-only accountability trail for a ticket — created, assigned,
+/// reassigned, status/priority changes, comments, attachments, resolution,
+/// closure. Dedicated to Tickets rather than folded into the app-wide
+/// AuditLog: AuditLog is a security/access audit trail (who did what,
+/// success/failure, IP/device) keyed by ModuleName, not a per-record
+/// conversational history a ticket's own participants read inline the way
+/// Approval History already works for PR/PO/GRN.
+model TicketActivity {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String
+  action    String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation("TicketActivityUser", fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_activity")
 }

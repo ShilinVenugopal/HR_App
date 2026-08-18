@@ -13,7 +13,7 @@ import { UPLOAD_ROOT } from './utils/upload';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
 import projectsRoutes from './modules/projects/projects.routes';
-import { departmentsRouter, designationsRouter } from './modules/masters/masters.routes';
+import { departmentsRouter, designationsRouter, ticketCategoriesRouter } from './modules/masters/masters.routes';
 import costCodesRoutes from './modules/costCodes/costCodes.routes';
 import employeesRoutes from './modules/employees/employees.routes';
 import inventoryRoutes from './modules/inventory/inventory.routes';
@@ -40,6 +40,7 @@ import auditLogRoutes from './modules/auditLogs/auditLog.routes';
 import uploadRoutes from './modules/uploads/upload.routes';
 import communicationRoutes from './modules/communication/communication.routes';
 import communicationPublicRoutes from './modules/communication/communicationPublic.routes';
+import ticketsRoutes from './modules/tickets/tickets.routes';
 
 const app = express();
 
@@ -70,6 +71,7 @@ api.use('/users', usersRoutes);
 api.use('/projects', projectsRoutes);
 api.use('/departments', departmentsRouter);
 api.use('/designations', designationsRouter);
+api.use('/ticket-categories', ticketCategoriesRouter);
 api.use('/cost-codes', costCodesRoutes);
 api.use('/employees', employeesRoutes);
 api.use('/inventory', inventoryRoutes);
@@ -96,6 +98,7 @@ api.use('/audit-logs', auditLogRoutes);
 api.use('/uploads', uploadRoutes);
 api.use('/communication', communicationRoutes);
 api.use('/', communicationPublicRoutes);
+api.use('/tickets', ticketsRoutes);
 
 app.use(env.apiPrefix, api);
 

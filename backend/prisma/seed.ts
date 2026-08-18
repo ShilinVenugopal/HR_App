@@ -4,6 +4,7 @@ import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSy
 import { seedCostCodeMasterData } from '../src/modules/costCodes/costCodeMasterSeed';
 import { seedDefaultPoTerms, backfillPurchaseOrderTermsSnapshot } from '../src/modules/poTerms/poTermsSeed';
 import { seedDemoProjectUnits } from '../src/modules/projectUnits/projectUnitsSeed';
+import { seedTicketCategories, seedSampleTickets } from '../src/modules/tickets/ticketsSeed';
 
 const prisma = new PrismaClient();
 
@@ -152,6 +153,9 @@ async function main() {
   // ── Attendance Units (per-project demo data) ──────────────────────────
   await seedDemoProjectUnits();
 
+  // ── Ticket Categories (configurable master data) ─────────────────────
+  await seedTicketCategories(prisma);
+
   // ── Vendors (Procurement) ────────────────────────────────────────────
   const vendors = [
     { name: 'Bosch Power Tools India Pvt Ltd', address: 'Adugodi, Bengaluru, Karnataka, India', gstNumber: '29AABCB1234M1Z5', email: 'sales@boschtools.example', phone: '+919876500001', contactPerson: 'Rajesh Kumar' },
@@ -187,7 +191,7 @@ async function main() {
   });
 
   // ── Site Administrator (assigned RIL Jamnagar + IOCL Panipat only) ──
-  await upsertUser({
+  const siteAdminUser = await upsertUser({
     name: 'Site Administrator - West Zone',
     email: 'site.admin@foraysgroup.com',
     mobile: '+919999999901',
@@ -212,12 +216,16 @@ async function main() {
       // reserved for Finance below, same office-oversight split as
       // BILLING_STATUS/SITE_ACCOUNTS.
       EXPENSE: { view: true, add: true, edit: true },
+      // Site Admin can raise/act on their own tickets and also see every
+      // user's tickets org-wide (canApprove doubles as the "All Tickets"
+      // elevated-visibility flag, same pattern as SITE_ACCOUNTS above).
+      TICKETS: { view: true, add: true, edit: true, approve: true },
     }),
     projectIdByName,
   });
 
   // ── HR Executive ─────────────────────────────────────────────────────
-  await upsertUser({
+  const hrExecutiveUser = await upsertUser({
     name: 'HR Executive - RIL Jamnagar',
     email: 'hr.executive@foraysgroup.com',
     mobile: '+919999999902',
@@ -231,12 +239,15 @@ async function main() {
       RECRUITMENT: { view: true, add: true, edit: true, approve: true },
       EMPLOYEES: { view: true, add: true, edit: true },
       ATTENDANCE: { view: true, add: true },
+      // HR is a common ticket destination in the example scenarios, and
+      // Human Resources naturally has org-wide helpdesk visibility.
+      TICKETS: { view: true, add: true, edit: true, approve: true },
     }),
     projectIdByName,
   });
 
   // ── Project Manager ──────────────────────────────────────────────────
-  await upsertUser({
+  const projectManagerUser = await upsertUser({
     name: 'Project Manager - IOCL Panipat',
     email: 'project.manager@foraysgroup.com',
     mobile: '+919999999903',
@@ -251,6 +262,10 @@ async function main() {
       REPORTS: { view: true },
       WAGES: { view: true },
       EXPENSE: { view: true },
+      // Base helpdesk access only — raises/works tickets assigned to them,
+      // no "All Tickets" visibility (matches the requirement that most
+      // roles must not automatically see every user's tickets).
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -278,12 +293,13 @@ async function main() {
       // Office/finance oversight: full CRUD, unlike the site team's
       // view+add+edit-only grant above.
       EXPENSE: { view: true, add: true, edit: true, delete: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
 
   // ── Normal User (view-only) ───────────────────────────────────────────
-  await upsertUser({
+  const normalUser = await upsertUser({
     name: 'Normal User - RIL Jamnagar',
     email: 'normal.user@foraysgroup.com',
     mobile: '+919999999905',
@@ -292,6 +308,10 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       EMPLOYEES: { view: true },
+      // Every authorized user can raise a ticket — this is the baseline
+      // grant, deliberately without canApprove, so "All Tickets" stays
+      // hidden for a normal user by default.
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -302,7 +322,7 @@ async function main() {
   // Permission Matrix Editor already shows the new modules, and each
   // account is ready to use the instant its module ships.
 
-  await upsertUser({
+  const procurementAdminUser = await upsertUser({
     name: 'Procurement Admin - Multi-Site',
     email: 'procurement.admin@foraysgroup.com',
     mobile: '+919999999906',
@@ -317,6 +337,9 @@ async function main() {
       GRN: { view: true, add: true, edit: true, delete: true, approve: true },
       REPORTS: { view: true },
       SETTINGS: { view: true, add: true, edit: true },
+      // Stands in for "IT Admin" in the example ticket scenarios — an
+      // org-wide helpdesk admin.
+      TICKETS: { view: true, add: true, edit: true, approve: true },
     }),
     projectIdByName,
   });
@@ -331,6 +354,7 @@ async function main() {
       DASHBOARD: { view: true },
       INVENTORY: { view: true },
       PURCHASE_REQUISITION: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -346,6 +370,7 @@ async function main() {
       INVENTORY: { view: true, add: true, edit: true },
       PURCHASE_ORDER: { view: true },
       GRN: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -361,6 +386,7 @@ async function main() {
       INVENTORY: { view: true },
       PURCHASE_REQUISITION: { view: true },
       PURCHASE_ORDER: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -379,6 +405,7 @@ async function main() {
       BILLING_STATUS: { view: true, add: true, edit: true },
       SITE_ACCOUNTS: { view: true, approve: true },
       EXPENSE: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -393,6 +420,7 @@ async function main() {
       DASHBOARD: { view: true },
       INVENTORY: { view: true },
       PURCHASE_REQUISITION: { view: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -409,8 +437,18 @@ async function main() {
       PURCHASE_REQUISITION: { view: true, approve: true },
       PURCHASE_ORDER: { view: true, approve: true },
       GRN: { view: true, approve: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
+  });
+
+  // ── Sample Tickets (idempotent — skipped once any ticket exists) ─────
+  await seedSampleTickets(prisma, {
+    raiser: superAdmin.id,
+    hr: hrExecutiveUser.id,
+    it: procurementAdminUser.id,
+    pm: projectManagerUser.id,
+    normal: normalUser.id,
   });
 
   console.log('Seed complete.');

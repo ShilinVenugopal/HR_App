@@ -1,5 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { costCodesApi, departmentsApi, designationsApi, employeesApi, projectsApi, projectUnitsApi, vendorsApi } from '../api/modules';
+import {
+  costCodesApi,
+  departmentsApi,
+  designationsApi,
+  employeesApi,
+  projectsApi,
+  projectUnitsApi,
+  ticketCategoriesApi,
+  ticketsApi,
+  vendorsApi,
+} from '../api/modules';
 import { employeeCostCodeLabel } from '../utils/employeeCostCode';
 
 export function useProjectOptions() {
@@ -93,4 +103,24 @@ export function useEmployeeOptions(projectId?: string) {
     label: e.costCode ? `${e.name} (${e.employeeCode}) – ${employeeCostCodeLabel(e.costCode)}` : `${e.name} (${e.employeeCode})`,
     projectId: e.projectId,
   }));
+}
+
+export function useTicketCategoryOptions() {
+  const { data } = useQuery({
+    queryKey: ['lookup-ticket-categories'],
+    queryFn: () => ticketCategoriesApi.list({ pageSize: 100, status: 'ACTIVE' }),
+  });
+  return (data?.data ?? []).map((c) => ({ value: c.id, label: c.name }));
+}
+
+/// Every active user in the system, for the Assign To multi-select — reads
+/// the tickets module's own lightweight lookup (GET /tickets/assignable-
+/// users), not the Super-Admin-only /users endpoint, so any user who can
+/// raise a ticket can also pick who to assign it to.
+export function useAssignableUserOptions() {
+  const { data } = useQuery({
+    queryKey: ['lookup-ticket-assignable-users'],
+    queryFn: () => ticketsApi.assignableUsers(),
+  });
+  return (data ?? []).map((u) => ({ value: u.id, label: `${u.name} (${u.role})` }));
 }

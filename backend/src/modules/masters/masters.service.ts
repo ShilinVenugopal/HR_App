@@ -5,7 +5,7 @@ import { PaginationParams } from '../../utils/pagination';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
 
-type MasterEntity = 'department' | 'designation';
+type MasterEntity = 'department' | 'designation' | 'ticketCategory';
 
 interface MasterDelegate {
   findMany: (args: any) => Promise<any[]>;
@@ -16,18 +16,20 @@ interface MasterDelegate {
   delete: (args: any) => Promise<any>;
 }
 
-const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation' };
+const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation', ticketCategory: 'Ticket Category' };
 
-/// Departments and Designations are structurally identical master-data
-/// tables, so one generic service backs both REST resources instead of
-/// duplicating CRUD blocks. Cost Codes used to be a third entity here, but
-/// graduated into its own dedicated module (backend/src/modules/costCodes)
-/// once its requirements diverged — Super-Admin-only mutations instead of
-/// the SETTINGS permission matrix, plus extra fields Department/Designation
-/// don't have — rather than bending this generic pattern to fit both.
+/// Departments, Designations, and Ticket Categories are structurally
+/// identical master-data tables, so one generic service backs all three
+/// REST resources instead of duplicating CRUD blocks. Cost Codes used to be
+/// a fourth entity here, but graduated into its own dedicated module
+/// (backend/src/modules/costCodes) once its requirements diverged — Super-
+/// Admin-only mutations instead of the SETTINGS permission matrix, plus
+/// extra fields the others don't have — rather than bending this generic
+/// pattern to fit both.
 function delegateFor(entity: MasterEntity): MasterDelegate {
   if (entity === 'department') return prisma.department as unknown as MasterDelegate;
-  return prisma.designation as unknown as MasterDelegate;
+  if (entity === 'designation') return prisma.designation as unknown as MasterDelegate;
+  return prisma.ticketCategory as unknown as MasterDelegate;
 }
 
 export async function listMasters(entity: MasterEntity, pagination: PaginationParams) {

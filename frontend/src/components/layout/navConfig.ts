@@ -21,13 +21,18 @@ import {
   PieChart,
   LayoutGrid,
   Banknote,
+  Ticket,
+  ListTodo,
+  UserCheck2,
+  PlusCircle,
+  ListChecks,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
 
 export interface NavItem {
   /// Omit only when `alwaysVisible` is set — every other item is gated by
-  /// `can(module, 'view')`.
+  /// `can(module, requiredAction ?? 'view')`.
   module?: ModuleName;
   label: string;
   path: string;
@@ -39,6 +44,11 @@ export interface NavItem {
   /// permission a Super Admin would otherwise have to remember to grant
   /// just so people can view it.
   alwaysVisible?: boolean;
+  /// Overrides the default 'view' gate — e.g. "All Tickets" needs the
+  /// elevated TICKETS canApprove flag (org-wide visibility), not just base
+  /// module access, while every other Tickets nav entry stays gated by
+  /// plain 'view'. Super Admin always bypasses regardless of this.
+  requiredAction?: 'view' | 'add' | 'edit' | 'delete' | 'approve';
 }
 
 /// Single source of truth for the sidebar. Every entry is gated by
@@ -65,6 +75,11 @@ export const NAV_ITEMS: NavItem[] = [
   { module: 'BILLING_STATUS', label: 'Billing Status', path: '/billing-status', icon: Receipt },
   { module: 'SITE_ACCOUNTS', label: 'Site Accounts', path: '/site-accounts', icon: BookOpenText },
   { label: 'Cost Code Master', path: '/cost-code-master', icon: Tags, alwaysVisible: true },
+  { module: 'TICKETS', label: 'Ticket Dashboard', path: '/tickets/dashboard', icon: Ticket },
+  { module: 'TICKETS', label: 'My Tickets', path: '/tickets/my', icon: ListTodo },
+  { module: 'TICKETS', label: 'Assigned to Me', path: '/tickets/assigned', icon: UserCheck2 },
+  { module: 'TICKETS', label: 'Raise New Ticket', path: '/tickets/new', icon: PlusCircle, requiredAction: 'add' },
+  { module: 'TICKETS', label: 'All Tickets', path: '/tickets/all', icon: ListChecks, requiredAction: 'approve' },
   { module: 'REPORTS', label: 'Reports', path: '/reports', icon: BarChart3 },
   { module: 'SETTINGS', label: 'Settings', path: '/settings', icon: Settings },
   { module: 'USER_MANAGEMENT', label: 'User Management', path: '/user-management', icon: UserCog, superAdminOnly: true },

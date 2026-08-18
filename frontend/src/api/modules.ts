@@ -1362,3 +1362,131 @@ export const expensesApi = {
   lookup: (projectId: string, year: number, month: number) =>
     apiClient.get('/expenses/lookup', { params: { projectId, year, month } }).then((r) => r.data.data as Expense | null),
 };
+
+// ── Ticket / Complaint Management ─────────────────────────────────────────
+
+export interface TicketCategory {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface TicketUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface TicketAssignee {
+  id: string;
+  userId: string;
+  assignedAt: string;
+  user: TicketUserSummary;
+}
+
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  commentId?: string | null;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType?: string | null;
+  createdAt: string;
+  uploadedBy: TicketUserSummary;
+}
+
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  userId: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+  user: TicketUserSummary;
+  attachments: TicketAttachment[];
+}
+
+export interface TicketActivity {
+  id: string;
+  ticketId: string;
+  userId: string;
+  action: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  createdAt: string;
+  user: TicketUserSummary;
+}
+
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_USER' | 'RESOLVED' | 'CLOSED';
+
+export interface Ticket {
+  id: string;
+  ticketNo: string;
+  raisedById: string;
+  module?: string | null;
+  categoryId: string;
+  subject: string;
+  description: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  raisedBy: TicketUserSummary;
+  category: TicketCategory;
+  assignees: TicketAssignee[];
+  comments?: TicketComment[];
+  attachments?: TicketAttachment[];
+  activity?: TicketActivity[];
+}
+
+export interface CreateTicketInput {
+  module?: string | null;
+  categoryId: string;
+  subject: string;
+  description: string;
+  priority: TicketPriority;
+  assigneeIds: string[];
+}
+
+export interface TicketStatsBucket {
+  total: number;
+  open: number;
+  inProgress: number;
+  waiting: number;
+  resolved: number;
+  closed: number;
+}
+
+export interface TicketDashboardStats {
+  mine: TicketStatsBucket & { raisedByMe: number };
+  organization:
+    | (TicketStatsBucket & {
+        byCategory: { category: string; count: number }[];
+        byPriority: { priority: string; count: number }[];
+      })
+    | null;
+}
+
+export const ticketCategoriesApi = createResourceApi<TicketCategory>('/ticket-categories');
+
+export const ticketsApi = {
+  ...createResourceApi<Ticket>('/tickets'),
+  create: (payload: CreateTicketInput) => apiClient.post('/tickets', payload).then((r) => r.data as { data: Ticket; message: string }),
+  dashboard: () => apiClient.get('/tickets/dashboard').then((r) => r.data.data as TicketDashboardStats),
+  assignableUsers: () => apiClient.get('/tickets/assignable-users').then((r) => r.data.data as TicketUserSummary[]),
+  addComment: (id: string, comment: string) => apiClient.post(`/tickets/${id}/comments`, { comment }).then((r) => r.data.data as Ticket),
+  changeStatus: (id: string, status: TicketStatus) => apiClient.patch(`/tickets/${id}/status`, { status }).then((r) => r.data.data as Ticket),
+  changePriority: (id: string, priority: TicketPriority) =>
+    apiClient.patch(`/tickets/${id}/priority`, { priority }).then((r) => r.data.data as Ticket),
+  manageAssignees: (id: string, assigneeIds: string[]) =>
+    apiClient.patch(`/tickets/${id}/assignees`, { assigneeIds }).then((r) => r.data.data as Ticket),
+  attachFile: (
+    id: string,
+    input: { commentId?: string | null; fileName: string; filePath: string; fileSize: number; mimeType?: string | null }
+  ) => apiClient.post(`/tickets/${id}/attachments`, input).then((r) => r.data.data as Ticket),
+};
