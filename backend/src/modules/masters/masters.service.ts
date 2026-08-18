@@ -32,9 +32,12 @@ function delegateFor(entity: MasterEntity): MasterDelegate {
   return prisma.ticketCategory as unknown as MasterDelegate;
 }
 
-export async function listMasters(entity: MasterEntity, pagination: PaginationParams) {
+export async function listMasters(entity: MasterEntity, pagination: PaginationParams, status?: ProjectStatus) {
   const delegate = delegateFor(entity);
-  const where = pagination.search ? { name: { contains: pagination.search, mode: 'insensitive' } } : {};
+  const where = {
+    ...(pagination.search ? { name: { contains: pagination.search, mode: 'insensitive' } } : {}),
+    ...(status ? { status } : {}),
+  };
 
   const [rows, total] = await Promise.all([
     delegate.findMany({

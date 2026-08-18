@@ -120,6 +120,11 @@ export default function RaiseTicket() {
               ))}
             </select>
             {errors.categoryId && <p className="mt-1 text-xs text-red-500">{errors.categoryId}</p>}
+            {!errors.categoryId && categoryOptions.length === 0 && (
+              <p className="mt-1 text-xs text-amber-500">
+                No ticket categories are set up yet. Ask a Super Admin to add one in Settings &rarr; Ticket Categories.
+              </p>
+            )}
           </div>
         </div>
 

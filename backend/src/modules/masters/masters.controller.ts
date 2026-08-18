@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ProjectStatus } from '@prisma/client';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { buildPaginationMeta, sendSuccess } from '../../utils/apiResponse';
 import { parsePagination } from '../../utils/pagination';
@@ -13,7 +14,8 @@ function entityFrom(req: Request): 'department' | 'designation' | 'ticketCategor
 export const listMastersHandler = asyncHandler(async (req: Request, res: Response) => {
   const entity = entityFrom(req);
   const pagination = parsePagination(req, 'name');
-  const { rows, total } = await mastersService.listMasters(entity, pagination);
+  const status = typeof req.query.status === 'string' ? (req.query.status as ProjectStatus) : undefined;
+  const { rows, total } = await mastersService.listMasters(entity, pagination, status);
   return sendSuccess(res, rows, `${entity}s fetched`, 200, buildPaginationMeta(pagination.page, pagination.pageSize, total));
 });
 
