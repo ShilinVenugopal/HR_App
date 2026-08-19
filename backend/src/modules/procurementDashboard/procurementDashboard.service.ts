@@ -30,7 +30,7 @@ export async function getProcurementDashboardSummary(req: Request) {
     prisma.goodsReceivedNote.count({ where: { ...projectWhere, status: 'PENDING_APPROVAL' } }),
     prisma.inventoryItem.aggregate({
       where: projectWhere,
-      _sum: { workingQuantity: true, nonWorkingQuantity: true },
+      _sum: { inStockQuantity: true, consumedQuantity: true },
     }),
     prisma.inventoryItem.count({ where: projectWhere }),
     prisma.purchaseOrder.findMany({
@@ -70,8 +70,8 @@ export async function getProcurementDashboardSummary(req: Request) {
       pendingPoApprovals,
       pendingGrnApprovals,
       totalInventoryItems: inventoryItemCount,
-      totalWorkingQuantity: Number(inventoryAgg._sum.workingQuantity ?? 0),
-      totalNonWorkingQuantity: Number(inventoryAgg._sum.nonWorkingQuantity ?? 0),
+      totalWorkingQuantity: Number(inventoryAgg._sum.inStockQuantity ?? 0),
+      totalNonWorkingQuantity: Number(inventoryAgg._sum.consumedQuantity ?? 0),
     },
     charts: {
       prStatus: prStatusCounts.map((r) => ({ status: r.status, count: r._count._all })),

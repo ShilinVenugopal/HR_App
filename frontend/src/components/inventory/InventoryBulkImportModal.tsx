@@ -96,10 +96,10 @@ export function InventoryBulkImportModal({
           costCodeId: r.costCodeId!,
           itemDescription: r.itemDescription,
           unit: r.unit as never,
-          workingQuantity: r.workingQuantity,
-          nonWorkingQuantity: r.nonWorkingQuantity,
+          inStockQuantity: r.inStockQuantity,
+          consumedQuantity: r.consumedQuantity,
           remarks: r.remarks,
-          date: r.date,
+          lastConsumptionUpdateAt: r.lastConsumptionUpdateAt,
         })),
         duplicateStrategy
       );

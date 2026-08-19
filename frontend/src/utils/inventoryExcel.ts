@@ -10,10 +10,10 @@ export const INVENTORY_FIELDS = [
   { key: 'costCode', label: 'Cost Code' },
   { key: 'itemDescription', label: 'Item Description' },
   { key: 'unit', label: 'Unit' },
-  { key: 'workingQuantity', label: 'Working Quantity' },
-  { key: 'nonWorkingQuantity', label: 'Non-working Quantity' },
+  { key: 'inStockQuantity', label: 'In-stock Quantity' },
+  { key: 'consumedQuantity', label: 'Consumed Quantity' },
   { key: 'remarks', label: 'Remarks' },
-  { key: 'date', label: 'Date' },
+  { key: 'lastConsumptionUpdateAt', label: 'Last Date of Consumption Update' },
   { key: 'project', label: 'Project' },
 ] as const;
 
@@ -85,10 +85,10 @@ const SAMPLE_ROW: Record<InventoryFieldKey, string> = {
   costCode: 'F05A — Tools Tackles/Power Tools',
   itemDescription: 'Grinding Machine',
   unit: 'Nos',
-  workingQuantity: '10',
-  nonWorkingQuantity: '2',
+  inStockQuantity: '10',
+  consumedQuantity: '2',
   remarks: 'Sample row — delete before uploading',
-  date: '2026-01-15',
+  lastConsumptionUpdateAt: '2026-01-15',
   project: 'RIL Jamnagar',
 };
 
@@ -132,8 +132,8 @@ export async function downloadInventoryTemplate(lookups: Lookups) {
     { field: 'Cost Code', mandatory: 'Yes', notes: `Must match an existing cost code: ${lookups.costCodes.map((c) => c.code).join(', ') || '(none configured)'}` },
     { field: 'Item Description', mandatory: 'Yes', notes: 'Required.' },
     { field: 'Unit', mandatory: 'Yes', notes: `One of: ${UNIT_OPTIONS.map((u) => u.label).join(', ')}` },
-    { field: 'Working Quantity / Non-working Quantity', mandatory: 'No', notes: 'Numeric. Defaults to 0 if left blank.' },
-    { field: 'Date', mandatory: 'No', notes: 'Format: YYYY-MM-DD. Defaults to today if left blank.' },
+    { field: 'In-stock Quantity / Consumed Quantity', mandatory: 'No', notes: 'Numeric. Defaults to 0 if left blank. Consumed Quantity cannot exceed In-stock Quantity.' },
+    { field: 'Last Date of Consumption Update', mandatory: 'No', notes: 'Format: YYYY-MM-DD. Left blank if there has been no consumption update.' },
     { field: 'Project', mandatory: 'Yes', notes: `Must match an existing project name exactly: ${lookups.projects.map((p) => p.name).join(', ') || '(none configured)'}` },
   ]);
 
@@ -221,10 +221,10 @@ export interface ValidatedInventoryRow {
   costCodeLabel: string;
   itemDescription: string;
   unit: string;
-  workingQuantity: number;
-  nonWorkingQuantity: number;
+  inStockQuantity: number;
+  consumedQuantity: number;
   remarks: string | null;
-  date: string | null;
+  lastConsumptionUpdateAt: string | null;
   projectId: string | null;
   projectLabel: string;
   errors: string[];
@@ -272,14 +272,15 @@ export function validateInventoryRows(rawRows: RawInventoryRow[], lookups: Looku
       else unit = match.value;
     }
 
-    const workingQuantity = parseNonNegativeNumber(v.workingQuantity, 'Working Quantity', errors);
-    const nonWorkingQuantity = parseNonNegativeNumber(v.nonWorkingQuantity, 'Non-working Quantity', errors);
+    const inStockQuantity = parseNonNegativeNumber(v.inStockQuantity, 'In-stock Quantity', errors);
+    const consumedQuantity = parseNonNegativeNumber(v.consumedQuantity, 'Consumed Quantity', errors);
+    if (consumedQuantity > inStockQuantity) errors.push('Consumed Quantity cannot exceed In-stock Quantity');
 
-    let date: string | null = null;
-    if (v.date.trim()) {
-      const parsed = new Date(v.date);
-      if (Number.isNaN(parsed.getTime())) errors.push('Date is not a valid date');
-      else date = parsed.toISOString().slice(0, 10);
+    let lastConsumptionUpdateAt: string | null = null;
+    if (v.lastConsumptionUpdateAt.trim()) {
+      const parsed = new Date(v.lastConsumptionUpdateAt);
+      if (Number.isNaN(parsed.getTime())) errors.push('Last Date of Consumption Update is not a valid date');
+      else lastConsumptionUpdateAt = parsed.toISOString().slice(0, 10);
     }
 
     let projectId: string | null = null;
@@ -303,10 +304,10 @@ export function validateInventoryRows(rawRows: RawInventoryRow[], lookups: Looku
       costCodeLabel: v.costCode,
       itemDescription,
       unit,
-      workingQuantity,
-      nonWorkingQuantity,
+      inStockQuantity,
+      consumedQuantity,
       remarks: v.remarks.trim() || null,
-      date,
+      lastConsumptionUpdateAt,
       projectId,
       projectLabel: v.project,
       errors,
@@ -352,10 +353,10 @@ export async function exportInventoryExcel(items: InventoryItem[]) {
       costCode: item.costCode ? `${item.costCode.code} — ${item.costCode.name}` : '',
       itemDescription: item.itemDescription,
       unit: unitLabel(item.unit),
-      workingQuantity: Number(item.workingQuantity),
-      nonWorkingQuantity: Number(item.nonWorkingQuantity),
+      inStockQuantity: Number(item.inStockQuantity),
+      consumedQuantity: Number(item.consumedQuantity),
       remarks: item.remarks ?? '',
-      date: item.date ? item.date.slice(0, 10) : '',
+      lastConsumptionUpdateAt: item.lastConsumptionUpdateAt ? item.lastConsumptionUpdateAt.slice(0, 10) : '',
       project: item.project?.projectName ?? '',
     });
   });
@@ -375,16 +376,17 @@ export async function exportInventoryPdf(items: InventoryItem[]) {
 
   autoTable(doc, {
     startY: 36,
-    head: [['Sr. No.', 'Cost Code', 'Item Description', 'Unit', 'Working Qty', 'Non-working Qty', 'Remarks', 'Date', 'Project']],
+    head: [['Sr. No.', 'Cost Code', 'Item Description', 'Unit', 'In-stock Qty', 'Consumed Qty', 'Date of Update', 'Balance Qty', 'Remarks', 'Project']],
     body: items.map((item, idx) => [
       idx + 1,
       item.costCode ? `${item.costCode.code} — ${item.costCode.name}` : '',
       item.itemDescription,
       unitLabel(item.unit),
-      Number(item.workingQuantity),
-      Number(item.nonWorkingQuantity),
+      Number(item.inStockQuantity),
+      Number(item.consumedQuantity),
+      item.lastConsumptionUpdateAt ? item.lastConsumptionUpdateAt.slice(0, 10) : '',
+      Number(item.inStockQuantity) - Number(item.consumedQuantity),
       item.remarks ?? '',
-      item.date ? item.date.slice(0, 10) : '',
       item.project?.projectName ?? '',
     ]),
     styles: { fontSize: 8, cellPadding: 3 },

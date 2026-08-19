@@ -118,7 +118,7 @@ export async function procurementSummaryReport(req: Request) {
     prisma.purchaseRequisition.groupBy({ by: ['status'], where, _count: { _all: true } }),
     prisma.purchaseOrder.groupBy({ by: ['status'], where, _count: { _all: true } }),
     prisma.goodsReceivedNote.groupBy({ by: ['status'], where, _count: { _all: true } }),
-    prisma.inventoryItem.aggregate({ where, _sum: { workingQuantity: true, nonWorkingQuantity: true } }),
+    prisma.inventoryItem.aggregate({ where, _sum: { inStockQuantity: true, consumedQuantity: true } }),
     prisma.inventoryItem.count({ where }),
   ]);
 
@@ -128,8 +128,8 @@ export async function procurementSummaryReport(req: Request) {
     grnByStatus: grnByStatus.map((r) => ({ status: r.status, count: r._count._all })),
     inventory: {
       totalItems: inventoryItemCount,
-      totalWorkingQuantity: Number(inventoryAgg._sum.workingQuantity ?? 0),
-      totalNonWorkingQuantity: Number(inventoryAgg._sum.nonWorkingQuantity ?? 0),
+      totalWorkingQuantity: Number(inventoryAgg._sum.inStockQuantity ?? 0),
+      totalNonWorkingQuantity: Number(inventoryAgg._sum.consumedQuantity ?? 0),
     },
   };
 }

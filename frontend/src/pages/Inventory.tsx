@@ -12,17 +12,19 @@ import { useAuth } from '../context/AuthContext';
 import { useCostCodeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 import { InventoryBulkImportModal } from '../components/inventory/InventoryBulkImportModal';
-import { UNIT_OPTIONS, downloadInventoryTemplate, exportInventoryExcel, exportInventoryPdf, unitLabel } from '../utils/inventoryExcel';
+import { UNIT_OPTIONS, downloadInventoryTemplate, exportInventoryExcel, exportInventoryPdf } from '../utils/inventoryExcel';
 
 const emptyForm = {
   projectId: '',
   costCodeId: '',
   itemDescription: '',
   unit: 'NOS',
-  workingQuantity: '0',
-  nonWorkingQuantity: '0',
+  inStockQuantity: '0',
+  consumedQuantity: '0',
   remarks: '',
-  date: new Date().toISOString().slice(0, 10),
+  // Last Date of Consumption Update — optional, left blank when there has
+  // been no consumption update yet (no longer pre-filled with today).
+  lastConsumptionUpdateAt: '',
 };
 
 export default function Inventory() {
@@ -80,10 +82,10 @@ export default function Inventory() {
       costCodeId: item.costCodeId,
       itemDescription: item.itemDescription,
       unit: item.unit,
-      workingQuantity: String(item.workingQuantity),
-      nonWorkingQuantity: String(item.nonWorkingQuantity),
+      inStockQuantity: String(item.inStockQuantity),
+      consumedQuantity: String(item.consumedQuantity),
       remarks: item.remarks ?? '',
-      date: item.date.slice(0, 10),
+      lastConsumptionUpdateAt: item.lastConsumptionUpdateAt ? item.lastConsumptionUpdateAt.slice(0, 10) : '',
     });
     setErrors({});
     setModalOpen(true);
@@ -94,8 +96,12 @@ export default function Inventory() {
     if (!form.projectId) next.projectId = 'Project is required';
     if (!form.costCodeId) next.costCodeId = 'Cost Code is required';
     if (!form.itemDescription.trim()) next.itemDescription = 'Item Description is required';
-    if (Number(form.workingQuantity) < 0) next.workingQuantity = 'Must be 0 or more';
-    if (Number(form.nonWorkingQuantity) < 0) next.nonWorkingQuantity = 'Must be 0 or more';
+    if (!form.inStockQuantity.trim()) next.inStockQuantity = 'In-stock Qty is required';
+    else if (Number(form.inStockQuantity) < 0) next.inStockQuantity = 'Must be 0 or more';
+    if (Number(form.consumedQuantity) < 0) next.consumedQuantity = 'Must be 0 or more';
+    if (Number(form.consumedQuantity) > Number(form.inStockQuantity || 0)) {
+      next.consumedQuantity = 'Consumed Qty cannot exceed In-stock Qty';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -107,10 +113,10 @@ export default function Inventory() {
         costCodeId: form.costCodeId,
         itemDescription: form.itemDescription.trim(),
         unit: form.unit as InventoryUnit,
-        workingQuantity: Number(form.workingQuantity) || 0,
-        nonWorkingQuantity: Number(form.nonWorkingQuantity) || 0,
+        inStockQuantity: Number(form.inStockQuantity) || 0,
+        consumedQuantity: Number(form.consumedQuantity) || 0,
         remarks: form.remarks.trim() || undefined,
-        date: form.date,
+        lastConsumptionUpdateAt: form.lastConsumptionUpdateAt || null,
       };
       return editing ? inventoryApi.update(editing.id, payload) : inventoryApi.create(payload);
     },
@@ -167,13 +173,23 @@ export default function Inventory() {
   const columns: Column<InventoryItem>[] = [
     { key: 'costCode', header: 'Cost Code', render: (r) => (r.costCode ? `${r.costCode.code} — ${r.costCode.name}` : '—') },
     { key: 'itemDescription', header: 'Item Description', sortable: true, render: (r) => <span className="font-medium">{r.itemDescription}</span> },
-    { key: 'unit', header: 'Unit', render: (r) => unitLabel(r.unit) },
-    { key: 'workingQuantity', header: 'Working Qty', sortable: true, render: (r) => Number(r.workingQuantity).toLocaleString('en-IN') },
-    { key: 'nonWorkingQuantity', header: 'Non-working Qty', sortable: true, render: (r) => Number(r.nonWorkingQuantity).toLocaleString('en-IN') },
+    { key: 'inStockQuantity', header: 'In-stock Qty', sortable: true, render: (r) => Number(r.inStockQuantity).toLocaleString('en-IN') },
+    { key: 'consumedQuantity', header: 'Consumed Qty', sortable: true, render: (r) => Number(r.consumedQuantity).toLocaleString('en-IN') },
+    {
+      key: 'lastConsumptionUpdateAt',
+      header: 'Date of Update',
+      sortable: true,
+      render: (r) => (r.lastConsumptionUpdateAt ? new Date(r.lastConsumptionUpdateAt).toLocaleDateString() : '—'),
+    },
+    {
+      key: 'balanceQty',
+      header: 'Balance Qty',
+      // Computed on read (In-stock Qty − Consumed Qty) — never stored or manually entered.
+      render: (r) => (Number(r.inStockQuantity) - Number(r.consumedQuantity)).toLocaleString('en-IN'),
+    },
     { key: 'remarks', header: 'Remarks', render: (r) => r.remarks ?? '—' },
-    { key: 'date', header: 'Date', sortable: true, render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'project', header: 'Project', render: (r) => r.project?.projectName ?? '—' },
-    { key: 'createdBy', header: 'Created By', render: (r) => r.createdBy?.name ?? '—' },
+    { key: 'createdBy', header: 'Item Created By', render: (r) => r.createdBy?.name ?? '—' },
     { key: 'createdAt', header: 'Created Date', sortable: true, render: (r) => new Date(r.createdAt).toLocaleDateString() },
   ];
 
@@ -253,7 +269,7 @@ export default function Inventory() {
                 setFilters((f) => ({ ...f, dateFrom: e.target.value }));
                 setPage(1);
               }}
-              title="From date"
+              title="Date of Update from"
             />
             <input
               type="date"
@@ -263,7 +279,7 @@ export default function Inventory() {
                 setFilters((f) => ({ ...f, dateTo: e.target.value }));
                 setPage(1);
               }}
-              title="To date"
+              title="Date of Update to"
             />
           </>
         }
@@ -350,39 +366,45 @@ export default function Inventory() {
               </select>
             </div>
             <div>
-              <label className="label">Working Quantity</label>
+              <label className="label">In-stock Qty *</label>
               <input
                 type="number"
                 min="0"
                 className="input"
-                value={form.workingQuantity}
-                onChange={(e) => setForm((f) => ({ ...f, workingQuantity: e.target.value }))}
+                value={form.inStockQuantity}
+                onChange={(e) => setForm((f) => ({ ...f, inStockQuantity: e.target.value }))}
               />
-              {errors.workingQuantity && <p className="mt-1 text-xs text-red-500">{errors.workingQuantity}</p>}
+              {errors.inStockQuantity && <p className="mt-1 text-xs text-red-500">{errors.inStockQuantity}</p>}
             </div>
             <div>
-              <label className="label">Non-working Quantity</label>
+              <label className="label">Consumed Qty</label>
               <input
                 type="number"
                 min="0"
                 className="input"
-                value={form.nonWorkingQuantity}
-                onChange={(e) => setForm((f) => ({ ...f, nonWorkingQuantity: e.target.value }))}
+                value={form.consumedQuantity}
+                onChange={(e) => setForm((f) => ({ ...f, consumedQuantity: e.target.value }))}
               />
-              {errors.nonWorkingQuantity && <p className="mt-1 text-xs text-red-500">{errors.nonWorkingQuantity}</p>}
+              {errors.consumedQuantity && <p className="mt-1 text-xs text-red-500">{errors.consumedQuantity}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Date</label>
-              <input type="date" className="input" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+              <label className="label">Last Date of Consumption Update</label>
+              <input
+                type="date"
+                className="input"
+                value={form.lastConsumptionUpdateAt}
+                onChange={(e) => setForm((f) => ({ ...f, lastConsumptionUpdateAt: e.target.value }))}
+              />
             </div>
             <div>
               <label className="label">Remarks</label>
               <input className="input" value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
             </div>
           </div>
+          <p className="text-xs text-slate-400">Created Date is set automatically by the system and cannot be edited manually.</p>
         </div>
       </Modal>
 

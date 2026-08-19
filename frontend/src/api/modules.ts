@@ -645,10 +645,14 @@ export interface InventoryItem {
   costCode?: { id: string; code: string; name: string } | null;
   itemDescription: string;
   unit: InventoryUnit;
-  workingQuantity: string | number;
-  nonWorkingQuantity: string | number;
+  /// In-stock Qty (formerly "Working Qty").
+  inStockQuantity: string | number;
+  /// Consumed Qty (formerly "Non Working Qty").
+  consumedQuantity: string | number;
   remarks?: string | null;
-  date: string;
+  /// Last Date of Consumption Update — shown as "Date of Update" on the
+  /// Inventory page. Optional: null until a consumption update happens.
+  lastConsumptionUpdateAt?: string | null;
   createdById?: string | null;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
@@ -660,10 +664,10 @@ export interface BulkInventoryRowInput {
   costCodeId: string;
   itemDescription: string;
   unit: InventoryUnit;
-  workingQuantity: number;
-  nonWorkingQuantity: number;
+  inStockQuantity: number;
+  consumedQuantity: number;
   remarks?: string | null;
-  date?: string | null;
+  lastConsumptionUpdateAt?: string | null;
 }
 
 export interface InventoryDuplicateMatch {

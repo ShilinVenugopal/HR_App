@@ -21,6 +21,17 @@ export interface InventoryFilters {
   dateTo?: string;
 }
 
+/// Consumed Qty must never exceed In-stock Qty — Balance Qty
+/// (inStockQuantity - consumedQuantity) would otherwise go negative. No
+/// prior code enforced a relationship between these two fields (they used
+/// to be independent "working" / "non-working" splits), so this is safe to
+/// introduce now that they represent stock-in vs. stock-consumed.
+function assertConsumedNotExceedingInStock(inStockQuantity: number, consumedQuantity: number) {
+  if (consumedQuantity > inStockQuantity) {
+    throw ApiError.badRequest('Consumed Qty cannot exceed In-stock Qty');
+  }
+}
+
 export async function listInventory(req: Request, pagination: PaginationParams, filters: InventoryFilters) {
   const where: Prisma.InventoryItemWhereInput = {
     ...projectScopeWhere(req),
@@ -28,7 +39,7 @@ export async function listInventory(req: Request, pagination: PaginationParams, 
     ...(filters.costCodeId ? { costCodeId: filters.costCodeId } : {}),
     ...(filters.dateFrom || filters.dateTo
       ? {
-          date: {
+          lastConsumptionUpdateAt: {
             ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
             ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {}),
           },
@@ -73,10 +84,10 @@ export interface CreateInventoryInput {
   costCodeId: string;
   itemDescription: string;
   unit: string;
-  workingQuantity?: number;
-  nonWorkingQuantity?: number;
+  inStockQuantity?: number;
+  consumedQuantity?: number;
   remarks?: string;
-  date?: Date;
+  lastConsumptionUpdateAt?: Date | null;
 }
 
 export async function createInventoryItem(req: Request, input: CreateInventoryInput, meta?: RequestMeta) {
@@ -94,16 +105,23 @@ export async function createInventoryItem(req: Request, input: CreateInventoryIn
   });
   if (existing) throw ApiError.conflict('An inventory item with this Cost Code and Item Description already exists for this project');
 
+  const inStockQuantity = input.inStockQuantity ?? 0;
+  const consumedQuantity = input.consumedQuantity ?? 0;
+  assertConsumedNotExceedingInStock(inStockQuantity, consumedQuantity);
+
   const record = await prisma.inventoryItem.create({
     data: {
       projectId: input.projectId,
       costCodeId: input.costCodeId,
       itemDescription: input.itemDescription,
       unit: input.unit as any,
-      workingQuantity: input.workingQuantity ?? 0,
-      nonWorkingQuantity: input.nonWorkingQuantity ?? 0,
+      inStockQuantity,
+      consumedQuantity,
       remarks: input.remarks,
-      date: input.date ?? new Date(),
+      // Created Date is the existing, reliable createdAt timestamp
+      // (@default(now())) — no separate field needed. Last Date of
+      // Consumption Update stays null unless the caller actually supplies one.
+      lastConsumptionUpdateAt: input.lastConsumptionUpdateAt ?? null,
       createdById: req.user!.sub,
     },
     include: includeRelations,
@@ -127,6 +145,10 @@ export async function updateInventoryItem(req: Request, id: string, input: Prism
 
   if (input.projectId && typeof input.projectId === 'string') assertProjectAccess(req, input.projectId);
   if (input.costCodeId && typeof input.costCodeId === 'string') await assertCostCodeExists(input.costCodeId);
+
+  const effectiveInStock = typeof input.inStockQuantity === 'number' ? input.inStockQuantity : Number(existing.inStockQuantity);
+  const effectiveConsumed = typeof input.consumedQuantity === 'number' ? input.consumedQuantity : Number(existing.consumedQuantity);
+  assertConsumedNotExceedingInStock(effectiveInStock, effectiveConsumed);
 
   const record = await prisma.inventoryItem.update({ where: { id }, data: input, include: includeRelations });
 
@@ -247,6 +269,13 @@ export async function bulkImportInventory(
       continue;
     }
 
+    const inStockQuantity = row.inStockQuantity ?? 0;
+    const consumedQuantity = row.consumedQuantity ?? 0;
+    if (consumedQuantity > inStockQuantity) {
+      fail('Consumed Quantity cannot exceed In-stock Quantity');
+      continue;
+    }
+
     seenInFile.add(key);
 
     const commonData = {
@@ -254,10 +283,10 @@ export async function bulkImportInventory(
       costCodeId: row.costCodeId,
       itemDescription: row.itemDescription,
       unit: row.unit,
-      workingQuantity: row.workingQuantity ?? 0,
-      nonWorkingQuantity: row.nonWorkingQuantity ?? 0,
+      inStockQuantity,
+      consumedQuantity,
       remarks: row.remarks || null,
-      date: row.date ?? new Date(),
+      lastConsumptionUpdateAt: row.lastConsumptionUpdateAt ?? null,
     };
 
     const existingId = existingMap.get(key);

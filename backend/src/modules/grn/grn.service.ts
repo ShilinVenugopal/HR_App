@@ -369,8 +369,9 @@ export async function unlockGoodsReceivedNote(req: Request, id: string, meta?: R
 /// — separate from approval itself so a Store Incharge can physically
 /// verify the goods before stock is credited. Finds-or-creates the
 /// InventoryItem row per (project, costCode, description) and credits
-/// workingQuantity by acceptedQty only; rejectedQty is logged on the
-/// InventoryTransaction for audit but never added to any quantity field.
+/// inStockQuantity (formerly workingQuantity) by acceptedQty only;
+/// rejectedQty is logged on the InventoryTransaction for audit but never
+/// added to any quantity field.
 export async function updateInventoryFromGrn(req: Request, id: string, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
   if (existing.status !== 'APPROVED') {
@@ -398,16 +399,16 @@ export async function updateInventoryFromGrn(req: Request, id: string, meta?: Re
           costCodeId: item.costCodeId,
           itemDescription: item.description,
           unit: item.unit,
-          workingQuantity: 0,
-          nonWorkingQuantity: 0,
+          inStockQuantity: 0,
+          consumedQuantity: 0,
           createdById: req.user!.sub,
         },
       });
 
-      const workingQtyAfter = round2(Number(inventoryItem.workingQuantity) + Number(item.acceptedQty));
-      const nonWorkingQtyAfter = Number(inventoryItem.nonWorkingQuantity);
+      const workingQtyAfter = round2(Number(inventoryItem.inStockQuantity) + Number(item.acceptedQty));
+      const nonWorkingQtyAfter = Number(inventoryItem.consumedQuantity);
 
-      await tx.inventoryItem.update({ where: { id: inventoryItem.id }, data: { workingQuantity: workingQtyAfter } });
+      await tx.inventoryItem.update({ where: { id: inventoryItem.id }, data: { inStockQuantity: workingQtyAfter } });
 
       await tx.inventoryTransaction.create({
         data: {

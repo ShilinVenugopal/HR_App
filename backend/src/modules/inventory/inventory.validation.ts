@@ -7,10 +7,12 @@ export const createInventorySchema = z.object({
     costCodeId: z.string().uuid('Cost Code is required'),
     itemDescription: z.string().trim().min(2, 'Item Description is required'),
     unit: z.nativeEnum(Unit),
-    workingQuantity: z.coerce.number().min(0).default(0),
-    nonWorkingQuantity: z.coerce.number().min(0).default(0),
+    // In-stock Qty is mandatory — no default, so an omitted value fails validation.
+    inStockQuantity: z.coerce.number().min(0, 'In-stock Qty is required'),
+    consumedQuantity: z.coerce.number().min(0).default(0),
     remarks: z.string().trim().optional(),
-    date: z.coerce.date().optional(),
+    // Last Date of Consumption Update — optional; there may be no consumption yet.
+    lastConsumptionUpdateAt: z.coerce.date().optional().nullable(),
   }),
 });
 
@@ -40,10 +42,10 @@ const bulkInventoryRowSchema = z.object({
   costCodeId: z.string().uuid(),
   itemDescription: z.string().trim().min(1),
   unit: z.nativeEnum(Unit),
-  workingQuantity: z.coerce.number().min(0).default(0),
-  nonWorkingQuantity: z.coerce.number().min(0).default(0),
+  inStockQuantity: z.coerce.number().min(0).default(0),
+  consumedQuantity: z.coerce.number().min(0).default(0),
   remarks: z.string().trim().optional().nullable(),
-  date: z.coerce.date().optional().nullable(),
+  lastConsumptionUpdateAt: z.coerce.date().optional().nullable(),
 });
 export type BulkInventoryRow = z.infer<typeof bulkInventoryRowSchema>;
 

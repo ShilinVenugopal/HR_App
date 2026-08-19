@@ -1171,19 +1171,29 @@ model PurchaseOrderTerm {
   @@map("purchase_order_terms")
 }
 
+/// Balance Qty (inStockQuantity - consumedQuantity) is intentionally NOT a
+/// stored column — it's computed on read (service + frontend) so it can
+/// never drift out of sync with its two inputs.
 model InventoryItem {
-  id                 String   @id @default(uuid())
-  projectId          String
-  costCodeId         String
-  itemDescription    String
-  unit               Unit
-  workingQuantity    Decimal  @default(0) @db.Decimal(14, 2)
-  nonWorkingQuantity Decimal  @default(0) @db.Decimal(14, 2)
-  remarks            String?
-  date               DateTime @default(now())
-  createdById        String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id              String @id @default(uuid())
+  projectId       String
+  costCodeId      String
+  itemDescription String
+  unit            Unit
+  /// Formerly "workingQuantity" / Working Qty. @map keeps the physical
+  /// column name so this rename needed no data migration.
+  inStockQuantity Decimal @default(0) @db.Decimal(14, 2) @map("workingQuantity")
+  /// Formerly "nonWorkingQuantity" / Non Working Qty, now Consumed Qty.
+  consumedQuantity Decimal @default(0) @db.Decimal(14, 2) @map("nonWorkingQuantity")
+  remarks         String?
+  /// Formerly the generic "date" field (defaulted to now() on every row).
+  /// Repurposed as "Last Date of Consumption Update" — optional, and only
+  /// set when a consumption update actually happens, not stamped
+  /// automatically. Displayed on the Inventory page as "Date of Update".
+  lastConsumptionUpdateAt DateTime? @map("date")
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   project      Project                @relation(fields: [projectId], references: [id])
   costCode     CostCode               @relation(fields: [costCodeId], references: [id])
