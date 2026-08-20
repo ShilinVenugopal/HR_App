@@ -8,6 +8,7 @@ export type ModuleName =
   | 'WAGES'
   | 'COMPLIANCE'
   | 'ADVANCES'
+  | 'ASSETS'
   | 'REPORTS'
   | 'SETTINGS'
   | 'USER_MANAGEMENT';
@@ -20,6 +21,7 @@ export const ALL_MODULES: ModuleName[] = [
   'WAGES',
   'COMPLIANCE',
   'ADVANCES',
+  'ASSETS',
   'REPORTS',
   'SETTINGS',
   'USER_MANAGEMENT',
@@ -33,6 +35,7 @@ export const MODULE_LABELS: Record<ModuleName, string> = {
   WAGES: 'Wages',
   COMPLIANCE: 'Compliance',
   ADVANCES: 'Advances',
+  ASSETS: 'Assets',
   REPORTS: 'Reports',
   SETTINGS: 'Settings',
   USER_MANAGEMENT: 'User Management',

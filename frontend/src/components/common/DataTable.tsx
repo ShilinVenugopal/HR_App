@@ -11,6 +11,22 @@ export interface Column<T> {
   className?: string;
 }
 
+/// Builds a windowed page-number list like [1, '…', 4, 5, 6, '…', 12] so
+/// the footer never renders a button per page on large result sets.
+function buildPageWindow(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const result: (number | '…')[] = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - (sorted[i - 1] as number) > 1) result.push('…');
+    result.push(p);
+  });
+  return result;
+}
+
 export function DataTable<T extends { id: string }>({
   columns,
   rows,
@@ -24,6 +40,9 @@ export function DataTable<T extends { id: string }>({
   headerActions,
   emptyLabel = 'No records found',
   rowActions,
+  pageSizeOptions,
+  onPageSizeChange,
+  showPageNumbers = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -40,6 +59,13 @@ export function DataTable<T extends { id: string }>({
   headerActions?: ReactNode;
   emptyLabel?: string;
   rowActions?: (row: T) => ReactNode;
+  /// Opt-in "records per page" selector rendered in the footer. Omit to
+  /// keep the existing simple prev/next footer unchanged for other pages.
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (pageSize: number) => void;
+  /// Opt-in numbered page buttons alongside prev/next. Defaults to false so
+  /// every existing page keeps its current footer exactly as-is.
+  showPageNumbers?: boolean;
 }) {
   return (
     <div className="card overflow-hidden">
@@ -118,12 +144,27 @@ export function DataTable<T extends { id: string }>({
         </table>
       </div>
 
-      {meta && onPageChange && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
-          <span className="text-slate-500">
-            Page {meta.page} of {meta.totalPages} · {meta.total} records
-          </span>
-          <div className="flex gap-2">
+      {meta && onPageChange && (meta.totalPages > 1 || onPageSizeChange) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-500">
+              Page {meta.page} of {meta.totalPages} · {meta.total} records
+            </span>
+            {onPageSizeChange && pageSizeOptions && (
+              <select
+                className="input w-auto py-1"
+                value={meta.pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size} / page
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page <= 1}
@@ -131,6 +172,22 @@ export function DataTable<T extends { id: string }>({
             >
               <ChevronLeft size={16} />
             </button>
+            {showPageNumbers &&
+              buildPageWindow(meta.page, meta.totalPages).map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-1.5 text-slate-400">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    className={p === meta.page ? 'btn-primary px-2.5 py-1' : 'btn-secondary px-2.5 py-1'}
+                    onClick={() => onPageChange(p)}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page >= meta.totalPages}

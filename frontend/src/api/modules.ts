@@ -168,6 +168,46 @@ export const employeesApi = {
     apiClient.post('/employees/bulk/import', { rows, duplicateStrategy }).then((r) => r.data.data as EmployeeBulkImportResult),
 };
 
+export type AssetUnit = 'NOS' | 'MTR' | 'LOT' | 'EA' | 'KG' | 'TON' | 'LITER' | 'PAIR';
+
+export interface Asset {
+  id: string;
+  srNo: number;
+  costCode: string;
+  itemDescription: string;
+  unit: AssetUnit;
+  workingQuantity: number;
+  nonWorkingQuantity: number;
+  remarks?: string | null;
+  date: string;
+  projectId: string;
+  project?: { id: string; projectName: string };
+  createdById?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  updatedById?: string | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetImportFailure {
+  rowNumber: number;
+  itemDescription: string;
+  reason: string;
+}
+
+export interface AssetImportResult {
+  total: number;
+  imported: number;
+  failed: number;
+  failures: AssetImportFailure[];
+}
+
+export const assetsApi = {
+  ...createResourceApi<Asset>('/assets'),
+  bulkImport: (rows: unknown[]) => apiClient.post('/assets/bulk/import', { rows }).then((r) => r.data.data as AssetImportResult),
+};
+
 export interface AttendanceRecord {
   id: string;
   employeeId: string;

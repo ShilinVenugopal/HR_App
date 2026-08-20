@@ -160,6 +160,7 @@ async function main() {
       WAGES: { view: true, approve: true },
       COMPLIANCE: { view: true, add: true, edit: true },
       ADVANCES: { view: true, approve: true },
+      ASSETS: { view: true, add: true, edit: true, delete: true },
       REPORTS: { view: true },
       SETTINGS: { view: true, add: true, edit: true },
     }),
@@ -181,6 +182,7 @@ async function main() {
       RECRUITMENT: { view: true, add: true, edit: true, approve: true },
       EMPLOYEES: { view: true, add: true, edit: true },
       ATTENDANCE: { view: true, add: true },
+      ASSETS: { view: true, add: true, edit: true },
     }),
     projectIdByName,
   });
@@ -200,6 +202,7 @@ async function main() {
       ATTENDANCE: { view: true, approve: true },
       REPORTS: { view: true },
       WAGES: { view: true },
+      ASSETS: { view: true },
     }),
     projectIdByName,
   });

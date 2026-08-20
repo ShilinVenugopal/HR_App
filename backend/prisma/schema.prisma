@@ -42,6 +42,7 @@ enum ModuleName {
   WAGES
   COMPLIANCE
   ADVANCES
+  ASSETS
   REPORTS
   SETTINGS
   USER_MANAGEMENT
@@ -173,6 +174,20 @@ enum CommMessageStatus {
   CANCELLED
 }
 
+/// Fixed unit list for Asset entries — deliberately a closed enum, not a
+/// master table, since the business requirement is exactly these 8 values
+/// and nothing else (no arbitrary user-entered units).
+enum AssetUnit {
+  NOS
+  MTR
+  LOT
+  EA
+  KG
+  TON
+  LITER
+  PAIR
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RBAC CORE
 // ─────────────────────────────────────────────────────────────────────────
@@ -205,6 +220,8 @@ model User {
   createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
   createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
   wageUploads          WageUpload[]            @relation("WageUploadedBy")
+  createdAssets        Asset[]                 @relation("AssetCreatedBy")
+  updatedAssets        Asset[]                 @relation("AssetUpdatedBy")
 
   @@index([role])
   @@index([status])
@@ -227,6 +244,7 @@ model Project {
   wages           WageRecord[]
   compliance      Compliance[]
   advances        Advance[]
+  assets          Asset[]
   auditLogs       AuditLog[]
   commMessageLogs CommunicationMessageLog[]
   wageTemplate    WageProjectTemplate?
@@ -684,6 +702,40 @@ model AdvanceRecovery {
 
   @@index([advanceId])
   @@map("advance_recoveries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ASSETS — project-wise asset management
+// ─────────────────────────────────────────────────────────────────────────
+
+model Asset {
+  id                 String    @id @default(uuid())
+  /// Auto-generated running number (separate from the UUID primary key) —
+  /// this is what the UI shows and lets users sort by as "Sr No".
+  srNo               Int       @unique @default(autoincrement())
+  costCode           String
+  itemDescription    String
+  unit               AssetUnit
+  workingQuantity    Decimal   @db.Decimal(12, 2)
+  nonWorkingQuantity Decimal   @db.Decimal(12, 2)
+  remarks            String?
+  date               DateTime
+  projectId          String
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy User?   @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?   @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([projectId])
+  @@index([costCode])
+  @@index([itemDescription])
+  @@index([date])
+  @@index([createdAt])
+  @@map("assets")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
