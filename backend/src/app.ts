@@ -41,6 +41,7 @@ import uploadRoutes from './modules/uploads/upload.routes';
 import communicationRoutes from './modules/communication/communication.routes';
 import communicationPublicRoutes from './modules/communication/communicationPublic.routes';
 import ticketsRoutes from './modules/tickets/tickets.routes';
+import assetsRoutes from './modules/assets/assets.routes';
 
 const app = express();
 
@@ -99,6 +100,7 @@ api.use('/uploads', uploadRoutes);
 api.use('/communication', communicationRoutes);
 api.use('/', communicationPublicRoutes);
 api.use('/tickets', ticketsRoutes);
+api.use('/assets', assetsRoutes);
 
 app.use(env.apiPrefix, api);
 

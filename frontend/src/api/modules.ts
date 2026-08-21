@@ -703,6 +703,58 @@ export const inventoryApi = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
+// Assets — project-wise Asset register
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface Asset {
+  id: string;
+  projectId: string;
+  project?: { id: string; projectName: string } | null;
+  costCodeId: string;
+  costCode?: { id: string; code: string; name: string } | null;
+  itemDescription: string;
+  unit: InventoryUnit;
+  workingQuantity: string | number;
+  nonWorkingQuantity: string | number;
+  remarks?: string | null;
+  date: string;
+  createdById?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface BulkAssetRowInput {
+  rowNumber: number;
+  projectId: string;
+  costCodeId: string;
+  itemDescription: string;
+  unit: InventoryUnit;
+  workingQuantity: number;
+  nonWorkingQuantity: number;
+  remarks?: string | null;
+  date: string;
+}
+
+export interface AssetBulkImportFailure {
+  rowNumber: number;
+  itemDescription: string;
+  reason: string;
+}
+
+export interface AssetBulkImportResult {
+  total: number;
+  imported: number;
+  failed: number;
+  failures: AssetBulkImportFailure[];
+}
+
+export const assetsApi = {
+  ...createResourceApi<Asset>('/assets'),
+  bulkImport: (rows: BulkAssetRowInput[]) =>
+    apiClient.post('/assets/bulk/import', { rows }).then((r) => r.data.data as AssetBulkImportResult),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
 // PROCUREMENT — Purchase Requisition
 // ─────────────────────────────────────────────────────────────────────────
 

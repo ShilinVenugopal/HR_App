@@ -16,6 +16,23 @@ export interface SortState {
   dir: 'asc' | 'desc';
 }
 
+/// Windowed page-number list with `null` gap markers, e.g. for page 7 of
+/// 20: [1, null, 6, 7, 8, null, 20]. Always includes first, last, and the
+/// current page's immediate neighbors.
+function pageNumbersWithGaps(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const result: (number | null)[] = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) result.push(null);
+    result.push(p);
+  });
+  return result;
+}
+
 export function DataTable<T extends { id: string }>({
   columns,
   rows,
@@ -31,6 +48,10 @@ export function DataTable<T extends { id: string }>({
   rowActions,
   sort,
   onSortChange,
+  pageSize,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
+  showPageNumbers = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -52,6 +73,15 @@ export function DataTable<T extends { id: string }>({
   /// (existing pages that don't set `sortable` are unaffected).
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
+  /// Opt-in page-size selector (10/25/50/100 by default) — omit both
+  /// `pageSize` and `onPageSizeChange` to keep the plain Prev/Next footer
+  /// every existing page already has.
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
+  /// Opt-in numbered page buttons alongside Prev/Next. Existing pages that
+  /// don't pass this stay exactly as they are today.
+  showPageNumbers?: boolean;
 }) {
   const toggleSort = (key: string) => {
     if (!onSortChange) return;
@@ -151,12 +181,30 @@ export function DataTable<T extends { id: string }>({
         </table>
       </div>
 
-      {meta && onPageChange && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
-          <span className="text-slate-500">
-            Page {meta.page} of {meta.totalPages} · {meta.total} records
-          </span>
-          <div className="flex gap-2">
+      {meta && onPageChange && (meta.totalPages > 1 || onPageSizeChange) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-500">
+              Page {meta.page} of {meta.totalPages} · {meta.total} records
+            </span>
+            {onPageSizeChange && (
+              <label className="flex items-center gap-1.5 text-slate-500">
+                Show
+                <select
+                  className="input w-auto py-1"
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                >
+                  {pageSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page <= 1}
@@ -164,6 +212,24 @@ export function DataTable<T extends { id: string }>({
             >
               <ChevronLeft size={16} />
             </button>
+            {showPageNumbers &&
+              pageNumbersWithGaps(meta.page, meta.totalPages).map((p, i) =>
+                p === null ? (
+                  <span key={`gap-${i}`} className="px-1 text-slate-400">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    className={`min-w-[2rem] rounded-md px-2 py-1 ${
+                      p === meta.page ? 'bg-brand-600 text-white' : 'btn-secondary'
+                    }`}
+                    onClick={() => onPageChange(p)}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page >= meta.totalPages}

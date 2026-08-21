@@ -332,6 +332,7 @@ async function main() {
       DASHBOARD: { view: true },
       PROCUREMENT_DASHBOARD: { view: true },
       INVENTORY: { view: true, add: true, edit: true, delete: true, approve: true },
+      ASSETS: { view: true, add: true, edit: true, delete: true },
       PURCHASE_REQUISITION: { view: true, add: true, edit: true, delete: true, approve: true },
       PURCHASE_ORDER: { view: true, add: true, edit: true, delete: true, approve: true },
       GRN: { view: true, add: true, edit: true, delete: true, approve: true },
@@ -353,6 +354,7 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       INVENTORY: { view: true },
+      ASSETS: { view: true },
       PURCHASE_REQUISITION: { view: true, add: true, edit: true },
       TICKETS: { view: true, add: true },
     }),
@@ -368,6 +370,7 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       INVENTORY: { view: true, add: true, edit: true },
+      ASSETS: { view: true, add: true, edit: true },
       PURCHASE_ORDER: { view: true },
       GRN: { view: true, add: true, edit: true },
       TICKETS: { view: true, add: true },
@@ -384,6 +387,7 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       INVENTORY: { view: true },
+      ASSETS: { view: true },
       PURCHASE_REQUISITION: { view: true },
       PURCHASE_ORDER: { view: true, add: true, edit: true },
       TICKETS: { view: true, add: true },
@@ -419,6 +423,7 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       INVENTORY: { view: true },
+      ASSETS: { view: true },
       PURCHASE_REQUISITION: { view: true },
       TICKETS: { view: true, add: true },
     }),
