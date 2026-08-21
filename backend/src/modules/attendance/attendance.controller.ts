@@ -9,6 +9,7 @@ export const listAttendanceHandler = asyncHandler(async (req: Request, res: Resp
   const filters = {
     projectId: req.query.projectId as string | undefined,
     employeeId: req.query.employeeId as string | undefined,
+    unitId: req.query.unitId as string | undefined,
     status: req.query.status as string | undefined,
     approvalStatus: req.query.approvalStatus as string | undefined,
     shift: req.query.shift as string | undefined,
@@ -47,6 +48,25 @@ export const approveAttendanceHandler = asyncHandler(async (req: Request, res: R
 export const rejectAttendanceHandler = asyncHandler(async (req: Request, res: Response) => {
   const record = await attendanceService.setApproval(req, req.params.id, false, req.meta);
   return sendSuccess(res, record, 'Attendance rejected');
+});
+
+export const manpowerSummaryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const summary = await attendanceService.getManpowerSummary(req, {
+    projectId: req.query.projectId as string,
+    month: Number(req.query.month),
+    year: Number(req.query.year),
+  });
+  return sendSuccess(res, summary, 'Manpower summary fetched');
+});
+
+export const manpowerSummaryEmployeesHandler = asyncHandler(async (req: Request, res: Response) => {
+  const employees = await attendanceService.getManpowerSummaryEmployees(req, {
+    projectId: req.query.projectId as string,
+    month: Number(req.query.month),
+    year: Number(req.query.year),
+    unitId: req.query.unitId as string | undefined,
+  });
+  return sendSuccess(res, employees, 'Manpower summary employee details fetched');
 });
 
 export const lockAttendanceHandler = asyncHandler(async (req: Request, res: Response) => {

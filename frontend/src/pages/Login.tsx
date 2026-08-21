@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { apiErrorMessage } from '../api/client';
+import { APP_NAME, LOGO_PATH } from '../config/branding';
 
 export default function Login() {
   const { login } = useAuth();
@@ -31,10 +32,8 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
-            <Building2 size={28} />
-          </div>
-          <h1 className="text-xl font-semibold">Forays Group HR Solutions</h1>
+          <img src={LOGO_PATH} alt="Forays Group" className="mb-3 h-16 w-auto object-contain" />
+          <h1 className="text-xl font-semibold">{APP_NAME}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enterprise HR Management System</p>
         </div>
 

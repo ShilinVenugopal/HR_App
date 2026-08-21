@@ -100,6 +100,7 @@ export function BulkImportModal({
           designationId: r.designationId,
           email: r.email,
           projectId: r.projectId,
+          costCode: r.costCode,
           resumeUrl: r.resumeUrl,
           foraysInterviewStatus: r.foraysInterviewStatus,
           clientInterviewStatus: r.clientInterviewStatus,
@@ -204,6 +205,7 @@ export function BulkImportModal({
                   <th className="px-3 py-2 font-semibold">Candidate</th>
                   <th className="px-3 py-2 font-semibold">Contact</th>
                   <th className="px-3 py-2 font-semibold">Project</th>
+                  <th className="px-3 py-2 font-semibold">Cost Code</th>
                   <th className="px-3 py-2 font-semibold">Status</th>
                   <th className="px-3 py-2 font-semibold">Errors</th>
                 </tr>
@@ -215,6 +217,7 @@ export function BulkImportModal({
                     <td className="px-3 py-2">{r.candidateName || <span className="text-slate-400">—</span>}</td>
                     <td className="px-3 py-2">{r.contactNumber || <span className="text-slate-400">—</span>}</td>
                     <td className="px-3 py-2">{projectOptions.find((p) => p.value === r.projectId)?.label ?? '—'}</td>
+                    <td className="px-3 py-2">{r.costCode || <span className="text-slate-400">—</span>}</td>
                     <td className="px-3 py-2">{r.status}</td>
                     <td className="px-3 py-2">
                       {r.isValid ? (

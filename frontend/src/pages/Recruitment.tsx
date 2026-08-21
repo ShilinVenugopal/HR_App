@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, UserCheck2, Download, FileUp, FileDown, Mail, MessageCircle, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck2, Download, FileUp, FileDown, Columns3, Mail, MessageCircle, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Candidate, recruitmentApi, employeesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
@@ -8,15 +8,20 @@ import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Badge } from '../components/common/Badge';
+import { ColumnCustomizerModal } from '../components/common/ColumnCustomizerModal';
 import { useAuth } from '../context/AuthContext';
 import { useDesignationOptions, useProjectOptions } from '../hooks/useLookups';
+import { useColumnPreference } from '../hooks/useColumnPreference';
 import { apiErrorMessage } from '../api/client';
 import { CANDIDATE_STATUSES, INTERVIEW_STAGES } from '../utils/candidateConstants';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from '../utils/employeeCostCode';
+import { CANDIDATE_COLUMNS, CandidateColumnKey, DEFAULT_VISIBLE_CANDIDATE_COLUMNS } from '../utils/candidateColumns';
 import { BulkImportModal } from '../components/recruitment/BulkImportModal';
 import { BulkSendModal } from '../components/recruitment/BulkSendModal';
 import { CommunicationStats } from '../components/recruitment/CommunicationStats';
 import { TemplateManager } from '../components/recruitment/TemplateManager';
 import { CommunicationHistory } from '../components/recruitment/CommunicationHistory';
+import { DeletedCommunications } from '../components/recruitment/DeletedCommunications';
 import { CandidateTimelineModal } from '../components/recruitment/CandidateTimelineModal';
 
 const emptyForm = {
@@ -33,10 +38,11 @@ const emptyForm = {
   clientInterviewStatus: 'NOT_STARTED',
   remarks: '',
   status: 'APPLIED',
+  costCode: '',
 };
 
 export default function Recruitment() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin, session } = useAuth();
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
   const designationOptions = useDesignationOptions();
@@ -52,8 +58,13 @@ export default function Recruitment() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [exportingCandidates, setExportingCandidates] = useState(false);
+  const [columnCustomizerOpen, setColumnCustomizerOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useColumnPreference<CandidateColumnKey>(
+    `hr_app_candidate_columns_${session?.user.id ?? 'anon'}`,
+    DEFAULT_VISIBLE_CANDIDATE_COLUMNS
+  );
   const [activeTab, setActiveTab] = useState<'candidates' | 'communication'>('candidates');
-  const [commSubTab, setCommSubTab] = useState<'history' | 'templates'>('history');
+  const [commSubTab, setCommSubTab] = useState<'history' | 'templates' | 'deleted'>('history');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false);
@@ -92,6 +103,7 @@ export default function Recruitment() {
       clientInterviewStatus: candidate.clientInterviewStatus,
       remarks: candidate.remarks ?? '',
       status: candidate.status,
+      costCode: candidate.costCode ?? '',
     });
     setErrors({});
     setModalOpen(true);
@@ -105,6 +117,7 @@ export default function Recruitment() {
         designationId: form.designationId || null,
         projectId: form.projectId || null,
         email: form.email || null,
+        costCode: form.costCode || null,
       };
       if (editing) return recruitmentApi.update(editing.id, payload);
       return recruitmentApi.create(payload);
@@ -162,56 +175,48 @@ export default function Recruitment() {
     setExportingCandidates(true);
     try {
       const full = await recruitmentApi.list({ page: 1, pageSize: 5000, search, ...filters });
-      const ExcelJS = (await import('exceljs')).default;
-      const workbook = new ExcelJS.Workbook();
-      const sheet = workbook.addWorksheet('Candidates');
-      sheet.columns = [
-        { header: 'Candidate Name', key: 'candidateName', width: 24 },
-        { header: 'Contact Number', key: 'contactNumber', width: 18 },
-        { header: 'Email', key: 'email', width: 26 },
-        { header: 'Qualification', key: 'qualification', width: 22 },
-        { header: 'Experience', key: 'experience', width: 14 },
-        { header: 'Designation', key: 'designation', width: 18 },
-        { header: 'Assigned Project', key: 'project', width: 18 },
-        { header: 'Forays Interview Status', key: 'forays', width: 20 },
-        { header: 'Client Interview Status', key: 'client', width: 20 },
-        { header: 'Candidate Status', key: 'status', width: 18 },
-        { header: 'Resume URL', key: 'resumeUrl', width: 30 },
-        { header: 'Remarks', key: 'remarks', width: 24 },
-      ];
-      sheet.getRow(1).font = { bold: true };
-      sheet.addRows(
-        (full.data as Candidate[]).map((c) => ({
-          candidateName: c.candidateName,
-          contactNumber: c.contactNumber,
-          email: c.email ?? '',
-          qualification: c.qualification ?? '',
-          experience: c.experience ?? '',
-          designation: c.designation?.name ?? '',
-          project: c.project?.projectName ?? '',
-          forays: c.foraysInterviewStatus,
-          client: c.clientInterviewStatus,
-          status: c.status,
-          resumeUrl: c.resumeUrl ?? '',
-          remarks: c.remarks ?? '',
-        }))
-      );
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'Candidates_Export.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const { exportCandidatesExcel } = await import('../utils/excelImport');
+      await exportCandidatesExcel(full.data as Candidate[], visibleColumns);
     } catch {
       toast.error('Could not export candidates');
     } finally {
       setExportingCandidates(false);
     }
   };
+
+  const cellRenderers: Record<CandidateColumnKey, (r: Candidate) => ReactNode> = useMemo(
+    () => ({
+      candidateName: (r) => <span className="font-medium">{r.candidateName}</span>,
+      contactNumber: (r) => r.contactNumber,
+      dateOfBirth: (r) => (r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleDateString() : '—'),
+      email: (r) => r.email ?? '—',
+      qualification: (r) => r.qualification ?? '—',
+      experience: (r) => r.experience ?? '—',
+      designation: (r) => r.designation?.name ?? '—',
+      project: (r) => r.project?.projectName ?? '—',
+      costCode: (r) => (r.costCode ? `${r.costCode} – ${employeeCostCodeLabel(r.costCode)}` : '—'),
+      foraysInterviewStatus: (r) => <Badge value={r.foraysInterviewStatus} />,
+      clientInterviewStatus: (r) => <Badge value={r.clientInterviewStatus} />,
+      status: (r) => <Badge value={r.status} />,
+      resumeUrl: (r) =>
+        r.resumeUrl ? (
+          <a className="text-brand-600 underline" href={r.resumeUrl} target="_blank" rel="noreferrer">
+            View
+          </a>
+        ) : (
+          '—'
+        ),
+      remarks: (r) => r.remarks ?? '—',
+    }),
+    []
+  );
+
+  const candidateColumnFields = useMemo(() => CANDIDATE_COLUMNS.map((c) => ({ key: c.key, label: c.header })), []);
+
+  const dataColumns: Column<Candidate>[] = visibleColumns
+    .map((key) => CANDIDATE_COLUMNS.find((c) => c.key === key))
+    .filter((c): c is (typeof CANDIDATE_COLUMNS)[number] => Boolean(c))
+    .map((c) => ({ key: c.key, header: c.header, render: cellRenderers[c.key] }));
 
   const columns: Column<Candidate>[] = [
     {
@@ -222,14 +227,7 @@ export default function Recruitment() {
         <input type="checkbox" className="rounded" checked={selectedIds.includes(r.id)} onChange={() => toggleSelect(r.id)} />
       ),
     },
-    { key: 'candidateName', header: 'Candidate', render: (r) => <span className="font-medium">{r.candidateName}</span> },
-    { key: 'contactNumber', header: 'Contact', render: (r) => r.contactNumber },
-    { key: 'project', header: 'Project', render: (r) => r.project?.projectName ?? '—' },
-    { key: 'designation', header: 'Designation', render: (r) => r.designation?.name ?? '—' },
-    { key: 'experience', header: 'Experience', render: (r) => r.experience ?? '—' },
-    { key: 'forays', header: 'Forays Interview', render: (r) => <Badge value={r.foraysInterviewStatus} /> },
-    { key: 'client', header: 'Client Interview', render: (r) => <Badge value={r.clientInterviewStatus} /> },
-    { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
+    ...dataColumns,
   ];
 
   return (
@@ -293,6 +291,9 @@ export default function Recruitment() {
             )}
             <button className="btn-secondary" disabled={exportingCandidates} onClick={handleExportCandidates}>
               <FileDown size={16} /> Export Excel
+            </button>
+            <button className="btn-secondary" onClick={() => setColumnCustomizerOpen(true)}>
+              <Columns3 size={16} /> Customize Columns
             </button>
             {canSend && (
               <button
@@ -394,7 +395,7 @@ export default function Recruitment() {
         <div>
           <CommunicationStats />
           <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
-            {(['history', 'templates'] as const).map((tab) => (
+            {(isSuperAdmin ? (['history', 'templates', 'deleted'] as const) : (['history', 'templates'] as const)).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setCommSubTab(tab)}
@@ -404,11 +405,11 @@ export default function Recruitment() {
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                {tab === 'history' ? 'Communication History' : 'Message Templates'}
+                {tab === 'history' ? 'Communication History' : tab === 'templates' ? 'Message Templates' : 'Deleted Communications'}
               </button>
             ))}
           </div>
-          {commSubTab === 'history' ? <CommunicationHistory /> : <TemplateManager />}
+          {commSubTab === 'history' ? <CommunicationHistory /> : commSubTab === 'templates' ? <TemplateManager /> : <DeletedCommunications />}
         </div>
       )}
 
@@ -464,6 +465,17 @@ export default function Recruitment() {
               {designationOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Employee Cost Code</label>
+            <select className="input" value={form.costCode} onChange={(e) => setForm((f) => ({ ...f, costCode: e.target.value }))}>
+              <option value="">Select</option>
+              {EMPLOYEE_COST_CODE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.value} – {o.label}
                 </option>
               ))}
             </select>
@@ -558,6 +570,16 @@ export default function Recruitment() {
         candidateId={timelineCandidate?.id ?? null}
         candidateName={timelineCandidate?.candidateName}
         onClose={() => setTimelineCandidate(null)}
+      />
+
+      <ColumnCustomizerModal
+        open={columnCustomizerOpen}
+        onClose={() => setColumnCustomizerOpen(false)}
+        fields={candidateColumnFields}
+        visibleKeys={visibleColumns}
+        defaultKeys={DEFAULT_VISIBLE_CANDIDATE_COLUMNS}
+        onChange={setVisibleColumns}
+        description="Choose which columns to show in the candidate list and Export Excel. Your selection is remembered."
       />
     </div>
   );

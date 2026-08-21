@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ROLE_LABELS } from '../../types';
 import { useOnClickOutside } from '../../hooks/useOnClickOutside';
 import { useRef } from 'react';
+import { NotificationBell } from './NotificationBell';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { session, logout, isSuperAdmin } = useAuth();
@@ -56,6 +57,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <NotificationBell />
         <button className="btn-ghost p-2" onClick={toggleTheme} aria-label="Toggle dark mode">
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>

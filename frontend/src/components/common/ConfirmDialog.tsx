@@ -7,6 +7,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   danger = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: {
@@ -15,6 +16,9 @@ export function ConfirmDialog({
   message: string;
   confirmLabel?: string;
   danger?: boolean;
+  /// Disables the confirm button (e.g. while its request is in flight) —
+  /// opt-in, defaults to false so existing callers are unaffected.
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -29,7 +33,7 @@ export function ConfirmDialog({
           <button className="btn-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button className={danger ? 'btn-danger' : 'btn-primary'} onClick={onConfirm}>
+          <button className={danger ? 'btn-danger' : 'btn-primary'} disabled={confirmDisabled} onClick={onConfirm}>
             {confirmLabel}
           </button>
         </>
@@ -37,7 +41,7 @@ export function ConfirmDialog({
     >
       <div className="flex items-start gap-3">
         {danger && <AlertTriangle className="mt-0.5 shrink-0 text-red-500" size={20} />}
-        <p className="text-sm text-slate-600 dark:text-slate-300">{message}</p>
+        <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{message}</p>
       </div>
     </Modal>
   );

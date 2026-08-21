@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { PaginationMeta } from '../../types';
 import { Skeleton } from './Skeleton';
 
@@ -9,6 +9,28 @@ export interface Column<T> {
   render: (row: T) => ReactNode;
   sortable?: boolean;
   className?: string;
+}
+
+export interface SortState {
+  key: string;
+  dir: 'asc' | 'desc';
+}
+
+/// Windowed page-number list with `null` gap markers, e.g. for page 7 of
+/// 20: [1, null, 6, 7, 8, null, 20]. Always includes first, last, and the
+/// current page's immediate neighbors.
+function pageNumbersWithGaps(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const result: (number | null)[] = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) result.push(null);
+    result.push(p);
+  });
+  return result;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -24,6 +46,12 @@ export function DataTable<T extends { id: string }>({
   headerActions,
   emptyLabel = 'No records found',
   rowActions,
+  sort,
+  onSortChange,
+  pageSize,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
+  showPageNumbers = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -40,7 +68,27 @@ export function DataTable<T extends { id: string }>({
   headerActions?: ReactNode;
   emptyLabel?: string;
   rowActions?: (row: T) => ReactNode;
+  /// Current sort state and its setter — only meaningful for columns with
+  /// `sortable: true`. Omit both to keep a column list purely display-order
+  /// (existing pages that don't set `sortable` are unaffected).
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
+  /// Opt-in page-size selector (10/25/50/100 by default) — omit both
+  /// `pageSize` and `onPageSizeChange` to keep the plain Prev/Next footer
+  /// every existing page already has.
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
+  /// Opt-in numbered page buttons alongside Prev/Next. Existing pages that
+  /// don't pass this stay exactly as they are today.
+  showPageNumbers?: boolean;
 }) {
+  const toggleSort = (key: string) => {
+    if (!onSortChange) return;
+    if (!sort || sort.key !== key) return onSortChange({ key, dir: 'asc' });
+    if (sort.dir === 'asc') return onSortChange({ key, dir: 'desc' });
+    return onSortChange(null);
+  };
   return (
     <div className="card overflow-hidden">
       {(onSearchChange || filters || headerActions) && (
@@ -67,7 +115,22 @@ export function DataTable<T extends { id: string }>({
             <tr>
               {columns.map((col) => (
                 <th key={col.key} className={`whitespace-nowrap px-5 py-3 font-semibold ${col.className ?? ''}`}>
-                  {col.header}
+                  {col.sortable && onSortChange ? (
+                    <button type="button" onClick={() => toggleSort(col.key)} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                      {col.header}
+                      {sort?.key === col.key ? (
+                        sort.dir === 'asc' ? (
+                          <ArrowUp size={12} />
+                        ) : (
+                          <ArrowDown size={12} />
+                        )
+                      ) : (
+                        <ArrowUpDown size={12} className="text-slate-300 dark:text-slate-600" />
+                      )}
+                    </button>
+                  ) : (
+                    col.header
+                  )}
                 </th>
               ))}
               {rowActions && <th className="whitespace-nowrap px-5 py-3 text-right font-semibold">Actions</th>}
@@ -118,12 +181,30 @@ export function DataTable<T extends { id: string }>({
         </table>
       </div>
 
-      {meta && onPageChange && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
-          <span className="text-slate-500">
-            Page {meta.page} of {meta.totalPages} · {meta.total} records
-          </span>
-          <div className="flex gap-2">
+      {meta && onPageChange && (meta.totalPages > 1 || onPageSizeChange) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-500">
+              Page {meta.page} of {meta.totalPages} · {meta.total} records
+            </span>
+            {onPageSizeChange && (
+              <label className="flex items-center gap-1.5 text-slate-500">
+                Show
+                <select
+                  className="input w-auto py-1"
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                >
+                  {pageSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page <= 1}
@@ -131,6 +212,24 @@ export function DataTable<T extends { id: string }>({
             >
               <ChevronLeft size={16} />
             </button>
+            {showPageNumbers &&
+              pageNumbersWithGaps(meta.page, meta.totalPages).map((p, i) =>
+                p === null ? (
+                  <span key={`gap-${i}`} className="px-1 text-slate-400">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    className={`min-w-[2rem] rounded-md px-2 py-1 ${
+                      p === meta.page ? 'bg-brand-600 text-white' : 'btn-secondary'
+                    }`}
+                    onClick={() => onPageChange(p)}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
             <button
               className="btn-secondary px-2 py-1"
               disabled={meta.page >= meta.totalPages}

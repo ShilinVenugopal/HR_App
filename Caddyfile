@@ -1,0 +1,31 @@
+# Public entrypoint for the whole app — the only container that binds to
+# ports 80/443. Caddy requests and auto-renews a Let's Encrypt certificate
+# for {$DOMAIN} with zero manual cert handling, then routes:
+#   /api/*      -> backend  (Express API)
+#   /uploads/*  -> backend  (uploaded files — resumes, attachments, etc.)
+#   everything else -> frontend (the built React SPA, served by nginx)
+#
+# DOMAIN is read from the environment (set it in .env at the repo root,
+# next to docker-compose.prod.yml) — e.g. DOMAIN=erp.foraysgroup.com.
+# Point that domain's DNS A record at this server's public IP before
+# starting the stack, or Caddy's ACME challenge will fail.
+{$DOMAIN} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy backend:4000
+	}
+
+	handle /uploads/* {
+		reverse_proxy backend:4000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

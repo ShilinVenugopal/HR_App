@@ -66,6 +66,27 @@ export const resendHandler = asyncHandler(async (req: Request, res: Response) =>
   return sendSuccess(res, updated, 'Message re-queued for sending');
 });
 
+export const deleteHistoryHandler = asyncHandler(async (req: Request, res: Response) => {
+  await communicationService.deleteMessage(req, req.params.id, req.meta);
+  return sendSuccess(res, null, 'Communication deleted successfully');
+});
+
+export const restoreHistoryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const restored = await communicationService.restoreMessage(req, req.params.id, req.meta);
+  return sendSuccess(res, restored, 'Communication restored successfully');
+});
+
+export const listDeletedHistoryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const pagination = parsePagination(req, 'createdAt');
+  const filters = {
+    channel: req.query.channel as string | undefined,
+    projectId: req.query.projectId as string | undefined,
+    search: req.query.search as string | undefined,
+  };
+  const { rows, total } = await communicationService.listDeletedHistory(req, pagination, filters);
+  return sendSuccess(res, rows, 'Deleted communications fetched', 200, buildPaginationMeta(pagination.page, pagination.pageSize, total));
+});
+
 export const getStatsHandler = asyncHandler(async (req: Request, res: Response) => {
   const stats = await communicationService.getCommunicationStats(req);
   return sendSuccess(res, stats, 'Communication stats fetched');

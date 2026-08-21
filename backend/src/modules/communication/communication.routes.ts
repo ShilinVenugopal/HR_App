@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.middleware';
-import { requirePermission } from '../../middleware/permission.middleware';
+import { requirePermission, requireSuperAdmin } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   candidateIdParamSchema,
@@ -71,6 +71,26 @@ router.patch(
   validate(idParamSchema),
   communicationController.resendHandler
 );
+
+// Delete/restore/view-deleted are Super Admin only — deliberately gated by
+// requireSuperAdmin (the same hard gate used for User Management/Audit
+// Logs) rather than the RECRUITMENT permission matrix, since removing a
+// communication record from history is not meant to be delegable the way
+// sending/resending is.
+router.delete(
+  '/history/:id',
+  requireSuperAdmin,
+  validate(idParamSchema),
+  communicationController.deleteHistoryHandler
+);
+router.patch(
+  '/history/:id/restore',
+  requireSuperAdmin,
+  validate(idParamSchema),
+  communicationController.restoreHistoryHandler
+);
+router.get('/history/deleted', requireSuperAdmin, communicationController.listDeletedHistoryHandler);
+
 router.get('/stats', requirePermission('RECRUITMENT', 'view'), communicationController.getStatsHandler);
 router.get('/config', requirePermission('RECRUITMENT', 'view'), communicationController.getConfigHandler);
 
