@@ -92,12 +92,12 @@ export function DataTable<T extends { id: string }>({
   return (
     <div className="card overflow-hidden">
       {(onSearchChange || filters || headerActions) && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4 dark:border-slate-800">
           {onSearchChange && (
             <div className="relative w-full max-w-xs">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
-                className="input pl-9"
+                className="input pl-10"
                 placeholder={searchPlaceholder}
                 value={search ?? ''}
                 onChange={(e) => onSearchChange(e.target.value)}
@@ -111,18 +111,22 @@ export function DataTable<T extends { id: string }>({
 
       <div className="max-h-[70vh] overflow-auto">
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+          <thead className="sticky top-0 z-10 bg-slate-50/95 text-xs font-semibold uppercase tracking-wide text-slate-500 backdrop-blur dark:bg-slate-900/95 dark:text-slate-400">
             <tr>
               {columns.map((col) => (
-                <th key={col.key} className={`whitespace-nowrap px-5 py-3 font-semibold ${col.className ?? ''}`}>
+                <th key={col.key} className={`whitespace-nowrap border-b border-slate-100 px-5 py-3.5 dark:border-slate-800 ${col.className ?? ''}`}>
                   {col.sortable && onSortChange ? (
-                    <button type="button" onClick={() => toggleSort(col.key)} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className="flex items-center gap-1 transition-colors hover:text-brand-600 dark:hover:text-brand-400"
+                    >
                       {col.header}
                       {sort?.key === col.key ? (
                         sort.dir === 'asc' ? (
-                          <ArrowUp size={12} />
+                          <ArrowUp size={12} className="text-brand-500" />
                         ) : (
-                          <ArrowDown size={12} />
+                          <ArrowDown size={12} className="text-brand-500" />
                         )
                       ) : (
                         <ArrowUpDown size={12} className="text-slate-300 dark:text-slate-600" />
@@ -133,7 +137,7 @@ export function DataTable<T extends { id: string }>({
                   )}
                 </th>
               ))}
-              {rowActions && <th className="whitespace-nowrap px-5 py-3 text-right font-semibold">Actions</th>}
+              {rowActions && <th className="whitespace-nowrap border-b border-slate-100 px-5 py-3.5 text-right dark:border-slate-800">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -155,22 +159,17 @@ export function DataTable<T extends { id: string }>({
 
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length + (rowActions ? 1 : 0)} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={columns.length + (rowActions ? 1 : 0)} className="px-5 py-14 text-center text-sm text-slate-400">
                   {emptyLabel}
                 </td>
               </tr>
             )}
 
             {!loading &&
-              rows.map((row, i) => (
-                <tr
-                  key={row.id}
-                  className={`hover:bg-slate-100 dark:hover:bg-slate-800/60 ${
-                    i % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-900/40' : ''
-                  }`}
-                >
+              rows.map((row) => (
+                <tr key={row.id} className="transition-colors hover:bg-brand-50/50 dark:hover:bg-slate-800/60">
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-5 py-3.5 ${col.className ?? ''}`}>
+                    <td key={col.key} className={`px-5 py-3.5 text-slate-700 dark:text-slate-300 ${col.className ?? ''}`}>
                       {col.render(row)}
                     </td>
                   ))}
@@ -182,16 +181,17 @@ export function DataTable<T extends { id: string }>({
       </div>
 
       {meta && onPageChange && (meta.totalPages > 1 || onPageSizeChange) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3.5 text-sm dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <span className="text-slate-500">
-              Page {meta.page} of {meta.totalPages} · {meta.total} records
+            <span className="text-slate-500 dark:text-slate-400">
+              Page <span className="font-semibold text-slate-700 dark:text-slate-200">{meta.page}</span> of {meta.totalPages} ·{' '}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{meta.total}</span> records
             </span>
             {onPageSizeChange && (
-              <label className="flex items-center gap-1.5 text-slate-500">
+              <label className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                 Show
                 <select
-                  className="input w-auto py-1"
+                  className="input w-auto py-1.5"
                   value={pageSize}
                   onChange={(e) => onPageSizeChange(Number(e.target.value))}
                 >
@@ -204,9 +204,9 @@ export function DataTable<T extends { id: string }>({
               </label>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
-              className="btn-secondary px-2 py-1"
+              className="btn-secondary px-2.5 py-1.5"
               disabled={meta.page <= 1}
               onClick={() => onPageChange(meta.page - 1)}
             >
@@ -221,8 +221,10 @@ export function DataTable<T extends { id: string }>({
                 ) : (
                   <button
                     key={p}
-                    className={`min-w-[2rem] rounded-md px-2 py-1 ${
-                      p === meta.page ? 'bg-brand-600 text-white' : 'btn-secondary'
+                    className={`min-w-[2.25rem] rounded-xl px-2 py-1.5 text-sm font-medium transition-all ${
+                      p === meta.page
+                        ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }`}
                     onClick={() => onPageChange(p)}
                   >
@@ -231,7 +233,7 @@ export function DataTable<T extends { id: string }>({
                 )
               )}
             <button
-              className="btn-secondary px-2 py-1"
+              className="btn-secondary px-2.5 py-1.5"
               disabled={meta.page >= meta.totalPages}
               onClick={() => onPageChange(meta.page + 1)}
             >

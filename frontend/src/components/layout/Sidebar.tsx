@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { NAV_ITEMS, NavGroup, NavItem, isNavGroup } from './navConfig';
-import { APP_NAME, LOGO_PATH } from '../../config/branding';
+import { APP_NAME, COMPANY_NAME } from '../../config/branding';
+import { BrandMark } from '../common/BrandMark';
 
 const leafLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-    isActive ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+    isActive
+      ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow'
+      : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
   }`;
 
 export function Sidebar({ open }: { open: boolean }) {
@@ -62,16 +65,19 @@ export function Sidebar({ open }: { open: boolean }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-30 w-64 transform overflow-y-auto border-r border-slate-200 bg-white transition-transform duration-200 print:hidden dark:border-slate-800 dark:bg-slate-900 lg:static lg:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col overflow-y-auto border-r border-white/5 bg-gradient-to-b from-brand-950 via-[#0d0c26] to-brand-950 transition-transform duration-200 print:hidden lg:static lg:translate-x-0 ${
         open ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      <div className="flex h-16 items-center gap-2 border-b border-slate-200 px-5 dark:border-slate-800">
-        <img src={LOGO_PATH} alt="Forays Group" className="h-9 w-9 object-contain" />
-        <p className="text-sm font-semibold leading-tight">{APP_NAME}</p>
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-white/5 px-5">
+        <BrandMark size={34} />
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-sm font-bold tracking-wide text-white">{APP_NAME}</p>
+          <p className="truncate text-[10px] font-medium uppercase tracking-widest text-accent-300/80">HR / ERP Platform</p>
+        </div>
       </div>
 
-      <nav className="space-y-1 p-3">
+      <nav className="flex-1 space-y-1 p-3">
         {visibleEntries.map((entry) =>
           isNavGroup(entry) ? (
             <div key={entry.label}>
@@ -79,22 +85,25 @@ export function Sidebar({ open }: { open: boolean }) {
                 type="button"
                 onClick={() => toggleGroup(entry.label)}
                 aria-expanded={expanded.has(entry.label)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                   entry.children.some(isItemActive)
-                    ? 'text-brand-600 dark:text-brand-400'
-                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    ? 'bg-white/[0.06] text-accent-300'
+                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
                 <entry.icon size={18} />
                 <span className="flex-1 text-left">{entry.label}</span>
-                {expanded.has(entry.label) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <ChevronDown
+                  size={15}
+                  className={`text-slate-500 transition-transform duration-200 ${expanded.has(entry.label) ? 'rotate-0' : '-rotate-90'}`}
+                />
               </button>
               {expanded.has(entry.label) && (
-                <div className="ml-4 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-800">
+                <div className="animate-fade-in ml-[1.15rem] mt-1 space-y-0.5 border-l border-white/10 py-0.5 pl-3.5">
                   {entry.children.map((item) => (
                     <NavLink key={item.path} to={item.path} className={leafLinkClass}>
-                      <item.icon size={16} />
-                      {item.label}
+                      <item.icon size={15} />
+                      <span className="truncate">{item.label}</span>
                     </NavLink>
                   ))}
                 </div>
@@ -108,6 +117,10 @@ export function Sidebar({ open }: { open: boolean }) {
           )
         )}
       </nav>
+
+      <div className="border-t border-white/5 px-5 py-3">
+        <p className="truncate text-[11px] font-medium text-slate-500">{COMPANY_NAME} &copy; {new Date().getFullYear()}</p>
+      </div>
     </aside>
   );
 }

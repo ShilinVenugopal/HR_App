@@ -7,8 +7,9 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  font-family: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
 ::-webkit-scrollbar {
@@ -23,31 +24,62 @@ body {
 }
 
 @layer components {
+  /* Cards & panels — the base surface used everywhere (tables, forms,
+     stat tiles, chart panels). Softer, more spacious "premium SaaS" feel
+     than a plain bordered box. */
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900;
   }
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover;
+  }
+
+  /* Buttons — one consistent system app-wide. Primary uses a navy->indigo
+     gradient with a soft colored glow on hover; secondary/ghost/danger
+     stay flat/neutral so the primary gradient keeps its visual weight as
+     "the one action that matters" on a given screen. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98];
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow hover:from-brand-700 hover:to-brand-600 hover:shadow-none;
   }
   .btn-secondary {
-    @apply btn bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+    @apply btn border border-slate-200 bg-white text-slate-700 shadow-soft hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply btn bg-gradient-to-r from-red-600 to-red-500 text-white shadow-sm hover:from-red-700 hover:to-red-600;
   }
   .btn-ghost {
-    @apply btn bg-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+    @apply btn bg-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/80;
   }
+
+  /* Form controls */
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-soft transition-colors placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/25 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
   }
   .label {
-    @apply mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300;
+    @apply mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300;
   }
+
+  /* Status badges — soft-outline pill; colors are supplied per-status by
+     Badge.tsx's existing color map and stay exactly as they are today. */
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-black/5 dark:ring-white/10;
+  }
+}
+
+@layer utilities {
+  .bg-grid-fade {
+    background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, theme('colors.slate.200') 25%, theme('colors.slate.100') 37%, theme('colors.slate.200') 63%);
+    background-size: 400% 100%;
+  }
+  .dark .skeleton-shimmer {
+    background: linear-gradient(90deg, theme('colors.slate.800') 25%, theme('colors.slate.700') 37%, theme('colors.slate.800') 63%);
+    background-size: 400% 100%;
   }
 }

@@ -52,28 +52,28 @@ export function SearchableSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div className="animate-scale-in absolute z-20 mt-2 w-full origin-top overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card-hover dark:border-slate-700 dark:bg-slate-900">
           <div className="border-b border-slate-100 p-2 dark:border-slate-800">
             <div className="relative">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
               <input
                 autoFocus
-                className="input py-1.5 pl-7 text-sm"
+                className="input py-1.5 pl-8 text-sm"
                 placeholder={searchPlaceholder}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
           </div>
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-64 overflow-y-auto p-1">
             {filtered.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">No matches</div>}
             {filtered.map((o) => (
               <button
                 key={o.value}
                 type="button"
-                className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
-                  o.value === value ? 'bg-brand-50 dark:bg-brand-900/20' : ''
+                className={`block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                  o.value === value ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : ''
                 }`}
                 onClick={() => {
                   onChange(o.value);

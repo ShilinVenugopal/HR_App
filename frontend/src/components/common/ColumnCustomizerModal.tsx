@@ -47,8 +47,11 @@ export function ColumnCustomizerModal<K extends string>({
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {fields.map((f) => (
-          <label key={f.key} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
-            <input type="checkbox" checked={visibleKeys.includes(f.key)} onChange={() => toggle(f.key)} />
+          <label
+            key={f.key}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition-colors hover:border-brand-300 hover:bg-brand-50/40 dark:border-slate-800 dark:hover:border-brand-700 dark:hover:bg-brand-900/10"
+          >
+            <input type="checkbox" checked={visibleKeys.includes(f.key)} onChange={() => toggle(f.key)} className="rounded text-brand-600 focus:ring-brand-500" />
             {f.label}
           </label>
         ))}

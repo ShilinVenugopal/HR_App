@@ -40,8 +40,12 @@ export function ConfirmDialog({
       }
     >
       <div className="flex items-start gap-3">
-        {danger && <AlertTriangle className="mt-0.5 shrink-0 text-red-500" size={20} />}
-        <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{message}</p>
+        {danger && (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">
+            <AlertTriangle size={18} />
+          </span>
+        )}
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-300">{message}</p>
       </div>
     </Modal>
   );
