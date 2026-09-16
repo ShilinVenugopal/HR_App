@@ -57,14 +57,14 @@ export function MultiSelect({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div className="animate-scale-in absolute z-20 mt-2 max-h-64 w-full origin-top overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-card-hover dark:border-slate-700 dark:bg-slate-900">
           {options.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">No options available</div>}
           {options.map((o) => (
             <label
               key={o.value}
-              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
             >
-              <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} className="rounded" />
+              <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} className="rounded text-brand-600 focus:ring-brand-500" />
               {o.label}
             </label>
           ))}

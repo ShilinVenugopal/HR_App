@@ -21,6 +21,13 @@ enum Role {
   PROJECT_MANAGER
   FINANCE
   NORMAL_USER
+  PROCUREMENT_ADMIN
+  PROJECT_ENGINEER
+  STORE_INCHARGE
+  PURCHASE_TEAM
+  ACCOUNTS
+  SITE_USER
+  APPROVER
 }
 
 enum UserStatus {
@@ -45,6 +52,16 @@ enum ModuleName {
   REPORTS
   SETTINGS
   USER_MANAGEMENT
+  INVENTORY
+  PURCHASE_REQUISITION
+  PURCHASE_ORDER
+  GRN
+  PROCUREMENT_DASHBOARD
+  BILLING_STATUS
+  SITE_ACCOUNTS
+  EXPENSE
+  TICKETS
+  ASSETS
 }
 
 enum CandidateStatus {
@@ -173,6 +190,147 @@ enum CommMessageStatus {
   CANCELLED
 }
 
+// ── Procurement ────────────────────────────────────────────────────────
+
+enum Unit {
+  NOS
+  MTR
+  LOT
+  EA
+  KG
+  TON
+  LITER
+  PAIR
+}
+
+enum PRStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum GRNStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+/// Shared by Approval, Notification and DocumentSequence — a lightweight
+/// polymorphic discriminator rather than 3 near-identical enums.
+enum ProcurementDocType {
+  PR
+  PO
+  GRN
+}
+
+enum ApprovalAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  RETURN
+}
+
+enum InventoryTransactionType {
+  GRN_RECEIPT
+  MANUAL_ADJUSTMENT
+}
+
+enum NotificationType {
+  PR_SUBMITTED
+  PR_APPROVED
+  PR_REJECTED
+  PR_RETURNED
+  PO_PENDING
+  PO_APPROVED
+  PO_REJECTED
+  GRN_PENDING
+  GRN_APPROVED
+  GRN_REJECTED
+  GRN_RETURNED
+  INVENTORY_UPDATED
+  TICKET_ASSIGNED
+  TICKET_COMMENT_ADDED
+  TICKET_STATUS_CHANGED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Progresses forward through the helpdesk workflow (Open -> In Progress ->
+/// Waiting for User <-> In Progress -> Resolved -> Closed); ticket.service.ts
+/// enforces the allowed transitions rather than accepting any status value.
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum NotificationChannel {
+  DASHBOARD
+  EMAIL
+  WHATSAPP
+}
+
+/// Attachment owners include Vendor in addition to the 3 procurement
+/// documents (vendor quotations/certificates aren't tied to one PR/PO/GRN).
+enum AttachmentOwnerType {
+  PR
+  PO
+  GRN
+  VENDOR
+}
+
+/// The billing workflow progresses strictly forward through these values
+/// over the life of one BillingItem row — controlled values rather than
+/// free text so the status summary/filter dropdowns stay meaningful.
+enum BillingItemStatus {
+  PENDING_CERTIFICATION
+  A1_PENDING
+  A2_PENDING
+  ACCOUNTS_PENDING
+  INVOICE_DONE
+}
+
+/// DRAFT is freely editable by the site team (canEdit). Once SAVED, the
+/// site team can no longer edit it — only a user holding canApprove on
+/// SITE_ACCOUNTS (granted by Super Admin for corrections, per the design
+/// brief) may still modify it. There is no revert-to-DRAFT step; a
+/// correction is made in place while the statement stays SAVED.
+enum SiteAccountStatementStatus {
+  DRAFT
+  SAVED
+}
+
+/// EXPENSE entries post against a static SiteAccountCostCode row (the
+/// F01-F24 hierarchy). OTHER_RECEIPT entries are free-text fund/deposit
+/// lines in the statement's header block (Opening Balance and Site Fund
+/// Received are their own fields on SiteAccountStatement, not entries —
+/// see the model comment — so OTHER_RECEIPT only covers additional ad-hoc
+/// receipt/deposit lines beyond those two).
+enum SiteAccountEntryType {
+  OTHER_RECEIPT
+  EXPENSE
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RBAC CORE
 // ─────────────────────────────────────────────────────────────────────────
@@ -204,7 +362,55 @@ model User {
   createdCandidates    RecruitmentCandidate[]  @relation("CandidateCreatedBy")
   createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
   createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
+  deletedCommMessages  CommunicationMessageLog[] @relation("CommMessageDeletedBy")
   wageUploads          WageUpload[]            @relation("WageUploadedBy")
+
+  inventoryItemsCreated          InventoryItem[]        @relation("InventoryItemCreatedBy")
+  inventoryTransactionsPerformed InventoryTransaction[] @relation("InventoryTxPerformedBy")
+  prsRequested                   PurchaseRequisition[]  @relation("PRRequester")
+  prsApproving                   PurchaseRequisition[]  @relation("PRCurrentApprover")
+  posCreated                     PurchaseOrder[]        @relation("POCreatedBy")
+  posApproved                    PurchaseOrder[]        @relation("POApprovedBy")
+  grnsSubmitted                  GoodsReceivedNote[]    @relation("GRNSubmittedBy")
+  grnsApproving                  GoodsReceivedNote[]    @relation("GRNCurrentApprover")
+  grnsInventoryUpdated           GoodsReceivedNote[]    @relation("GRNInventoryUpdatedBy")
+  approvalsActed                 Approval[]             @relation("ApprovalActedBy")
+  attachmentsUploaded            Attachment[]           @relation("AttachmentUploadedBy")
+  notifications                  Notification[]
+
+  billingRecordsCreated BillingRecord[] @relation("BillingRecordCreatedBy")
+  billingRecordsUpdated BillingRecord[] @relation("BillingRecordUpdatedBy")
+  billingItemsCreated   BillingItem[]   @relation("BillingItemCreatedBy")
+  billingItemsUpdated   BillingItem[]   @relation("BillingItemUpdatedBy")
+
+  siteAccountStatementsCreated SiteAccountStatement[] @relation("SiteAccountStatementCreatedBy")
+  siteAccountStatementsUpdated SiteAccountStatement[] @relation("SiteAccountStatementUpdatedBy")
+  siteAccountEntriesCreated    SiteAccountEntry[]     @relation("SiteAccountEntryCreatedBy")
+  siteAccountEntriesUpdated    SiteAccountEntry[]     @relation("SiteAccountEntryUpdatedBy")
+
+  costCodesCreated CostCode[] @relation("CostCodeCreatedBy")
+  costCodesUpdated CostCode[] @relation("CostCodeUpdatedBy")
+
+  vendorsCreated Vendor[]            @relation("VendorCreatedBy")
+  vendorsUpdated Vendor[]            @relation("VendorUpdatedBy")
+  poTermsUpdated PurchaseOrderTerm[] @relation("PoTermUpdatedBy")
+
+  projectUnitsCreated ProjectUnit[] @relation("ProjectUnitCreatedBy")
+  projectUnitsUpdated ProjectUnit[] @relation("ProjectUnitUpdatedBy")
+  attendanceCreated   Attendance[]  @relation("AttendanceCreatedBy")
+  attendanceUpdated   Attendance[]  @relation("AttendanceUpdatedBy")
+  expensesCreated     Expense[]     @relation("ExpenseCreatedBy")
+  expensesUpdated     Expense[]     @relation("ExpenseUpdatedBy")
+
+  ticketsRaised          Ticket[]           @relation("TicketRaisedBy")
+  ticketAssignments      TicketAssignee[]   @relation("TicketAssigneeUser")
+  ticketAssignmentsMade  TicketAssignee[]   @relation("TicketAssigneeAssignedBy")
+  ticketComments         TicketComment[]    @relation("TicketCommentUser")
+  ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  ticketActivity         TicketActivity[]   @relation("TicketActivityUser")
+
+  assetsCreated Asset[] @relation("AssetCreatedBy")
+  assetsUpdated Asset[] @relation("AssetUpdatedBy")
 
   @@index([role])
   @@index([status])
@@ -212,18 +418,24 @@ model User {
 }
 
 model Project {
-  id          String        @id @default(uuid())
-  projectName String
-  clientName  String
-  location    String?
-  status      ProjectStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  projectName   String
+  clientName    String
+  location      String?
+  /// Client-facing project/site number — shown on printed procurement
+  /// documents (Purchase Requisition, PO, GRN headers all show "Project
+  /// Number"). Optional since it predates the Procurement module; projects
+  /// without one show a blank field on those printouts.
+  projectNumber String?
+  status        ProjectStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   users           UserProject[]
   employees       Employee[]
   candidates      RecruitmentCandidate[]
   attendance      Attendance[]
+  units           ProjectUnit[]
   wages           WageRecord[]
   compliance      Compliance[]
   advances        Advance[]
@@ -231,6 +443,17 @@ model Project {
   commMessageLogs CommunicationMessageLog[]
   wageTemplate    WageProjectTemplate?
   wageEntries     WageEntry[]
+
+  inventoryItems        InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  purchaseRequisitions  PurchaseRequisition[]
+  purchaseOrders        PurchaseOrder[]
+  goodsReceivedNotes    GoodsReceivedNote[]
+  documentSequences     DocumentSequence[]
+  billingRecords        BillingRecord[]
+  siteAccountStatements SiteAccountStatement[]
+  expenses              Expense[]
+  assets                Asset[]
 
   @@index([status])
   @@map("projects")
@@ -326,7 +549,8 @@ model Department {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  employees Employee[]
+  employees            Employee[]
+  purchaseRequisitions PurchaseRequisition[]
 
   @@map("departments")
 }
@@ -348,6 +572,17 @@ model Designation {
 // RECRUITMENT
 // ─────────────────────────────────────────────────────────────────────────
 
+/// Fixed 3-option payroll cost category, distinct from the (unrelated)
+/// procurement `CostCode` master (F05A/F08/etc. used by PR/PO/GRN/
+/// Inventory) — deliberately named EmployeeCostCode to avoid confusion.
+/// A closed enum rather than a master-data table on purpose: the request
+/// is exactly these three fixed values with no admin UI to add more.
+enum EmployeeCostCode {
+  F01A
+  F02A
+  F03A
+}
+
 model RecruitmentCandidate {
   id                    String          @id @default(uuid())
   candidateName         String
@@ -363,6 +598,10 @@ model RecruitmentCandidate {
   clientInterviewStatus InterviewStage  @default(NOT_STARTED)
   remarks               String?
   status                CandidateStatus @default(APPLIED)
+  /// Carried over to the Employee record on conversion (see
+  /// createEmployeeFromCandidate) — Employee is the source of truth once
+  /// converted, but this is where it's first captured.
+  costCode              EmployeeCostCode?
   createdById           String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -477,18 +716,25 @@ model CommunicationMessageLog {
   openedAt          DateTime?
   failedAt          DateTime?
   bouncedAt         DateTime?
+  /// Soft delete — Super Admin only (see communication.routes.ts). The row,
+  /// its status history, and provider tracking data are never physically
+  /// removed; deletedAt just excludes it from the normal history list.
+  deletedAt         DateTime?
+  deletedById       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
   batch     CommunicationBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
   candidate RecruitmentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   project   Project?             @relation(fields: [projectId], references: [id])
+  deletedBy User?                @relation("CommMessageDeletedBy", fields: [deletedById], references: [id])
 
   @@index([batchId])
   @@index([candidateId])
   @@index([projectId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([deletedAt])
   @@map("communication_message_logs")
 }
 
@@ -522,6 +768,11 @@ model Employee {
   address            String?
   documents          Json?
   status             EmployeeStatus @default(ACTIVE)
+  /// Single source of truth for the employee's payroll cost category —
+  /// every module that lets a user pick an employee (Attendance, Wages,
+  /// etc.) reads this off the Employee record rather than capturing its
+  /// own copy. See EmployeeCostCode above.
+  costCode           EmployeeCostCode?
   candidateId        String?        @unique
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
@@ -553,6 +804,11 @@ model Attendance {
   id             String           @id @default(uuid())
   employeeId     String
   projectId      String
+  /// Nullable at the DB level only for historical rows created before this
+  /// field existed — the API requires it on every new Mark Attendance
+  /// (create) call; see attendance.validation.ts / attendance.service.ts.
+  /// Never auto-backfilled onto old records (would be a guess).
+  unitId         String?
   date           DateTime
   shift          Shift            @default(GENERAL)
   inTime         String?
@@ -564,18 +820,50 @@ model Attendance {
   approvedAt     DateTime?
   isLocked       Boolean          @default(false)
   remarks        String?
+  createdById    String?
+  updatedById    String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  project    Project  @relation(fields: [projectId], references: [id])
-  approvedBy User?    @relation("AttendanceApprover", fields: [approvedById], references: [id])
+  employee   Employee     @relation(fields: [employeeId], references: [id])
+  project    Project      @relation(fields: [projectId], references: [id])
+  unit       ProjectUnit? @relation(fields: [unitId], references: [id])
+  approvedBy User?        @relation("AttendanceApprover", fields: [approvedById], references: [id])
+  createdBy  User?        @relation("AttendanceCreatedBy", fields: [createdById], references: [id])
+  updatedBy  User?        @relation("AttendanceUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([employeeId, date])
   @@index([projectId])
   @@index([date])
   @@index([approvalStatus])
+  @@index([unitId])
   @@map("attendance")
+}
+
+/// Project-specific sub-division used to tally manpower deployment (e.g.
+/// "Unit A" / "Unit B") — distinct from the unrelated `Unit` enum (NOS,
+/// MTR, ...), which is a procurement unit-of-measure. Named ProjectUnit to
+/// avoid colliding with that enum in Prisma's shared model/enum namespace.
+model ProjectUnit {
+  id          String        @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy User?   @relation("ProjectUnitCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?   @relation("ProjectUnitUpdatedBy", fields: [updatedById], references: [id])
+
+  attendance Attendance[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_units")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -772,4 +1060,906 @@ model WageEntry {
   @@index([templateId, month, year])
   @@index([projectId])
   @@map("wage_entries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROCUREMENT — Inventory, Purchase Requisition, Purchase Order, GRN
+//
+// Every operational table here carries projectId (the one architectural
+// rule — see CLAUDE.md) and is scoped via the same projectScopeWhere /
+// assertProjectAccess primitives used by every other module. Approver
+// eligibility is NOT a separate "approval hierarchy" table — it's exactly
+// the existing Permission.canApprove flag on PURCHASE_REQUISITION /
+// PURCHASE_ORDER / GRN, scoped to the approver's assigned projects. "Super
+// Admin configures the approval hierarchy" from the design brief means
+// Super Admin grants canApprove per user per module in User Management,
+// same mechanism every other module already uses — no new config table.
+//
+// CostCode is a master table (like Department/Designation) — the 8
+// categories (F05A/F05D/F07A/F08/F09/F10/F11/F12) from the client's real
+// PUR-01.xlsx purchase-requisition template. PR items reference it via
+// costCodeId; the printed PR groups items by category using that same
+// relation, so the fixed A–H section layout never has to be duplicated
+// as data.
+//
+// Approval, Notification and Attachment are intentionally NOT modeled
+// with a Prisma relation back to PurchaseRequisition/PurchaseOrder/
+// GoodsReceivedNote — they're polymorphic across the 3 document types
+// (plus Vendor for Attachment), which Prisma can't express as a typed
+// relation. They carry (documentType/ownerType, documentId/ownerId) and
+// are looked up by that composite index instead.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// The single source of truth for cost codes across the app — Inventory,
+/// Purchase Requisition, Purchase Order and GRN line items all reference
+/// this same table via costCodeId rather than each maintaining their own
+/// list. Mutations are Super-Admin-only (see costCodes.routes.ts); every
+/// other authenticated user has read-only access, since Recruitment/
+/// Employees-style "any user may read reference data" doesn't apply here —
+/// this master specifically must not be editable by non-Super-Admins.
+model CostCode {
+  id                String        @id @default(uuid())
+  code              String        @unique
+  name              String
+  /// Supplementary fields carried over from the reference "Cost Code
+  /// Summary" import — optional since most codes only ever need code+name.
+  itemsToConsider   String?
+  remarks           String?
+  responsiblePerson String?
+  status            ProjectStatus @default(ACTIVE)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  createdBy User? @relation("CostCodeCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("CostCodeUpdatedBy", fields: [updatedById], references: [id])
+
+  inventoryItems InventoryItem[]
+  prItems        PurchaseRequisitionItem[]
+  poItems        PurchaseOrderItem[]
+  grnItems       GoodsReceivedNoteItem[]
+  assets         Asset[]
+
+  @@map("cost_codes")
+}
+
+model Vendor {
+  id                String   @id @default(uuid())
+  name              String
+  address           String?
+  /// Free-text product/product-category label — searched alongside name
+  /// when selecting a vendor for a Purchase Order (e.g. "Cable" matches
+  /// "Power Cable", "Instrument Cable", ...).
+  productName       String?
+  gstNumber         String?
+  email             String?
+  phone             String?
+  contactPerson     String?
+  /// Banking details — never returned to a caller who lacks
+  /// PURCHASE_ORDER edit permission (or Super Admin); redacted in
+  /// vendors.controller.ts, not just hidden in the UI.
+  bankAccountNumber String?
+  bankIfscCode      String?
+  active            Boolean  @default(true)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdBy User? @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([name])
+  @@index([productName])
+  @@map("vendors")
+}
+
+/// Global default Terms & Conditions template shown on new Purchase
+/// Orders and editable only by Super Admin. A PurchaseOrder's own
+/// `termsAndConditions` JSON column is a point-in-time snapshot of this
+/// template taken at creation — editing the template here only changes
+/// what *future* POs get; already-created POs keep displaying whatever
+/// they were created with, unaffected by later template edits.
+model PurchaseOrderTerm {
+  id          String   @id @default(uuid())
+  heading     String
+  body        String
+  sortOrder   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  updatedBy User? @relation("PoTermUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("purchase_order_terms")
+}
+
+/// Balance Qty (inStockQuantity - consumedQuantity) is intentionally NOT a
+/// stored column — it's computed on read (service + frontend) so it can
+/// never drift out of sync with its two inputs.
+model InventoryItem {
+  id              String @id @default(uuid())
+  projectId       String
+  costCodeId      String
+  itemDescription String
+  unit            Unit
+  /// Formerly "workingQuantity" / Working Qty. @map keeps the physical
+  /// column name so this rename needed no data migration.
+  inStockQuantity Decimal @default(0) @db.Decimal(14, 2) @map("workingQuantity")
+  /// Formerly "nonWorkingQuantity" / Non Working Qty, now Consumed Qty.
+  consumedQuantity Decimal @default(0) @db.Decimal(14, 2) @map("nonWorkingQuantity")
+  remarks         String?
+  /// Formerly the generic "date" field (defaulted to now() on every row).
+  /// Repurposed as "Last Date of Consumption Update" — optional, and only
+  /// set when a consumption update actually happens, not stamped
+  /// automatically. Displayed on the Inventory page as "Date of Update".
+  lastConsumptionUpdateAt DateTime? @map("date")
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project      Project                @relation(fields: [projectId], references: [id])
+  costCode     CostCode               @relation(fields: [costCodeId], references: [id])
+  createdBy    User?                  @relation("InventoryItemCreatedBy", fields: [createdById], references: [id])
+  transactions InventoryTransaction[]
+
+  @@unique([projectId, costCodeId, itemDescription])
+  @@index([projectId])
+  @@index([costCodeId])
+  @@map("inventory_items")
+}
+
+/// Every change to an inventory item's quantities — a manual adjustment or
+/// a GRN receipt — is logged here, independent of the generic AuditLog
+/// (which tracks security/permission events, not domain-level quantity
+/// history). "Inventory transaction history maintained" from the design
+/// brief refers to this table.
+model InventoryTransaction {
+  id                  String                   @id @default(uuid())
+  inventoryItemId     String
+  projectId           String
+  type                InventoryTransactionType
+  workingQtyChange    Decimal                  @default(0) @db.Decimal(14, 2)
+  nonWorkingQtyChange Decimal                  @default(0) @db.Decimal(14, 2)
+  /// Rejected quantity from a GRN receipt — recorded here for audit
+  /// history only. It never adds to workingQuantity/nonWorkingQuantity
+  /// (rejected material isn't usable stock), per the design brief's
+  /// "Rejected quantity recorded separately."
+  rejectedQtyChange   Decimal                  @default(0) @db.Decimal(14, 2)
+  workingQtyAfter     Decimal                  @db.Decimal(14, 2)
+  nonWorkingQtyAfter  Decimal                  @db.Decimal(14, 2)
+  referenceGrnId      String?
+  remarks             String?
+  performedById       String?
+  createdAt           DateTime                 @default(now())
+
+  inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id])
+  project       Project            @relation(fields: [projectId], references: [id])
+  performedBy   User?              @relation("InventoryTxPerformedBy", fields: [performedById], references: [id])
+  grn           GoodsReceivedNote? @relation(fields: [referenceGrnId], references: [id])
+
+  @@index([inventoryItemId])
+  @@index([projectId])
+  @@index([referenceGrnId])
+  @@map("inventory_transactions")
+}
+
+/// Project-wise Asset register — a separate register from InventoryItem
+/// (distinct business record: individual asset entries, not a running
+/// stock balance). "Sr No" shown on the Assets page is the record's
+/// position in the current sort/page, not a stored column — deliberately
+/// not persisted so it never needs renumbering as records are added/removed.
+model Asset {
+  id                 String   @id @default(uuid())
+  projectId          String
+  costCodeId         String
+  itemDescription    String
+  unit               Unit
+  workingQuantity    Decimal  @default(0) @db.Decimal(14, 2)
+  nonWorkingQuantity Decimal  @default(0) @db.Decimal(14, 2)
+  remarks            String?
+  date               DateTime
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id])
+  costCode  CostCode @relation(fields: [costCodeId], references: [id])
+  createdBy User?    @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?    @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([projectId])
+  @@index([costCodeId])
+  @@index([itemDescription])
+  @@index([date])
+  @@index([createdAt])
+  @@map("assets")
+}
+
+/// requestNumber is the system's own auto-generated reference (via
+/// DocumentSequence, unique per project) used everywhere in-app for
+/// identification/search. prNumber is the separate, manually-typed field
+/// on the printed form ("PURCHASE REQ. NO. :-" in PUR-01.xlsx) — site
+/// staff's own paper-based numbering, which the design brief also called
+/// out as manual entry. Both exist because the brief asked for both.
+model PurchaseRequisition {
+  id                String    @id @default(uuid())
+  projectId         String
+  requestNumber     String
+  prNumber          String?
+  requesterId       String
+  departmentId      String?
+  /// Freeform named-individual fields from the printed form's header
+  /// ("NAME OF SITE INCHARGE :-" / "NAME OF STORE INCHARGE :-" in
+  /// PUR-01.xlsx) — distinct from `requesterId` (the logged-in system
+  /// user), since the person named on paper isn't always the same as
+  /// whoever has the login.
+  siteInchargeName  String?
+  storeInchargeName String?
+  status            PRStatus  @default(DRAFT)
+  currentApproverId String?
+  submittedAt       DateTime?
+  decidedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project         Project                   @relation(fields: [projectId], references: [id])
+  department      Department?               @relation(fields: [departmentId], references: [id])
+  requester       User                      @relation("PRRequester", fields: [requesterId], references: [id])
+  currentApprover User?                     @relation("PRCurrentApprover", fields: [currentApproverId], references: [id])
+  items           PurchaseRequisitionItem[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@unique([projectId, requestNumber])
+  @@index([projectId])
+  @@index([status])
+  @@index([requesterId])
+  @@map("purchase_requisitions")
+}
+
+/// Columns mirror PUR-01.xlsx exactly: SR.NO (row order), Cost Code,
+/// MATERIAL NAME, UNIT, TOTAL REQ. QTY, MAKE, MODEL NO., QTY AVAILABLE AT
+/// SITE, BAL. QTY REQ., REMARKS. The template's 8 fixed category sections
+/// (A–H) are not separate stored data — they fall out of grouping items by
+/// costCode (each category = one cost code, e.g. F05A = "Tools Tackles/
+/// Power Tools").
+model PurchaseRequisitionItem {
+  id                 String   @id @default(uuid())
+  prId               String
+  costCodeId         String
+  materialName       String
+  unit               Unit
+  totalReqQty        Decimal  @db.Decimal(14, 2)
+  make               String?
+  modelNo            String?
+  qtyAvailableAtSite Decimal  @default(0) @db.Decimal(14, 2)
+  balQtyReq          Decimal  @db.Decimal(14, 2)
+  remarks            String?
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pr       PurchaseRequisition @relation(fields: [prId], references: [id], onDelete: Cascade)
+  costCode CostCode            @relation(fields: [costCodeId], references: [id])
+
+  @@index([prId])
+  @@index([costCodeId])
+  @@map("pr_items")
+}
+
+/// poNumber is manually entered (per the design brief's explicit override
+/// for PO, unlike PR's dual-number approach) — unique per project, not
+/// globally, since different sites may reuse their own paper numbering.
+model PurchaseOrder {
+  id                    String    @id @default(uuid())
+  projectId             String
+  prId                  String?
+  poNumber              String
+  /// The printed "P.O. Date" field — distinct from createdAt (which is
+  /// when the draft row was first saved); this is the date shown/used on
+  /// the document itself, and what Search-by-Month/Year filters against.
+  poDate                DateTime  @default(now())
+  vendorId              String
+  enquiryNoDate         String?
+  quotationNo           String?
+  ref                   String?
+  jobNo                 String?
+  deliveryDate          DateTime?
+  packingForwarding     Decimal   @default(0) @db.Decimal(12, 2)
+  transportationCharges Decimal   @default(0) @db.Decimal(12, 2)
+  taxesAndDuties        Decimal   @default(0) @db.Decimal(12, 2)
+  subtotal              Decimal   @default(0) @db.Decimal(14, 2)
+  grandTotal            Decimal   @default(0) @db.Decimal(14, 2)
+  billingAddress        String?
+  billingGstNumber      String?
+  /// Overrides of the fixed Terms 1-11 (defaults live in code, not DB) —
+  /// only populated when an authorized user actually edits a term.
+  termsAndConditions    Json?
+  signatureImageUrl     String?
+  authorizedName        String?
+  authorizedDesignation String?
+  status                POStatus  @default(DRAFT)
+  createdById           String
+  approvedById          String?
+  approvedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  project    Project              @relation(fields: [projectId], references: [id])
+  pr         PurchaseRequisition? @relation(fields: [prId], references: [id])
+  vendor     Vendor               @relation(fields: [vendorId], references: [id])
+  createdBy  User                 @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedBy User?                @relation("POApprovedBy", fields: [approvedById], references: [id])
+  items      PurchaseOrderItem[]
+  grns       GoodsReceivedNote[]
+
+  @@unique([projectId, poNumber])
+  @@index([projectId])
+  @@index([vendorId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(uuid())
+  poId          String
+  costCodeId    String?
+  description   String
+  unit          Unit
+  qty           Decimal  @db.Decimal(14, 2)
+  rate          Decimal  @db.Decimal(14, 2)
+  amount        Decimal  @default(0) @db.Decimal(14, 2)
+  gstPercent    Decimal  @default(0) @db.Decimal(5, 2)
+  gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
+  extendedPrice Decimal  @default(0) @db.Decimal(14, 2)
+  remarks       String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  po       PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  costCode CostCode?     @relation(fields: [costCodeId], references: [id])
+
+  @@index([poId])
+  @@map("po_items")
+}
+
+/// grnNumber is auto-generated (via DocumentSequence, unique per project)
+/// — the design brief's document-numbering section didn't override GRN
+/// with a manual-entry instruction the way it did for PR/PO.
+model GoodsReceivedNote {
+  id                   String    @id @default(uuid())
+  projectId            String
+  poId                 String
+  grnNumber            String
+  /// The printed "GRN Date" field — distinct from createdAt, same
+  /// reasoning as PurchaseOrder.poDate.
+  grnDate              DateTime  @default(now())
+  supplierName         String?
+  receiptDate          DateTime?
+  challanNumber        String?
+  challanDate          DateTime?
+  lrNumber             String?
+  lrDate               DateTime?
+  transporterName      String?
+  status               GRNStatus @default(DRAFT)
+  submittedById        String?
+  currentApproverId    String?
+  submittedAt          DateTime?
+  decidedAt            DateTime?
+  /// Set once "Update Inventory" (a separate, manual, post-approval
+  /// action per the design brief) has been applied — guards against
+  /// double-crediting working stock if clicked more than once.
+  inventoryUpdatedAt   DateTime?
+  inventoryUpdatedById String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  project               Project                 @relation(fields: [projectId], references: [id])
+  po                    PurchaseOrder           @relation(fields: [poId], references: [id])
+  submittedBy           User?                   @relation("GRNSubmittedBy", fields: [submittedById], references: [id])
+  currentApprover       User?                   @relation("GRNCurrentApprover", fields: [currentApproverId], references: [id])
+  inventoryUpdatedBy    User?                   @relation("GRNInventoryUpdatedBy", fields: [inventoryUpdatedById], references: [id])
+  items                 GoodsReceivedNoteItem[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@unique([projectId, grnNumber])
+  @@index([projectId])
+  @@index([poId])
+  @@index([status])
+  @@map("goods_received_notes")
+}
+
+model GoodsReceivedNoteItem {
+  id                String   @id @default(uuid())
+  grnId             String
+  costCodeId        String?
+  description       String
+  unit              Unit
+  qtyAsPerChallan   Decimal  @db.Decimal(14, 2)
+  actualQtyReceived Decimal  @db.Decimal(14, 2)
+  acceptedQty       Decimal  @db.Decimal(14, 2)
+  rejectedQty       Decimal  @default(0) @db.Decimal(14, 2)
+  remarks           String?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  grn      GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  costCode CostCode?         @relation(fields: [costCodeId], references: [id])
+
+  @@index([grnId])
+  @@map("grn_items")
+}
+
+/// Generic approval-history log shared by PR/PO/GRN (documentType +
+/// documentId, not a Prisma relation — see file header comment). One row
+/// per SUBMIT/APPROVE/REJECT/RETURN action.
+model Approval {
+  id           String             @id @default(uuid())
+  documentType ProcurementDocType
+  documentId   String
+  action       ApprovalAction
+  actedById    String?
+  comments     String?
+  createdAt    DateTime           @default(now())
+
+  actedBy User? @relation("ApprovalActedBy", fields: [actedById], references: [id])
+
+  @@index([documentType, documentId])
+  @@map("approvals")
+}
+
+model Notification {
+  id           String              @id @default(uuid())
+  userId       String
+  type         NotificationType
+  title        String
+  message      String
+  documentType ProcurementDocType?
+  documentId   String?
+  channel      NotificationChannel @default(DASHBOARD)
+  isRead       Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model Attachment {
+  id           String              @id @default(uuid())
+  ownerType    AttachmentOwnerType
+  ownerId      String
+  fileName     String
+  fileUrl      String
+  fileType     String?
+  uploadedById String?
+  createdAt    DateTime            @default(now())
+
+  uploadedBy User? @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([ownerType, ownerId])
+  @@map("attachments")
+}
+
+/// Atomic per-project counters backing requestNumber (PR) and grnNumber
+/// (GRN) generation. PO is excluded — poNumber is fully manual.
+model DocumentSequence {
+  id         String             @id @default(uuid())
+  projectId  String
+  type       ProcurementDocType
+  lastNumber Int                @default(0)
+  updatedAt  DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, type])
+  @@map("document_sequences")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BILLING STATUS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One header per project + billing month/year + optional period range.
+/// Deliberately NOT unique on (projectId, billingMonth, billingYear) —
+/// a project can have several records for the same month when billing is
+/// split into sub-periods (e.g. 1-15 and 16-31 March), each tracked
+/// separately per the business's real paper-based billing sheets.
+model BillingRecord {
+  id           String    @id @default(uuid())
+  projectId    String
+  billingMonth Int
+  billingYear  Int
+  periodFrom   DateTime?
+  periodTo     DateTime?
+  createdById  String
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project   Project       @relation(fields: [projectId], references: [id])
+  createdBy User          @relation("BillingRecordCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?         @relation("BillingRecordUpdatedBy", fields: [updatedById], references: [id])
+  items     BillingItem[]
+
+  @@index([projectId])
+  @@index([billingMonth, billingYear])
+  @@map("billing_records")
+}
+
+/// One row per plant/unit bill. The same row is edited in place as its
+/// status progresses (Pending Certification -> A1 Pending -> A2 Pending ->
+/// Accounts Pending -> Invoice Done) rather than duplicated on every status
+/// change — the row's own id is the stable reference the audit trail
+/// (AuditLog.details, module BILLING_STATUS) keys off.
+model BillingItem {
+  id              String            @id @default(uuid())
+  billingRecordId String
+  srNo            Int
+  plantUnit       String
+  invoiceNo       String?
+  jmsNo           String?
+  abstractAmount  Decimal           @db.Decimal(14, 2)
+  taxAmount       Decimal           @default(0) @db.Decimal(14, 2)
+  /// Always server-computed as abstractAmount + taxAmount — never trust a
+  /// client-submitted total, same rule PR/PO totals follow.
+  totalAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  status          BillingItemStatus @default(PENDING_CERTIFICATION)
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  billingRecord BillingRecord @relation(fields: [billingRecordId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation("BillingItemCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?         @relation("BillingItemUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([billingRecordId])
+  @@index([status])
+  @@map("billing_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SITE ACCOUNTS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// The static F01-F24 cost-code/particulars hierarchy from the reference
+/// "Forays Account Statement" template — a separate master from
+/// Procurement's CostCode (that one is a flat inventory/PO/GRN lookup;
+/// this one is a fixed, ordered, protected hierarchy with parent/child
+/// grouping used only to lay out the Site Accounts statement). Rows are
+/// seeded/self-healed by syncSiteAccountCostCodes() on server startup
+/// (same pattern as templateSync.ts's built-in wage templates) rather than
+/// hand-edited — normal users never modify this table.
+model SiteAccountCostCode {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  description  String
+  /// Null for the 24 top-level groups (F01, F02, ... F24); set to the
+  /// owning group's code for a child row (e.g. F01I.parentCode = "F01").
+  parentCode   String?
+  /// Matches the reference statement's row order exactly (multiples of 10
+  /// so a future child/group can be inserted without renumbering everything).
+  displayOrder Int
+  /// True only on F01, F02 and F03 — the only groups the reference
+  /// statement renders a "Subtotal" row after. Purely a display/aggregation
+  /// flag; the Subtotal row itself is computed on read, never stored, and
+  /// is never folded into Total Payments (see SiteAccountEntry comment).
+  hasSubtotal  Boolean  @default(false)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entries SiteAccountEntry[]
+
+  @@index([parentCode])
+  @@map("site_account_cost_codes")
+}
+
+/// One statement header per project + statement period. "Plant/Site",
+/// "Project No." and "Name of Job" from the reference template are all
+/// pulled live from the linked Project (projectName/projectNumber) rather
+/// than duplicated here — only genuinely statement-specific header fields
+/// live on this model.
+model SiteAccountStatement {
+  id               String                     @id @default(uuid())
+  projectId        String
+  statementDate    DateTime
+  periodFrom       DateTime
+  periodTo         DateTime
+  /// Denormalized from periodFrom purely for the Month/Year filter the
+  /// design brief asks for — same convention as BillingRecord's
+  /// billingMonth/billingYear.
+  statementMonth   Int
+  statementYear    Int
+  /// "Opening Balance" and "Amount Received as site fund" are the reference
+  /// template's two fixed, always-present receipt rows — modeled as direct
+  /// fields (not SiteAccountEntry rows) per the design brief's own
+  /// suggestion to store Opening Balance "as a separate field ... rather
+  /// than treating it as a normal expense transaction", so it can never be
+  /// counted as a payment or duplicated as a generic entry.
+  openingBalance   Decimal                    @default(0) @db.Decimal(14, 2)
+  siteFundReceived Decimal                    @default(0) @db.Decimal(14, 2)
+  status           SiteAccountStatementStatus @default(DRAFT)
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project   Project            @relation(fields: [projectId], references: [id])
+  createdBy User               @relation("SiteAccountStatementCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?              @relation("SiteAccountStatementUpdatedBy", fields: [updatedById], references: [id])
+  entries   SiteAccountEntry[]
+
+  @@index([projectId])
+  @@index([statementMonth, statementYear])
+  @@index([status])
+  @@map("site_account_statements")
+}
+
+/// One row per transaction line. Multiple entries may share the same
+/// costCodeId (e.g. three separate vouchers all posted under F01) — the
+/// Excel-style Subtotal/Total figures are always computed by summing these
+/// leaf rows, so there is nothing to double-count even though the
+/// displayed statement groups several entries under one cost code.
+model SiteAccountEntry {
+  id                   String               @id @default(uuid())
+  statementId          String
+  entryType            SiteAccountEntryType
+  /// Required for EXPENSE, always null for OTHER_RECEIPT.
+  costCodeId           String?
+  voucherNo            String?
+  /// Free text, only meaningful for OTHER_RECEIPT — an EXPENSE entry's
+  /// particulars are always the linked cost code's own description, never
+  /// stored redundantly here.
+  particulars          String?
+  receiptAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  depositAdvanceAmount Decimal              @default(0) @db.Decimal(14, 2)
+  paymentAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  createdById          String
+  updatedById          String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  statement SiteAccountStatement   @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  costCode  SiteAccountCostCode?   @relation(fields: [costCodeId], references: [id])
+  createdBy User                   @relation("SiteAccountEntryCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?                  @relation("SiteAccountEntryUpdatedBy", fields: [updatedById], references: [id])
+  dates     SiteAccountEntryDate[]
+
+  @@index([statementId])
+  @@index([costCodeId])
+  @@map("site_account_entries")
+}
+
+/// Normalized transaction dates — a voucher may be dated across several
+/// receipts/payments (e.g. "01.03.2026, 05.03.2026"); stored one row per
+/// date rather than a comma-joined string, per the design brief's own
+/// preference, and joined back into the comma-separated display format
+/// only at render/export time.
+model SiteAccountEntryDate {
+  id      String   @id @default(uuid())
+  entryId String
+  date    DateTime
+
+  entry SiteAccountEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
+  @@map("site_account_entry_dates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXPENSE
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One flat row per Project + Year + Month — the reference "Expense
+/// adding.xlsx" template's columns mapped 1:1 (Sr.No. is the row's
+/// position within a query result, not stored). `month` follows the same
+/// Int(1-12)/"...Year" naming idiom as BillingRecord.billingMonth /
+/// SiteAccountStatement.statementMonth. `uom` reuses the existing
+/// procurement Unit enum (NOS/MTR/.../LITER) rather than introducing a
+/// new UOM master — no dedicated UOM table existed anywhere in the app to
+/// build on, and this enum already serves the same purpose elsewhere.
+model Expense {
+  id                     String   @id @default(uuid())
+  projectId              String
+  year                   Int
+  month                  Int
+  uom                    Unit?
+  /// Manpower headcount for the month — a quantity, deliberately never
+  /// summed into totalAmount (see totalAmount's own comment).
+  manpower               Decimal  @db.Decimal(10, 2)
+  basicSalary            Decimal  @default(0) @db.Decimal(14, 2)
+  /// Column G in the reference template — first column counted into
+  /// totalAmount.
+  totalManpowerNetSalary Decimal  @db.Decimal(14, 2)
+  leavePay               Decimal  @default(0) @db.Decimal(14, 2)
+  bonus                  Decimal  @default(0) @db.Decimal(14, 2)
+  pf                     Decimal  @default(0) @db.Decimal(14, 2)
+  esic                   Decimal  @default(0) @db.Decimal(14, 2)
+  transportation         Decimal  @default(0) @db.Decimal(14, 2)
+  accommodation          Decimal  @default(0) @db.Decimal(14, 2)
+  operationalCost        Decimal  @default(0) @db.Decimal(14, 2)
+  labLicenseBgFund       Decimal  @default(0) @db.Decimal(14, 2)
+  ppe                    Decimal  @default(0) @db.Decimal(14, 2)
+  coverall               Decimal  @default(0) @db.Decimal(14, 2)
+  medicalExpense         Decimal  @default(0) @db.Decimal(14, 2)
+  toolsAndMachinery      Decimal  @default(0) @db.Decimal(14, 2)
+  mobDemobCost           Decimal  @default(0) @db.Decimal(14, 2)
+  insurance              Decimal  @default(0) @db.Decimal(14, 2)
+  consumables            Decimal  @default(0) @db.Decimal(14, 2)
+  /// Column W — last column counted into totalAmount.
+  misc                   Decimal  @default(0) @db.Decimal(14, 2)
+  /// Server-computed, always: SUM(totalManpowerNetSalary..misc) — i.e.
+  /// columns G through W in the reference template. Never accepted from
+  /// client input; recomputed on every create/update. Explicitly excludes
+  /// manpower (a quantity, not money) and basicSalary (the template's own
+  /// =SUM(G:W) formula excludes it too).
+  totalAmount            Decimal  @default(0) @db.Decimal(14, 2)
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy User    @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?   @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([projectId, year, month])
+  @@index([projectId])
+  @@index([year, month])
+  @@map("expenses")
+}
+
+// ── Ticket / Complaint Management ─────────────────────────────────────────
+
+/// Configurable ticket categories (HR, Payroll, IT/Technical, etc.) — a
+/// third entity in the Department/Designation generic masters pattern (see
+/// masters.service.ts's header comment), managed the same way rather than a
+/// bespoke CRUD module.
+model TicketCategory {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  status    ProjectStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  tickets Ticket[]
+
+  @@map("ticket_categories")
+}
+
+/// Single-row atomic counter for TKT-000001-style ticket numbers — the same
+/// upsert+increment pattern as DocumentSequence (utils/documentSequence.ts:
+/// the increment compiles to one INSERT ... ON CONFLICT DO UPDATE, so
+/// concurrent ticket creation can never collide on the same number), but a
+/// single global row rather than per-project since a ticket isn't tied to
+/// one project.
+model TicketSequence {
+  id         Int @id @default(1)
+  lastNumber Int @default(0)
+
+  @@map("ticket_sequence")
+}
+
+model Ticket {
+  id          String         @id @default(uuid())
+  ticketNo    String         @unique
+  raisedById  String
+  /// Which HR_App module the issue relates to (Attendance, Wages, Purchase
+  /// Order, ...) — optional since not every ticket maps to one (e.g. IT/
+  /// Technical, Website). Reuses ModuleName rather than a parallel enum.
+  module      ModuleName?
+  categoryId  String
+  subject     String
+  description String
+  priority    TicketPriority @default(MEDIUM)
+  status      TicketStatus   @default(OPEN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+
+  raisedBy    User               @relation("TicketRaisedBy", fields: [raisedById], references: [id])
+  category    TicketCategory     @relation(fields: [categoryId], references: [id])
+  assignees   TicketAssignee[]
+  comments    TicketComment[]
+  attachments TicketAttachment[]
+  activity    TicketActivity[]
+
+  @@index([raisedById])
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+/// Many-to-many ticket <-> assignee — a ticket may be assigned to any
+/// number of users, each of whom sees it under "Assigned to Me".
+model TicketAssignee {
+  id           String   @id @default(uuid())
+  ticketId     String
+  userId       String
+  assignedAt   DateTime @default(now())
+  assignedById String
+
+  ticket     Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user       User   @relation("TicketAssigneeUser", fields: [userId], references: [id])
+  assignedBy User   @relation("TicketAssigneeAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([ticketId, userId])
+  @@index([userId])
+  @@map("ticket_assignees")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User               @relation("TicketCommentUser", fields: [userId], references: [id])
+  attachments TicketAttachment[]
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+/// Metadata only — the actual file lives on disk under backend/uploads via
+/// the existing POST /api/v1/uploads endpoint (utils/upload.ts), same as
+/// every other attachment in this app. commentId is nullable: an attachment
+/// can be added directly to the ticket (at creation) or to a specific reply.
+model TicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  commentId    String?
+  uploadedById String
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String?
+  createdAt    DateTime @default(now())
+
+  ticket     Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  comment    TicketComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation("TicketAttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([ticketId])
+  @@index([commentId])
+  @@map("ticket_attachments")
+}
+
+/// Append-only accountability trail for a ticket — created, assigned,
+/// reassigned, status/priority changes, comments, attachments, resolution,
+/// closure. Dedicated to Tickets rather than folded into the app-wide
+/// AuditLog: AuditLog is a security/access audit trail (who did what,
+/// success/failure, IP/device) keyed by ModuleName, not a per-record
+/// conversational history a ticket's own participants read inline the way
+/// Approval History already works for PR/PO/GRN.
+model TicketActivity {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String
+  action    String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation("TicketActivityUser", fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_activity")
 }

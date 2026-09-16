@@ -1,0 +1,268 @@
+import { useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Modal } from '../common/Modal';
+import { apiErrorMessage } from '../../api/client';
+import { AssetBulkImportFailure, AssetBulkImportResult, assetsApi } from '../../api/modules';
+import type { ValidatedAssetRow } from '../../utils/assetsExcel';
+import { downloadAssetImportReport, parseAssetWorkbook, unitLabel, validateAssetRows } from '../../utils/assetsExcel';
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls'];
+
+type Step = 'upload' | 'preview' | 'importing' | 'summary';
+
+export function AssetsBulkImportModal({
+  open,
+  onClose,
+  projectOptions,
+  costCodeOptions,
+  onImported,
+}: {
+  open: boolean;
+  onClose: () => void;
+  projectOptions: { value: string; label: string }[];
+  costCodeOptions: { value: string; code: string; name: string }[];
+  onImported: () => void;
+}) {
+  const [step, setStep] = useState<Step>('upload');
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [rows, setRows] = useState<ValidatedAssetRow[]>([]);
+  const [result, setResult] = useState<AssetBulkImportResult | null>(null);
+  const [combinedFailures, setCombinedFailures] = useState<AssetBulkImportFailure[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setStep('upload');
+    setFileError(null);
+    setParsing(false);
+    setRows([]);
+    setResult(null);
+    setCombinedFailures([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleClose = () => {
+    const hasImported = step === 'summary' && result && result.imported > 0;
+    reset();
+    onClose();
+    if (hasImported) onImported();
+  };
+
+  const handleFileSelect = async (file: File) => {
+    setFileError(null);
+
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setFileError('Only .xlsx and .xls files are supported.');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setFileError('File is too large. Maximum size is 20 MB.');
+      return;
+    }
+
+    setParsing(true);
+    try {
+      const rawRows = await parseAssetWorkbook(file);
+      const validated = validateAssetRows(rawRows, {
+        projects: projectOptions.map((p) => ({ id: p.value, name: p.label })),
+        costCodes: costCodeOptions.map((c) => ({ id: c.value, code: c.code, name: c.name })),
+      });
+      setRows(validated);
+      setStep('preview');
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : 'Could not read this file.');
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const validRows = rows.filter((r) => r.isValid);
+  const invalidRows = rows.filter((r) => !r.isValid);
+
+  const startImport = async () => {
+    setStep('importing');
+    try {
+      const result = await assetsApi.bulkImport(
+        validRows.map((r) => ({
+          rowNumber: r.rowNumber,
+          projectId: r.projectId!,
+          costCodeId: r.costCodeId!,
+          itemDescription: r.itemDescription,
+          unit: r.unit as never,
+          workingQuantity: r.workingQuantity,
+          nonWorkingQuantity: r.nonWorkingQuantity,
+          remarks: r.remarks,
+          date: r.date!,
+        }))
+      );
+      setResult(result);
+      setCombinedFailures([
+        ...invalidRows.map((r) => ({
+          rowNumber: r.rowNumber,
+          itemDescription: r.itemDescription || '(blank)',
+          reason: r.errors.join('; '),
+        })),
+        ...result.failures,
+      ]);
+      setStep('summary');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Import failed'));
+      setStep('preview');
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose} title="Bulk Import from Excel" size="xl">
+      {step === 'upload' && (
+        <div>
+          <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+            <FileSpreadsheet className="mx-auto mb-3 text-slate-400" size={36} />
+            <p className="text-sm font-medium">Upload a completed Assets Template</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">.xlsx or .xls, up to 20 MB</p>
+            <button className="btn-primary mt-4" disabled={parsing} onClick={() => fileInputRef.current?.click()}>
+              {parsing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              {parsing ? 'Reading file...' : 'Choose File'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelect(file);
+              }}
+            />
+          </div>
+          {fileError && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+              <XCircle size={16} className="mt-0.5 shrink-0" />
+              <span>{fileError}</span>
+            </div>
+          )}
+          <p className="mt-4 text-xs text-slate-400">Don't have the template yet? Close this dialog and click "Download Excel Template" first.</p>
+        </div>
+      )}
+
+      {step === 'preview' && (
+        <div>
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{validRows.length} valid</span>
+            {invalidRows.length > 0 && (
+              <span className="badge bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{invalidRows.length} invalid</span>
+            )}
+            <span className="text-slate-500">of {rows.length} rows in the file</span>
+          </div>
+
+          {invalidRows.length > 0 && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <span>Invalid rows will not be imported. Fix them in your file and re-upload, or continue to import only the valid rows.</span>
+            </div>
+          )}
+
+          <div className="max-h-[50vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Row</th>
+                  <th className="px-3 py-2 font-semibold">Cost Code</th>
+                  <th className="px-3 py-2 font-semibold">Item Description</th>
+                  <th className="px-3 py-2 font-semibold">Unit</th>
+                  <th className="px-3 py-2 font-semibold">Project</th>
+                  <th className="px-3 py-2 font-semibold">Errors</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {rows.map((r) => (
+                  <tr key={r.rowNumber} className={r.isValid ? '' : 'bg-red-50/70 dark:bg-red-900/10'}>
+                    <td className="px-3 py-2 text-slate-400">{r.rowNumber}</td>
+                    <td className="px-3 py-2">{costCodeOptions.find((c) => c.value === r.costCodeId)?.code ?? r.costCodeLabel ?? '—'}</td>
+                    <td className="px-3 py-2">{r.itemDescription || <span className="text-slate-400">—</span>}</td>
+                    <td className="px-3 py-2">{r.unit ? unitLabel(r.unit) : '—'}</td>
+                    <td className="px-3 py-2">{projectOptions.find((p) => p.value === r.projectId)?.label ?? r.projectLabel ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {r.isValid ? (
+                        <CheckCircle2 size={15} className="text-emerald-500" />
+                      ) : (
+                        <ul className="space-y-0.5 text-xs text-red-600 dark:text-red-400">
+                          {r.fieldErrors.map((fe, i) => (
+                            <li key={i}>
+                              Row {r.rowNumber} – {fe.field} – {fe.message}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button className="btn-secondary" onClick={reset}>
+              Choose Different File
+            </button>
+            <button className="btn-primary" disabled={!validRows.length} onClick={startImport}>
+              Import {validRows.length} Asset{validRows.length === 1 ? '' : 's'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'importing' && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 size={28} className="animate-spin text-brand-600" />
+          <p className="mt-3 text-sm text-slate-500">Importing assets...</p>
+        </div>
+      )}
+
+      {step === 'summary' && result && (
+        <div>
+          <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            <CheckCircle2 className="text-emerald-500" size={22} />
+            Import Completed
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <SummaryStat label="Total Records" value={rows.length} />
+            <SummaryStat label="Successfully Imported" value={result.imported} accent="emerald" />
+            <SummaryStat label="Failed Records" value={result.failed + invalidRows.length} accent="red" />
+          </div>
+
+          {combinedFailures.length > 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <span>{combinedFailures.length} row(s) could not be imported.</span>
+              <button className="btn-secondary" onClick={() => downloadAssetImportReport(combinedFailures)}>
+                <Download size={15} /> Download Import_Report.xlsx
+              </button>
+            </div>
+          )}
+
+          <div className="mt-5 flex justify-end">
+            <button className="btn-primary" onClick={handleClose}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function SummaryStat({ label, value, accent }: { label: string; value: number; accent?: 'emerald' | 'red' }) {
+  const accentClass = accent
+    ? { emerald: 'text-emerald-600 dark:text-emerald-400', red: 'text-red-600 dark:text-red-400' }[accent]
+    : 'text-slate-900 dark:text-slate-100';
+
+  return (
+    <div className="card p-3 text-center">
+      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`text-xl font-semibold ${accentClass}`}>{value}</p>
+    </div>
+  );
+}

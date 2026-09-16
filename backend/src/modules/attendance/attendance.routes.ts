@@ -2,11 +2,32 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.middleware';
 import { requirePermission, requireSuperAdmin } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createAttendanceSchema, idParamSchema, updateAttendanceSchema } from './attendance.validation';
+import {
+  createAttendanceSchema,
+  idParamSchema,
+  manpowerSummaryEmployeesQuerySchema,
+  manpowerSummaryQuerySchema,
+  updateAttendanceSchema,
+} from './attendance.validation';
 import * as attendanceController from './attendance.controller';
 
 const router = Router();
 router.use(authenticate);
+
+// Registered ahead of the /:id routes below — otherwise Express would
+// match "manpower-summary" as an :id param instead of this literal path.
+router.get(
+  '/manpower-summary',
+  requirePermission('ATTENDANCE', 'view'),
+  validate(manpowerSummaryQuerySchema),
+  attendanceController.manpowerSummaryHandler
+);
+router.get(
+  '/manpower-summary/employees',
+  requirePermission('ATTENDANCE', 'view'),
+  validate(manpowerSummaryEmployeesQuerySchema),
+  attendanceController.manpowerSummaryEmployeesHandler
+);
 
 router.get('/', requirePermission('ATTENDANCE', 'view'), attendanceController.listAttendanceHandler);
 router.get('/:id', requirePermission('ATTENDANCE', 'view'), validate(idParamSchema), attendanceController.getAttendanceHandler);

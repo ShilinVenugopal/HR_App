@@ -42,9 +42,17 @@ export const env = {
 
   appBaseUrl: process.env.APP_BASE_URL ?? `http://localhost:${Number(process.env.PORT ?? 4000)}`,
 
-  // Bulk Communication providers — both optional. When unset, the
+  // Bulk Communication providers — all optional. When unset, the
   // corresponding provider reports every send as failed with a clear
   // "not configured" reason instead of silently pretending to succeed.
+  //
+  // Email has two possible transports: plain SMTP, or Brevo's HTTPS API.
+  // Most cloud VPS hosts (DigitalOcean, AWS, Azure, etc.) block outbound
+  // SMTP ports by default as an anti-spam measure — see
+  // https://docs.digitalocean.com/support/why-cant-i-send-e-mail-from-my-droplet/
+  // — so the HTTPS API path (same port as the website itself, never
+  // blocked) is the one that actually works on most production hosts.
+  // When BREVO_API_KEY is set it takes priority over SMTP.
   smtp: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),
@@ -52,7 +60,13 @@ export const env = {
     user: process.env.SMTP_USER,
     password: process.env.SMTP_PASSWORD,
     fromAddress: process.env.SMTP_FROM_ADDRESS ?? process.env.SMTP_USER,
-    fromName: process.env.SMTP_FROM_NAME ?? 'Forays Group HR Solutions',
+    fromName: process.env.SMTP_FROM_NAME ?? 'FORAYS ERP',
+  },
+
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY,
+    fromAddress: process.env.BREVO_FROM_ADDRESS ?? process.env.SMTP_FROM_ADDRESS,
+    fromName: process.env.BREVO_FROM_NAME ?? process.env.SMTP_FROM_NAME ?? 'FORAYS ERP',
   },
 
   whatsapp: {

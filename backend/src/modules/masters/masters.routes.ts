@@ -5,8 +5,10 @@ import { validate } from '../../middleware/validate.middleware';
 import { createMasterSchema, idParamSchema, updateMasterSchema } from './masters.validation';
 import * as mastersController from './masters.controller';
 
-/// Shared router factory for Departments and Designations — both are
-/// reference/master data gated by the SETTINGS module permission.
+/// Shared router factory for Departments and Designations — reference
+/// master data gated by the SETTINGS module permission. Cost Codes used to
+/// be a third resource here; see masters.service.ts's header comment for
+/// why it now lives in its own dedicated module instead.
 function buildMasterRouter() {
   const router = Router();
   router.use(authenticate);
@@ -32,3 +34,4 @@ function buildMasterRouter() {
 
 export const departmentsRouter = buildMasterRouter();
 export const designationsRouter = buildMasterRouter();
+export const ticketCategoriesRouter = buildMasterRouter();
