@@ -1,0 +1,26 @@
+# Supabase CLI project config for the Forays Task App.
+# Only the settings that matter for this app are listed; everything else uses
+# Supabase defaults. Mirror the [auth] settings in the hosted project's
+# dashboard (Authentication -> Providers / Settings).
+project_id = "forays-task-app"
+
+[api]
+schemas = ["public"]
+max_rows = 1000
+
+[auth]
+# Accounts are created by Admins only (admin-users Edge Function).
+enable_signup = false
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+minimum_password_length = 10
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[realtime]
+enabled = true
+
+[functions.admin-users]
+verify_jwt = true

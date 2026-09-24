@@ -9,12 +9,21 @@ Access Control (RBAC) and Project-Based (Site-Based) Data Security. Modules:
 Dashboard, Recruitment, Employees, Attendance, Wages, Compliance, Advances,
 Reports, Settings, User Management, Audit Logs.
 
-Monorepo, two independent Node projects, no shared root package.json:
+Monorepo, independent Node projects, no shared root package.json:
 
 ```
 backend/   Node.js + TypeScript + Express + Prisma + PostgreSQL API
 frontend/  React + TypeScript + Vite + Tailwind CSS SPA
+task-app/  FORAYS TASK APP — separate product (Electron desktop + Supabase backend)
 ```
+
+`task-app/` shares nothing with the HR app (own Supabase project, own users).
+Everything below this section is about the HR app; for the Task App see
+`task-app/README.md`. Its rules in brief: all authorization lives in Postgres
+(RLS + `SECURITY DEFINER` RPCs in `task-app/supabase/migrations/`), clients
+never write task/notification tables directly, the service-role key never
+enters `task-app/desktop/`, and every schema change must keep
+`task-app/supabase/tests` (`npm test`, plain Postgres) green.
 
 ## Commands
 

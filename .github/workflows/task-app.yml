@@ -1,0 +1,88 @@
+name: Forays Task App
+
+on:
+  push:
+    paths: ['task-app/**', '.github/workflows/task-app.yml']
+  pull_request:
+    paths: ['task-app/**', '.github/workflows/task-app.yml']
+  workflow_dispatch:
+    inputs:
+      build_installer:
+        description: Build the Windows installer
+        type: boolean
+        default: true
+
+jobs:
+  db-security-tests:
+    name: Database RLS / business-rule tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    defaults:
+      run:
+        working-directory: task-app/supabase/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+
+  desktop-typecheck:
+    name: Desktop typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: task-app/desktop
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: task-app/desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+
+  windows-installer:
+    name: Windows installer (ForaysTaskApp-Setup.exe)
+    if: github.event_name == 'workflow_dispatch' && inputs.build_installer
+    needs: [db-security-tests, desktop-typecheck]
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: task-app/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: task-app/desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run dist
+        env:
+          # Repository secrets (Settings -> Secrets and variables -> Actions).
+          # The anon key is public by design; never add the service-role key here.
+          VITE_SUPABASE_URL: ${{ secrets.TASK_APP_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.TASK_APP_SUPABASE_ANON_KEY }}
+          VITE_COMPANY_DOMAINS: ${{ vars.TASK_APP_COMPANY_DOMAINS || 'foraysgroup.in' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ForaysTaskApp-Setup
+          path: task-app/desktop/release/ForaysTaskApp-Setup-*.exe
+          if-no-files-found: error

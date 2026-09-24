@@ -14,6 +14,10 @@ HR_App/
   frontend/  React + TypeScript + Vite + Tailwind CSS SPA
 ```
 
+> **Also in this repo:** [`task-app/`](task-app/README.md) — **FORAYS TASK APP**,
+> a Windows system-tray app for assigning/tracking tasks, reminders and team
+> chat (Electron + Supabase). It is independent of the HR system below.
+
 ### RBAC + Project-Based Data Security model
 
 - **Roles**: Super Administrator, Site Administrator, HR Executive, Project

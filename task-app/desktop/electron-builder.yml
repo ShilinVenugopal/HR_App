@@ -1,0 +1,35 @@
+# Windows installer: produces release/ForaysTaskApp-Setup-<version>.exe
+appId: in.foraysgroup.taskapp          # also used as the Windows AppUserModelID for toasts
+productName: Forays Task App
+copyright: Copyright © 2026 Forays Innovations Pvt Ltd
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - assets/**
+  - package.json
+  - "!**/*.map"
+asar: true
+publish: null                          # no auto-update feed yet (see README: future improvements)
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: assets/icon.ico
+  artifactName: ForaysTaskApp-Setup-${version}.${ext}
+  executableName: ForaysTaskApp
+nsis:
+  oneClick: false                      # show a normal wizard
+  perMachine: false                    # per-user install: no admin rights needed
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always        # the wizard's finish page lets users untick "Run"; shortcut is created
+  createStartMenuShortcut: true
+  shortcutName: Forays Task App
+  uninstallDisplayName: Forays Task App
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeaderIcon: assets/icon.ico
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
