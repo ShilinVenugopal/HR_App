@@ -16,6 +16,13 @@ const includeRelations = {
   requester: { select: { id: true, name: true, email: true } },
   currentApprover: { select: { id: true, name: true, email: true } },
   items: { include: { costCode: { select: { id: true, code: true, name: true } } }, orderBy: { sortOrder: 'asc' as const } },
+  // Lets the frontend show "PO Created" vs "Create PO" against an Approved
+  // PR from the actual PurchaseOrder records rather than separate
+  // frontend-only state — a PO row here means one exists; a hard delete of
+  // that PO (see purchaseOrder.service.ts's deletePurchaseOrder) makes it
+  // disappear from this list on the PR's next fetch, same as any other
+  // DB-derived read.
+  purchaseOrders: { select: { id: true, poNumber: true, status: true } },
 } satisfies Prisma.PurchaseRequisitionInclude;
 
 /// A PR can only be edited/submitted while Draft or Returned (sent back by

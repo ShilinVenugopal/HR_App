@@ -804,6 +804,11 @@ export interface PurchaseRequisition {
   createdAt: string;
   items: PurchaseRequisitionItem[];
   approvalHistory?: ApprovalRecord[];
+  /// Purchase Orders already raised against this PR — empty/absent means
+  /// none yet. Drives the "Create PO" vs "PO Created" state in the Pending
+  /// PO List; reflects real PurchaseOrder rows, so a deleted PO drops back
+  /// out of this list on the next fetch.
+  purchaseOrders?: { id: string; poNumber: string; status: POStatus }[];
 }
 
 export interface PrItemInput {

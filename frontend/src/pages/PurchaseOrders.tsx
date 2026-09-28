@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Store, Trash2 } from 'lucide-react';
+import { CheckCircle2, Plus, Store, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PurchaseOrder, purchaseOrdersApi, purchaseRequisitionsApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
@@ -66,6 +66,8 @@ export default function PurchaseOrders() {
       toast.success('Purchase Order permanently deleted');
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      // The deleted PO's source PR (if any) should show "Create PO" again.
+      queryClient.invalidateQueries({ queryKey: ['pending-prs-for-po'] });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -102,16 +104,35 @@ export default function PurchaseOrders() {
         <div className="card mb-6 p-4">
           <h3 className="mb-3 text-sm font-semibold">Pending PO List — Approved Purchase Requisitions</h3>
           <div className="space-y-2">
-            {pendingPrs.data.map((pr) => (
-              <div key={pr.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
-                <div>
-                  <span className="font-mono text-xs">{pr.requestNumber}</span> — {pr.project?.projectName} — {pr.items.length} item(s)
+            {pendingPrs.data.map((pr) => {
+              // Determined from the actual PurchaseOrder records the PR
+              // was fetched with (see purchaseRequisition.service.ts) —
+              // not frontend-only state — so it's correct on first load,
+              // after a refresh, and after logging back in. A deleted PO
+              // (hard-deleted in the DB) simply stops appearing here.
+              const linkedPo = pr.purchaseOrders?.[0];
+              return (
+                <div key={pr.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
+                  <div>
+                    <span className="font-mono text-xs">{pr.requestNumber}</span> — {pr.project?.projectName} — {pr.items.length} item(s)
+                  </div>
+                  {linkedPo ? (
+                    <div className="flex items-center gap-2">
+                      <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        <CheckCircle2 size={12} /> PO Created
+                      </span>
+                      <button className="btn-ghost px-2 py-1 text-xs" onClick={() => navigate(`/purchase-orders/${linkedPo.id}`)}>
+                        View PO
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="btn-secondary px-2 py-1 text-xs" onClick={() => navigate(`/purchase-orders/new?fromPr=${pr.id}`)}>
+                      Create PO
+                    </button>
+                  )}
                 </div>
-                <button className="btn-secondary px-2 py-1 text-xs" onClick={() => navigate(`/purchase-orders/new?fromPr=${pr.id}`)}>
-                  Create PO
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

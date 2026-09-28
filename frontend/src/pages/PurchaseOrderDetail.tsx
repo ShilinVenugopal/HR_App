@@ -223,8 +223,16 @@ export default function PurchaseOrderDetail() {
     onSuccess: (res) => {
       toast.success('Saved as Draft');
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-      if (isNew) navigate(`/purchase-orders/${res.data.id}`, { replace: true });
-      else queryClient.invalidateQueries({ queryKey: ['po', id] });
+      if (isNew) {
+        // A brand-new PO created from a PR (fromPrId) flips that PR's
+        // Pending PO List row from "Create PO" to "PO Created" the next
+        // time it's fetched — invalidate now so it's correct the moment
+        // the user navigates back, no manual refresh needed.
+        if (prId) queryClient.invalidateQueries({ queryKey: ['pending-prs-for-po'] });
+        navigate(`/purchase-orders/${res.data.id}`, { replace: true });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['po', id] });
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -267,6 +275,8 @@ export default function PurchaseOrderDetail() {
     onSuccess: () => {
       toast.success('Deleted');
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      // Restores "Create PO" for this PO's source PR, if it had one.
+      queryClient.invalidateQueries({ queryKey: ['pending-prs-for-po'] });
       navigate('/purchase-orders');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
