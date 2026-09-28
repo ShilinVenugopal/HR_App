@@ -17,6 +17,7 @@ interface DraftRow {
   plantUnit: string;
   invoiceNo: string;
   jmsNo: string;
+  invoiceDate: string;
   abstractAmount: string;
   taxAmount: string;
   status: BillingItemStatus;
@@ -29,7 +30,7 @@ function newKey() {
 }
 
 function emptyRow(): DraftRow {
-  return { key: newKey(), plantUnit: '', invoiceNo: '', jmsNo: '', abstractAmount: '', taxAmount: '', status: 'PENDING_CERTIFICATION' };
+  return { key: newKey(), plantUnit: '', invoiceNo: '', jmsNo: '', invoiceDate: '', abstractAmount: '', taxAmount: '', status: 'PENDING_CERTIFICATION' };
 }
 
 export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -65,17 +66,19 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!projectId) throw new Error('Select a project');
-      const items: BillingItemInput[] = rows
-        .filter((r) => r.plantUnit.trim())
-        .map((r) => ({
-          plantUnit: r.plantUnit.trim(),
-          invoiceNo: r.invoiceNo.trim() || undefined,
-          jmsNo: r.jmsNo.trim() || undefined,
-          abstractAmount: Number(r.abstractAmount) || 0,
-          taxAmount: Number(r.taxAmount) || 0,
-          status: r.status,
-        }));
-      if (!items.length) throw new Error('Add at least one bill row with Plant/Unit filled in');
+      const filledRows = rows.filter((r) => r.plantUnit.trim());
+      if (!filledRows.length) throw new Error('Add at least one bill row with Plant/Unit filled in');
+      if (filledRows.some((r) => !r.invoiceDate)) throw new Error('Invoice Date is required for every row');
+
+      const items: BillingItemInput[] = filledRows.map((r) => ({
+        plantUnit: r.plantUnit.trim(),
+        invoiceNo: r.invoiceNo.trim() || undefined,
+        jmsNo: r.jmsNo.trim() || undefined,
+        invoiceDate: r.invoiceDate,
+        abstractAmount: Number(r.abstractAmount) || 0,
+        taxAmount: Number(r.taxAmount) || 0,
+        status: r.status,
+      }));
       if (items.some((it) => it.abstractAmount <= 0)) throw new Error('Abstract Amount is required and must be greater than 0 for every row');
 
       return billingStatusApi.create({
@@ -165,6 +168,7 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
                   <th className="px-2 py-1.5">Sr No</th>
                   <th className="px-2 py-1.5">Plant/Unit *</th>
                   <th className="px-2 py-1.5">Invoice No</th>
+                  <th className="px-2 py-1.5">Invoice Date *</th>
                   <th className="px-2 py-1.5">JMS No</th>
                   <th className="px-2 py-1.5">Abstract Amount *</th>
                   <th className="px-2 py-1.5">Tax Amount</th>
@@ -182,6 +186,14 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
                     </td>
                     <td className="px-1 py-1">
                       <input className="input py-1 text-xs" value={row.invoiceNo} onChange={(e) => updateRow(row.key, { invoiceNo: e.target.value })} />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
+                        type="date"
+                        className="input py-1 text-xs"
+                        value={row.invoiceDate}
+                        onChange={(e) => updateRow(row.key, { invoiceDate: e.target.value })}
+                      />
                     </td>
                     <td className="px-1 py-1">
                       <input className="input py-1 text-xs" value={row.jmsNo} onChange={(e) => updateRow(row.key, { jmsNo: e.target.value })} />

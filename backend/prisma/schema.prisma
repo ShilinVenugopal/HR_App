@@ -356,14 +356,14 @@ model User {
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
 
-  approvedAttendance   Attendance[]            @relation("AttendanceApprover")
-  approvedWages        WageRecord[]            @relation("WageApprover")
-  approvedAdvances     Advance[]               @relation("AdvanceApprover")
-  createdCandidates    RecruitmentCandidate[]  @relation("CandidateCreatedBy")
-  createdCommTemplates CommunicationTemplate[] @relation("CommTemplateCreatedBy")
-  createdCommBatches   CommunicationBatch[]    @relation("CommBatchCreatedBy")
+  approvedAttendance   Attendance[]              @relation("AttendanceApprover")
+  approvedWages        WageRecord[]              @relation("WageApprover")
+  approvedAdvances     Advance[]                 @relation("AdvanceApprover")
+  createdCandidates    RecruitmentCandidate[]    @relation("CandidateCreatedBy")
+  createdCommTemplates CommunicationTemplate[]   @relation("CommTemplateCreatedBy")
+  createdCommBatches   CommunicationBatch[]      @relation("CommBatchCreatedBy")
   deletedCommMessages  CommunicationMessageLog[] @relation("CommMessageDeletedBy")
-  wageUploads          WageUpload[]            @relation("WageUploadedBy")
+  wageUploads          WageUpload[]              @relation("WageUploadedBy")
 
   inventoryItemsCreated          InventoryItem[]        @relation("InventoryItemCreatedBy")
   inventoryTransactionsPerformed InventoryTransaction[] @relation("InventoryTxPerformedBy")
@@ -378,10 +378,13 @@ model User {
   attachmentsUploaded            Attachment[]           @relation("AttachmentUploadedBy")
   notifications                  Notification[]
 
-  billingRecordsCreated BillingRecord[] @relation("BillingRecordCreatedBy")
-  billingRecordsUpdated BillingRecord[] @relation("BillingRecordUpdatedBy")
-  billingItemsCreated   BillingItem[]   @relation("BillingItemCreatedBy")
-  billingItemsUpdated   BillingItem[]   @relation("BillingItemUpdatedBy")
+  billingRecordsCreated              BillingRecord[]               @relation("BillingRecordCreatedBy")
+  billingRecordsUpdated              BillingRecord[]               @relation("BillingRecordUpdatedBy")
+  billingItemsCreated                BillingItem[]                 @relation("BillingItemCreatedBy")
+  billingItemsUpdated                BillingItem[]                 @relation("BillingItemUpdatedBy")
+  billingPaymentsCreated             BillingPayment[]              @relation("BillingPaymentCreatedBy")
+  billingPaymentsUpdated             BillingPayment[]              @relation("BillingPaymentUpdatedBy")
+  billingNotificationSettingsUpdated BillingNotificationSettings[] @relation("BillingNotificationSettingsUpdatedBy")
 
   siteAccountStatementsCreated SiteAccountStatement[] @relation("SiteAccountStatementCreatedBy")
   siteAccountStatementsUpdated SiteAccountStatement[] @relation("SiteAccountStatementUpdatedBy")
@@ -402,12 +405,12 @@ model User {
   expensesCreated     Expense[]     @relation("ExpenseCreatedBy")
   expensesUpdated     Expense[]     @relation("ExpenseUpdatedBy")
 
-  ticketsRaised          Ticket[]           @relation("TicketRaisedBy")
-  ticketAssignments      TicketAssignee[]   @relation("TicketAssigneeUser")
-  ticketAssignmentsMade  TicketAssignee[]   @relation("TicketAssigneeAssignedBy")
-  ticketComments         TicketComment[]    @relation("TicketCommentUser")
-  ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
-  ticketActivity         TicketActivity[]   @relation("TicketActivityUser")
+  ticketsRaised         Ticket[]           @relation("TicketRaisedBy")
+  ticketAssignments     TicketAssignee[]   @relation("TicketAssigneeUser")
+  ticketAssignmentsMade TicketAssignee[]   @relation("TicketAssigneeAssignedBy")
+  ticketComments        TicketComment[]    @relation("TicketCommentUser")
+  ticketAttachments     TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  ticketActivity        TicketActivity[]   @relation("TicketActivityUser")
 
   assetsCreated Asset[] @relation("AssetCreatedBy")
   assetsUpdated Asset[] @relation("AssetUpdatedBy")
@@ -584,7 +587,7 @@ enum EmployeeCostCode {
 }
 
 model RecruitmentCandidate {
-  id                    String          @id @default(uuid())
+  id                    String            @id @default(uuid())
   candidateName         String
   contactNumber         String
   dateOfBirth           DateTime?
@@ -594,17 +597,17 @@ model RecruitmentCandidate {
   email                 String?
   projectId             String?
   resumeUrl             String?
-  foraysInterviewStatus InterviewStage  @default(NOT_STARTED)
-  clientInterviewStatus InterviewStage  @default(NOT_STARTED)
+  foraysInterviewStatus InterviewStage    @default(NOT_STARTED)
+  clientInterviewStatus InterviewStage    @default(NOT_STARTED)
   remarks               String?
-  status                CandidateStatus @default(APPLIED)
+  status                CandidateStatus   @default(APPLIED)
   /// Carried over to the Employee record on conversion (see
   /// createEmployeeFromCandidate) — Employee is the source of truth once
   /// converted, but this is where it's first captured.
   costCode              EmployeeCostCode?
   createdById           String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   project         Project?                  @relation(fields: [projectId], references: [id])
   designation     Designation?              @relation(fields: [designationId], references: [id])
@@ -743,8 +746,8 @@ model CommunicationMessageLog {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Employee {
-  id                 String         @id @default(uuid())
-  employeeCode       String         @unique
+  id                 String            @id @default(uuid())
+  employeeCode       String            @unique
   name               String
   fatherName         String?
   contactNumber      String
@@ -756,7 +759,7 @@ model Employee {
   joiningDate        DateTime?
   reportingManagerId String?
   panNumber          String?
-  aadhaarNumber      String?        @unique
+  aadhaarNumber      String?           @unique
   passportNumber     String?
   pfNumber           String?
   uanNumber          String?
@@ -767,15 +770,15 @@ model Employee {
   bankAccountName    String?
   address            String?
   documents          Json?
-  status             EmployeeStatus @default(ACTIVE)
+  status             EmployeeStatus    @default(ACTIVE)
   /// Single source of truth for the employee's payroll cost category —
   /// every module that lets a user pick an employee (Attendance, Wages,
   /// etc.) reads this off the Employee record rather than capturing its
   /// own copy. See EmployeeCostCode above.
   costCode           EmployeeCostCode?
-  candidateId        String?        @unique
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  candidateId        String?           @unique
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   project          Project               @relation(fields: [projectId], references: [id])
   department       Department?           @relation(fields: [departmentId], references: [id])
@@ -1181,25 +1184,25 @@ model PurchaseOrderTerm {
 /// stored column — it's computed on read (service + frontend) so it can
 /// never drift out of sync with its two inputs.
 model InventoryItem {
-  id              String @id @default(uuid())
-  projectId       String
-  costCodeId      String
-  itemDescription String
-  unit            Unit
+  id                      String    @id @default(uuid())
+  projectId               String
+  costCodeId              String
+  itemDescription         String
+  unit                    Unit
   /// Formerly "workingQuantity" / Working Qty. @map keeps the physical
   /// column name so this rename needed no data migration.
-  inStockQuantity Decimal @default(0) @db.Decimal(14, 2) @map("workingQuantity")
+  inStockQuantity         Decimal   @default(0) @map("workingQuantity") @db.Decimal(14, 2)
   /// Formerly "nonWorkingQuantity" / Non Working Qty, now Consumed Qty.
-  consumedQuantity Decimal @default(0) @db.Decimal(14, 2) @map("nonWorkingQuantity")
-  remarks         String?
+  consumedQuantity        Decimal   @default(0) @map("nonWorkingQuantity") @db.Decimal(14, 2)
+  remarks                 String?
   /// Formerly the generic "date" field (defaulted to now() on every row).
   /// Repurposed as "Last Date of Consumption Update" — optional, and only
   /// set when a consumption update actually happens, not stamped
   /// automatically. Displayed on the Inventory page as "Date of Update".
   lastConsumptionUpdateAt DateTime? @map("date")
-  createdById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdById             String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   project      Project                @relation(fields: [projectId], references: [id])
   costCode     CostCode               @relation(fields: [costCodeId], references: [id])
@@ -1615,6 +1618,12 @@ model BillingItem {
   plantUnit       String
   invoiceNo       String?
   jmsNo           String?
+  /// Mandatory for new entries (enforced in billingStatus.validation.ts);
+  /// nullable at the DB level so pre-existing rows created before this
+  /// field was added keep working — they simply never appear in the
+  /// Payment Due Notifications section since a due date can't be computed
+  /// without an invoice date.
+  invoiceDate     DateTime?
   abstractAmount  Decimal           @db.Decimal(14, 2)
   taxAmount       Decimal           @default(0) @db.Decimal(14, 2)
   /// Always server-computed as abstractAmount + taxAmount — never trust a
@@ -1626,13 +1635,67 @@ model BillingItem {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  billingRecord BillingRecord @relation(fields: [billingRecordId], references: [id], onDelete: Cascade)
-  createdBy     User          @relation("BillingItemCreatedBy", fields: [createdById], references: [id])
-  updatedBy     User?         @relation("BillingItemUpdatedBy", fields: [updatedById], references: [id])
+  billingRecord BillingRecord    @relation(fields: [billingRecordId], references: [id], onDelete: Cascade)
+  createdBy     User             @relation("BillingItemCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?            @relation("BillingItemUpdatedBy", fields: [updatedById], references: [id])
+  payments      BillingPayment[]
 
   @@index([billingRecordId])
   @@index([status])
   @@map("billing_items")
+}
+
+/// One row per payment received against a BillingItem (invoice). Multiple
+/// rows accumulate for partial payments; amountReceived/outstandingAmount
+/// on the invoice are always derived by summing these rather than stored,
+/// so they can never drift out of sync — same "never trust/store a
+/// derivable total" rule BillingItem.totalAmount already follows.
+/// Edits/deletes are hard writes (no soft-delete precedent anywhere in this
+/// schema) but every add/edit/delete goes through recordAuditLog, so the
+/// existing AuditLog table is the durable history of who changed what and
+/// when, even after a row itself is edited or removed.
+model BillingPayment {
+  id             String   @id @default(uuid())
+  billingItemId  String
+  amountReceived Decimal  @db.Decimal(14, 2)
+  paymentDate    DateTime
+  remarks        String?
+  createdById    String
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  billingItem BillingItem @relation(fields: [billingItemId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation("BillingPaymentCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?       @relation("BillingPaymentUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([billingItemId])
+  @@map("billing_payments")
+}
+
+/// Single-row (Super-Admin-editable) configuration for the Payment Due
+/// Notifications section — same "one global settings row, PATCH-gated to
+/// Super Admin" shape as PurchaseOrder's billing/signature settings, just
+/// with no owning record to hang it off since this applies app-wide.
+/// dueDays is read fresh on every computation (never persisted per
+/// invoice), so changing it here instantly "recalculates" every invoice's
+/// due date without a bulk-update job.
+model BillingNotificationSettings {
+  id              String   @id @default(uuid())
+  enabled         Boolean  @default(true)
+  dueDays         Int      @default(30)
+  /// Which computed display statuses ('UNPAID' | 'PARTIALLY_PAID' |
+  /// 'OVERDUE') are included in the Payment Due Notifications list.
+  visibleStatuses String[] @default(["UNPAID", "PARTIALLY_PAID", "OVERDUE"])
+  /// Which columns the Payment Due Notifications table shows.
+  visibleFields   String[] @default(["project", "invoiceNo", "invoiceDate", "invoiceAmount", "amountReceived", "outstandingAmount", "dueDate", "paymentStatus"])
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("BillingNotificationSettingsUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("billing_notification_settings")
 }
 
 // ─────────────────────────────────────────────────────────────────────────

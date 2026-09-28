@@ -1186,6 +1186,28 @@ export interface BillingRecordRef {
   createdAt: string;
 }
 
+export type BillingPaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'FULLY_PAID' | 'OVERPAID';
+export type BillingNotificationStatus = 'NOT_DUE' | 'DUE' | 'OVERDUE' | 'FULLY_PAID' | null;
+
+export const BILLING_PAYMENT_STATUS_OPTIONS: { value: BillingPaymentStatus; label: string }[] = [
+  { value: 'UNPAID', label: 'Unpaid' },
+  { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
+  { value: 'FULLY_PAID', label: 'Fully Paid' },
+  { value: 'OVERPAID', label: 'Overpaid — Review' },
+];
+
+export interface BillingPayment {
+  id: string;
+  billingItemId: string;
+  amountReceived: string | number;
+  paymentDate: string;
+  remarks?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BillingItem {
   id: string;
   billingRecordId: string;
@@ -1194,6 +1216,9 @@ export interface BillingItem {
   plantUnit: string;
   invoiceNo?: string | null;
   jmsNo?: string | null;
+  /// Nullable only for rows created before this field existed — mandatory
+  /// for every new entry (enforced by the create form + backend).
+  invoiceDate?: string | null;
   abstractAmount: string | number;
   taxAmount: string | number;
   totalAmount: string | number;
@@ -1201,6 +1226,14 @@ export interface BillingItem {
   createdBy?: { id: string; name: string } | null;
   updatedBy?: { id: string; name: string } | null;
   createdAt: string;
+  payments?: BillingPayment[];
+  /// Always server-computed from `payments` + the current notification
+  /// settings — never edited directly.
+  totalReceived?: number;
+  outstandingAmount?: number;
+  paymentStatus?: BillingPaymentStatus;
+  dueDate?: string | null;
+  notificationStatus?: BillingNotificationStatus;
 }
 
 export interface BillingRecord extends BillingRecordRef {
@@ -1213,6 +1246,7 @@ export interface BillingItemInput {
   plantUnit: string;
   invoiceNo?: string;
   jmsNo?: string;
+  invoiceDate: string;
   abstractAmount: number;
   taxAmount?: number;
   status?: BillingItemStatus;
@@ -1231,9 +1265,33 @@ export interface BillingItemUpdateInput {
   plantUnit?: string;
   invoiceNo?: string;
   jmsNo?: string;
+  invoiceDate?: string;
   abstractAmount?: number;
   taxAmount?: number;
   status?: BillingItemStatus;
+}
+
+export interface BillingPaymentInput {
+  amountReceived: number;
+  paymentDate: string;
+  remarks?: string;
+}
+
+export interface BillingNotificationSettings {
+  id: string;
+  enabled: boolean;
+  dueDays: number;
+  visibleStatuses: string[];
+  visibleFields: string[];
+  updatedBy?: { id: string; name: string } | null;
+  updatedAt: string;
+}
+
+export interface BillingNotificationSettingsInput {
+  enabled?: boolean;
+  dueDays?: number;
+  visibleStatuses?: string[];
+  visibleFields?: string[];
 }
 
 export interface BillingSummary {
@@ -1261,6 +1319,12 @@ export interface BillingItemFilters {
   jmsNo?: string;
 }
 
+export interface PaymentDueFilters {
+  projectId?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+}
+
 export const billingStatusApi = {
   list: (params?: BillingItemFilters) =>
     apiClient.get('/billing-status', { params }).then((r) => r.data as { data: BillingItem[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }),
@@ -1273,6 +1337,18 @@ export const billingStatusApi = {
   updateItem: (itemId: string, payload: BillingItemUpdateInput) =>
     apiClient.patch(`/billing-status/items/${itemId}`, payload).then((r) => r.data.data as BillingItem),
   removeItem: (itemId: string) => apiClient.delete(`/billing-status/items/${itemId}`),
+  addPayment: (itemId: string, payload: BillingPaymentInput) =>
+    apiClient.post(`/billing-status/items/${itemId}/payments`, payload).then((r) => r.data.data as BillingItem),
+  updatePayment: (paymentId: string, payload: Partial<BillingPaymentInput>) =>
+    apiClient.patch(`/billing-status/payments/${paymentId}`, payload).then((r) => r.data.data as BillingItem),
+  removePayment: (paymentId: string) => apiClient.delete(`/billing-status/payments/${paymentId}`).then((r) => r.data.data as BillingItem),
+  paymentDueNotifications: (params?: PaymentDueFilters) =>
+    apiClient
+      .get('/billing-status/payment-due-notifications', { params })
+      .then((r) => r.data.data as { items: BillingItem[]; settings: BillingNotificationSettings }),
+  getNotificationSettings: () => apiClient.get('/billing-status/notification-settings').then((r) => r.data.data as BillingNotificationSettings),
+  updateNotificationSettings: (payload: BillingNotificationSettingsInput) =>
+    apiClient.patch('/billing-status/notification-settings', payload).then((r) => r.data.data as BillingNotificationSettings),
 };
 
 // ─────────────────────────────────────────────────────────────────────────

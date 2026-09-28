@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { FileDown, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { FileDown, Plus, RotateCcw, Search, Settings, Trash2 } from 'lucide-react';
 import {
   BILLING_STATUS_OPTIONS,
   BillingItem,
@@ -19,6 +19,22 @@ import { apiErrorMessage } from '../api/client';
 import { exportBillingStatusExcel } from '../utils/billingStatusExcel';
 import { AddBillDetailsModal } from '../components/billingStatus/AddBillDetailsModal';
 import { BillingItemModal } from '../components/billingStatus/BillingItemModal';
+import { PaymentDueNotifications } from '../components/billingStatus/PaymentDueNotifications';
+import { NotificationSettingsModal } from '../components/billingStatus/NotificationSettingsModal';
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  UNPAID: 'Unpaid',
+  PARTIALLY_PAID: 'Partially Paid',
+  FULLY_PAID: 'Fully Paid',
+  OVERPAID: 'Overpaid — Review',
+};
+
+const PAYMENT_STATUS_CLASS: Record<string, string> = {
+  UNPAID: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  PARTIALLY_PAID: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  FULLY_PAID: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  OVERPAID: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+};
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -50,7 +66,7 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function BillingStatus() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
 
@@ -62,6 +78,7 @@ export default function BillingStatus() {
   const [editItem, setEditItem] = useState<BillingItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<BillingItem | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const queryParams = {
     projectId: appliedFilters.projectId || undefined,
@@ -98,6 +115,9 @@ export default function BillingStatus() {
       setDeleteItem(null);
       queryClient.invalidateQueries({ queryKey: ['billing-status'] });
       queryClient.invalidateQueries({ queryKey: ['billing-status-summary'] });
+      // A deleted invoice must drop out of the Payment Due Notifications
+      // section immediately.
+      queryClient.invalidateQueries({ queryKey: ['billing-payment-due'] });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -135,10 +155,23 @@ export default function BillingStatus() {
     },
     { key: 'plantUnit', header: 'Plant/Unit', sortable: true, render: (r) => r.plantUnit },
     { key: 'invoiceNo', header: 'Invoice No', render: (r) => r.invoiceNo ?? '—' },
+    { key: 'invoiceDate', header: 'Invoice Date', render: (r) => (r.invoiceDate ? new Date(r.invoiceDate).toLocaleDateString() : '—') },
     { key: 'jmsNo', header: 'JMS No', render: (r) => r.jmsNo ?? '—' },
     { key: 'abstractAmount', header: 'Abstract Amount', sortable: true, render: (r) => `₹${Number(r.abstractAmount).toLocaleString('en-IN')}` },
     { key: 'taxAmount', header: 'Tax Amount', sortable: true, render: (r) => `₹${Number(r.taxAmount).toLocaleString('en-IN')}` },
     { key: 'totalAmount', header: 'Total Amount', sortable: true, render: (r) => `₹${Number(r.totalAmount).toLocaleString('en-IN')}` },
+    { key: 'amountReceived', header: 'Amount Received', render: (r) => `₹${(r.totalReceived ?? 0).toLocaleString('en-IN')}` },
+    { key: 'outstandingAmount', header: 'Outstanding Amount', render: (r) => `₹${(r.outstandingAmount ?? 0).toLocaleString('en-IN')}` },
+    { key: 'dueDate', header: 'Due Date', render: (r) => (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—') },
+    {
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      render: (r) => (
+        <span className={`badge ${PAYMENT_STATUS_CLASS[r.paymentStatus ?? 'UNPAID']}`}>
+          {PAYMENT_STATUS_LABEL[r.paymentStatus ?? 'UNPAID'] ?? r.paymentStatus}
+        </span>
+      ),
+    },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} label={BILLING_STATUS_OPTIONS.find((s) => s.value === r.status)?.label} /> },
   ];
 
@@ -157,9 +190,16 @@ export default function BillingStatus() {
             <button className="btn-secondary" disabled={exporting} onClick={handleExport}>
               <FileDown size={16} /> Export Excel
             </button>
+            {isSuperAdmin && (
+              <button className="btn-secondary" onClick={() => setSettingsModalOpen(true)}>
+                <Settings size={16} /> Notification Settings
+              </button>
+            )}
           </div>
         }
       />
+
+      <PaymentDueNotifications onSelectItem={setEditItem} />
 
       <div className="card mb-6 p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -291,6 +331,8 @@ export default function BillingStatus() {
         onCancel={() => setDeleteItem(null)}
         onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
       />
+
+      {isSuperAdmin && <NotificationSettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />}
     </div>
   );
 }

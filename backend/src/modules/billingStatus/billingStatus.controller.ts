@@ -60,3 +60,37 @@ export const deleteBillingItemHandler = asyncHandler(async (req: Request, res: R
   await billingStatusService.deleteBillingItem(req, req.params.itemId, req.meta);
   return sendSuccess(res, null, 'Billing item deleted successfully');
 });
+
+export const addBillingPaymentHandler = asyncHandler(async (req: Request, res: Response) => {
+  const item = await billingStatusService.addBillingPayment(req, req.params.itemId, req.body, req.meta);
+  return sendSuccess(res, item, 'Payment recorded successfully', 201);
+});
+
+export const updateBillingPaymentHandler = asyncHandler(async (req: Request, res: Response) => {
+  const item = await billingStatusService.updateBillingPayment(req, req.params.paymentId, req.body, req.meta);
+  return sendSuccess(res, item, 'Payment updated successfully');
+});
+
+export const deleteBillingPaymentHandler = asyncHandler(async (req: Request, res: Response) => {
+  const item = await billingStatusService.deleteBillingPayment(req, req.params.paymentId, req.meta);
+  return sendSuccess(res, item, 'Payment deleted successfully');
+});
+
+export const getPaymentDueNotificationsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await billingStatusService.getPaymentDueNotifications(req, {
+    projectId: req.query.projectId as string | undefined,
+    dueDateFrom: req.query.dueDateFrom ? new Date(req.query.dueDateFrom as string) : undefined,
+    dueDateTo: req.query.dueDateTo ? new Date(req.query.dueDateTo as string) : undefined,
+  });
+  return sendSuccess(res, { items: result.rows, settings: result.settings }, 'Payment due notifications fetched');
+});
+
+export const getNotificationSettingsHandler = asyncHandler(async (_req: Request, res: Response) => {
+  const settings = await billingStatusService.getNotificationSettings();
+  return sendSuccess(res, settings, 'Notification settings fetched');
+});
+
+export const updateNotificationSettingsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const settings = await billingStatusService.updateNotificationSettings(req, req.body, req.meta);
+  return sendSuccess(res, settings, 'Notification settings updated successfully');
+});
