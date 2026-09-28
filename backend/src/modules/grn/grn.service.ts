@@ -107,6 +107,9 @@ export interface CreateGrnInput {
   lrNumber?: string;
   lrDate?: Date;
   transporterName?: string;
+  createdByName?: string;
+  invoiceFileUrl?: string;
+  invoiceFileName?: string;
   items: GrnItemInput[];
 }
 
@@ -137,6 +140,9 @@ export async function createGoodsReceivedNote(req: Request, input: CreateGrnInpu
       lrNumber: input.lrNumber || null,
       lrDate: input.lrDate || null,
       transporterName: input.transporterName || null,
+      createdByName: input.createdByName || null,
+      invoiceFileUrl: input.invoiceFileUrl || null,
+      invoiceFileName: input.invoiceFileName || null,
       status: 'DRAFT',
       items: { create: input.items.map((it, idx) => computeItemData(it, idx)) },
     },
@@ -178,6 +184,9 @@ export async function updateGoodsReceivedNote(req: Request, id: string, input: U
         lrNumber: input.lrNumber !== undefined ? input.lrNumber || null : undefined,
         lrDate: input.lrDate !== undefined ? input.lrDate || null : undefined,
         transporterName: input.transporterName !== undefined ? input.transporterName || null : undefined,
+        createdByName: input.createdByName !== undefined ? input.createdByName || null : undefined,
+        invoiceFileUrl: input.invoiceFileUrl !== undefined ? input.invoiceFileUrl || null : undefined,
+        invoiceFileName: input.invoiceFileName !== undefined ? input.invoiceFileName || null : undefined,
         // A Returned GRN being fixed goes back to Draft — resubmission is a
         // separate, explicit action (the submit endpoint below).
         status: existing.status === 'RETURNED' ? 'DRAFT' : existing.status,

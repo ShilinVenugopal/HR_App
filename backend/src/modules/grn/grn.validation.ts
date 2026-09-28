@@ -27,6 +27,9 @@ export const createGrnSchema = z.object({
     lrNumber: z.string().trim().optional(),
     lrDate: z.coerce.date().optional(),
     transporterName: z.string().trim().optional(),
+    createdByName: z.string().trim().optional(),
+    invoiceFileUrl: z.string().trim().optional(),
+    invoiceFileName: z.string().trim().optional(),
     items: z.array(grnItemSchema).min(1, 'At least one item is required'),
   }),
 });

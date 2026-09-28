@@ -970,6 +970,9 @@ export interface PurchaseOrder {
   createdAt: string;
   items: PurchaseOrderItem[];
   approvalHistory?: ApprovalRecord[];
+  /// Populated from the actual GoodsReceivedNote records against this PO —
+  /// not frontend-only state. Empty/absent means no GRN has been created yet.
+  grns?: { id: string; grnNumber: string; status: GRNStatus }[];
 }
 
 export interface PoItemInput {
@@ -1058,6 +1061,13 @@ export interface GoodsReceivedNote {
   lrNumber?: string | null;
   lrDate?: string | null;
   transporterName?: string | null;
+  /// Manually typed name of the GRN creator — never auto-filled from the
+  /// logged-in user.
+  createdByName?: string | null;
+  /// Optional supplier invoice (PDF/JPG/PNG) uploaded via the existing
+  /// generic uploads endpoint.
+  invoiceFileUrl?: string | null;
+  invoiceFileName?: string | null;
   status: GRNStatus;
   submittedById?: string | null;
   submittedBy?: { id: string; name: string; email: string } | null;
@@ -1092,6 +1102,9 @@ export interface GrnCreateInput {
   lrNumber?: string;
   lrDate?: string;
   transporterName?: string;
+  createdByName?: string;
+  invoiceFileUrl?: string;
+  invoiceFileName?: string;
   items: GrnItemInput[];
 }
 

@@ -16,6 +16,10 @@ const includeRelations = {
   createdBy: { select: { id: true, name: true, email: true } },
   approvedBy: { select: { id: true, name: true, email: true } },
   items: { include: { costCode: { select: { id: true, code: true, name: true } } }, orderBy: { sortOrder: 'asc' as const } },
+  // Minimal linkage so the frontend can derive "GRN Created" vs "Create
+  // GRN" straight from the PO record itself — same pattern as the PR ->
+  // PO status derivation via `purchaseOrders` on PurchaseRequisition.
+  grns: { select: { id: true, grnNumber: true, status: true } },
 } satisfies Prisma.PurchaseOrderInclude;
 
 /// A PO can only be edited/submitted while Draft — unlike PR there is no

@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Boxes, FileDown, Printer, Send, Trash2, Unlock as UnlockIcon } from 'lucide-react';
+import { ArrowLeft, Boxes, FileDown, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
-import { GrnItemInput, InventoryUnit, grnsApi, purchaseOrdersApi } from '../api/modules';
+import { GrnItemInput, InventoryUnit, grnsApi, purchaseOrdersApi, uploadsApi } from '../api/modules';
 import { apiErrorMessage } from '../api/client';
 import { unitLabel } from '../utils/inventoryExcel';
 import { exportGrnExcel } from '../utils/grnExcel';
@@ -52,6 +52,10 @@ export default function GoodsReceivedNoteDetail() {
   const [lrNumber, setLrNumber] = useState('');
   const [lrDate, setLrDate] = useState('');
   const [transporterName, setTransporterName] = useState('');
+  const [createdByName, setCreatedByName] = useState('');
+  const [invoiceFileUrl, setInvoiceFileUrl] = useState('');
+  const [invoiceFileName, setInvoiceFileName] = useState('');
+  const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const [items, setItems] = useState<DraftItem[]>([]);
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [decisionAction, setDecisionAction] = useState<DecisionAction | null>(null);
@@ -82,6 +86,9 @@ export default function GoodsReceivedNoteDetail() {
     setLrNumber(grn.lrNumber ?? '');
     setLrDate(grn.lrDate ? grn.lrDate.slice(0, 10) : '');
     setTransporterName(grn.transporterName ?? '');
+    setCreatedByName(grn.createdByName ?? '');
+    setInvoiceFileUrl(grn.invoiceFileUrl ?? '');
+    setInvoiceFileName(grn.invoiceFileName ?? '');
     setItems(
       grn.items.map((it) => ({
         key: newKey(),
@@ -158,6 +165,9 @@ export default function GoodsReceivedNoteDetail() {
         lrNumber: lrNumber || undefined,
         lrDate: lrDate || undefined,
         transporterName: transporterName || undefined,
+        createdByName: createdByName || undefined,
+        invoiceFileUrl: invoiceFileUrl || undefined,
+        invoiceFileName: invoiceFileName || undefined,
         items: itemsPayload,
       };
       return isNew ? grnsApi.create(payload) : grnsApi.update(id!, payload);
@@ -165,11 +175,27 @@ export default function GoodsReceivedNoteDetail() {
     onSuccess: (res) => {
       toast.success('Saved as Draft');
       queryClient.invalidateQueries({ queryKey: ['grns'] });
+      // The source PO's "Pending GRN List" entry should show "GRN Created"
+      // immediately, without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['approved-pos-for-grn'] });
       if (isNew) navigate(`/grns/${res.data.id}`, { replace: true });
       else queryClient.invalidateQueries({ queryKey: ['grn', id] });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
+
+  const handleInvoiceFileChange = async (file: File) => {
+    setUploadingInvoice(true);
+    try {
+      const { url, originalName } = await uploadsApi.upload(file);
+      setInvoiceFileUrl(url);
+      setInvoiceFileName(originalName);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Invoice upload failed'));
+    } finally {
+      setUploadingInvoice(false);
+    }
+  };
 
   const submitMutation = useMutation({
     mutationFn: (approverId: string) => grnsApi.submit(id!, approverId),
@@ -222,6 +248,9 @@ export default function GoodsReceivedNoteDetail() {
     onSuccess: () => {
       toast.success('Deleted');
       queryClient.invalidateQueries({ queryKey: ['grns'] });
+      // The source PO's "Pending GRN List" entry should show "Create GRN"
+      // again immediately, without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['approved-pos-for-grn'] });
       navigate('/grns');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -372,6 +401,50 @@ export default function GoodsReceivedNoteDetail() {
               <input className="input" value={transporterName} onChange={(e) => setTransporterName(e.target.value)} />
             ) : (
               <p className="font-medium">{grn?.transporterName ?? '—'}</p>
+            )}
+          </div>
+          <div>
+            <label className="label">Created By</label>
+            {isEditable ? (
+              <input
+                className="input"
+                value={createdByName}
+                onChange={(e) => setCreatedByName(e.target.value)}
+                placeholder="Name of the person creating this GRN"
+              />
+            ) : (
+              <p className="font-medium">{grn?.createdByName ?? '—'}</p>
+            )}
+          </div>
+          <div>
+            <label className="label">Upload Invoice (optional)</label>
+            {isEditable ? (
+              <div className="flex items-center gap-3">
+                <label className="btn-secondary inline-flex cursor-pointer items-center gap-2 px-2 py-1 text-xs">
+                  <Upload size={14} />
+                  {uploadingInvoice ? 'Uploading...' : 'Choose File'}
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleInvoiceFileChange(file);
+                    }}
+                  />
+                </label>
+                {invoiceFileUrl && (
+                  <a href={invoiceFileUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-600 underline">
+                    {invoiceFileName || 'View Invoice'}
+                  </a>
+                )}
+              </div>
+            ) : grn?.invoiceFileUrl ? (
+              <a href={grn.invoiceFileUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 underline">
+                {grn.invoiceFileName || 'View Invoice'}
+              </a>
+            ) : (
+              <p className="font-medium">—</p>
             )}
           </div>
         </div>

@@ -1446,6 +1446,14 @@ model GoodsReceivedNote {
   lrNumber             String?
   lrDate               DateTime?
   transporterName      String?
+  /// Manually typed name of the person who created this GRN — intentionally
+  /// NOT derived from the logged-in user, per the design brief.
+  createdByName        String?
+  /// Optional supplier invoice attached to this GRN (PDF/JPG/PNG), stored
+  /// via the existing generic uploads endpoint — same pattern as
+  /// PurchaseOrder.signatureImageUrl. Never required to create a GRN.
+  invoiceFileUrl       String?
+  invoiceFileName      String?
   status               GRNStatus @default(DRAFT)
   submittedById        String?
   currentApproverId    String?

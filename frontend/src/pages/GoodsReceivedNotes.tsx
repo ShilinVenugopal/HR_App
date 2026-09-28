@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { CheckCircle2, Plus } from 'lucide-react';
 import { GoodsReceivedNote, grnsApi, purchaseOrdersApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column, SortState } from '../components/common/DataTable';
@@ -87,16 +87,36 @@ export default function GoodsReceivedNotes() {
         <div className="card mb-6 p-4">
           <h3 className="mb-3 text-sm font-semibold">Pending GRN List — Approved Purchase Orders</h3>
           <div className="space-y-2">
-            {approvedPos.data.map((po) => (
-              <div key={po.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
-                <div>
-                  <span className="font-mono text-xs">{po.poNumber}</span> — {po.project?.projectName} — {po.vendor?.name} — {po.items.length} item(s)
+            {approvedPos.data.map((po) => {
+              // Determined from the actual GoodsReceivedNote records the PO
+              // was fetched with (see purchaseOrder.service.ts) — not
+              // frontend-only state — so it's correct on first load, after a
+              // refresh, and after logging back in. A deleted GRN (only
+              // Draft GRNs can be deleted, and that's a hard delete in the
+              // DB) simply stops appearing here.
+              const linkedGrn = po.grns?.[0];
+              return (
+                <div key={po.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
+                  <div>
+                    <span className="font-mono text-xs">{po.poNumber}</span> — {po.project?.projectName} — {po.vendor?.name} — {po.items.length} item(s)
+                  </div>
+                  {linkedGrn ? (
+                    <div className="flex items-center gap-2">
+                      <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        <CheckCircle2 size={12} /> GRN Created
+                      </span>
+                      <button className="btn-ghost px-2 py-1 text-xs" onClick={() => navigate(`/grns/${linkedGrn.id}`)}>
+                        View GRN
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="btn-secondary px-2 py-1 text-xs" onClick={() => navigate(`/grns/new?fromPo=${po.id}`)}>
+                      Create GRN
+                    </button>
+                  )}
                 </div>
-                <button className="btn-secondary px-2 py-1 text-xs" onClick={() => navigate(`/grns/new?fromPo=${po.id}`)}>
-                  Create GRN
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
