@@ -28,6 +28,8 @@ export const UNIT_OPTIONS = [
   { value: 'TON', label: 'Ton' },
   { value: 'LITER', label: 'Liter' },
   { value: 'PAIR', label: 'Pair' },
+  { value: 'PKT', label: 'Pkt' },
+  { value: 'BOX', label: 'Box' },
 ] as const;
 
 export function unitLabel(value: string): string {

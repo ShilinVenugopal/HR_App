@@ -201,6 +201,8 @@ enum Unit {
   TON
   LITER
   PAIR
+  PKT
+  BOX
 }
 
 enum PRStatus {
