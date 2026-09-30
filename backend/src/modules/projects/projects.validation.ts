@@ -6,6 +6,7 @@ export const createProjectSchema = z.object({
     projectName: z.string().trim().min(2, 'Project name is required'),
     clientName: z.string().trim().min(2, 'Client name is required'),
     location: z.string().trim().optional(),
+    projectNumber: z.string().trim().optional(),
     status: z.nativeEnum(ProjectStatus).default(ProjectStatus.ACTIVE),
   }),
 });
@@ -15,6 +16,7 @@ export const updateProjectSchema = z.object({
     projectName: z.string().trim().min(2).optional(),
     clientName: z.string().trim().min(2).optional(),
     location: z.string().trim().optional(),
+    projectNumber: z.string().trim().optional(),
     status: z.nativeEnum(ProjectStatus).optional(),
   }),
 });

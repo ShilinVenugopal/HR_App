@@ -181,6 +181,7 @@ export async function createEmployeeFromCandidate(req: Request, candidateId: str
       projectId: candidate.projectId,
       joiningDate: new Date(),
       candidateId: candidate.id,
+      costCode: candidate.costCode,
     },
     include: includeRelations,
   });
@@ -346,6 +347,7 @@ export async function bulkImportEmployees(
         bankAccountName: row.bankAccountName || null,
         address: row.address || null,
         status: row.status,
+        costCode: row.costCode ?? null,
       },
       OPTIONAL_UNIQUE_FIELDS
     );

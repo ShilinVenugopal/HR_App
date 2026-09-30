@@ -1,0 +1,93 @@
+/// The Cost Code Summary reference list ("1.Cost Code Summary R00.xls",
+/// sheet "Sheet2") transcribed verbatim, including its original wording.
+/// One data-entry error in the source file was corrected: row Sr.47 reused
+/// code F04I for "Sub Contractor Eletrical testing." (a duplicate of the
+/// F04I row above it) — renumbered to F04J, which pushes the source file's
+/// F04J ("NDT Test + IBR Certification") to F04K. This matches the
+/// already-verified F01-F24 hierarchy used elsewhere in this app (Site
+/// Accounts) and satisfies the hard "cost code must be unique" rule.
+export interface CostCodeSeedRow {
+  code: string;
+  description: string;
+  itemsToConsider: string | null;
+  remarks: string | null;
+  responsiblePerson: string | null;
+}
+
+export const COST_CODE_MASTER_DATA: CostCodeSeedRow[] = [
+  { code: "F01", description: "Direct Labour", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01A", description: "Direct Labour Salary", itemsToConsider: "Worker Salary & Local Union salary, if any.", remarks: null, responsiblePerson: null },
+  { code: "F01B", description: "Bonus (@ 8.33 % of Basic Salary )", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01C", description: "Leave Pay (@ 1 Day in 20 Working days) in Final Settlement", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01D", description: "Notice Pay( After 240 Days @ 1 Month Salary),50%", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01E", description: "PF ( 12.5 % of Basic Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01F", description: "ESIC (@ 3.25% of Total Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01G", description: "Prof. Tax", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01H", description: "Retrenchment-15 days salary, one time", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01I", description: "Drinking Water at Site", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01J", description: "Medical Exp, PCC", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01K", description: "Insurance- PMSBY,PMJJBY", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F01L", description: "Labour Accommodation", itemsToConsider: "Labour Room Rent, Electricity charge, water for room,if any etc", remarks: null, responsiblePerson: null },
+  { code: "F01M", description: "Labour  Transportation", itemsToConsider: "Vehicle Hire charges for workers, Fuel charges, daily travelling allowance, if applicable.", remarks: null, responsiblePerson: null },
+  { code: "F02", description: "In Direct Labour", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02A", description: "In Direct Labour Salary", itemsToConsider: "Salaries of: Scafolders,Security, Riggers, Maint Electrican & Cook", remarks: "Site team should provide the In direct labour salary seperatly.", responsiblePerson: null },
+  { code: "F02B", description: "Bonus (@ 8.33 % of Basic Salary )", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02C", description: "Leave Pay (@ 1 Day in 20 Working days) in Final Settlement", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02D", description: "Notice Pay( After 240 Days @ 1 Month Salary),50%", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02E", description: "PF ( 12.5 % of Basic Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02F", description: "ESIC (@ 3.25% of Total Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02G", description: "Retrenchment-15 days salary, one time", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02H", description: "In Direct Labour Accommodation", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F02I", description: "In Direct Labour  Transportation", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03", description: "Staffs", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03A", description: "Staffs Salary", itemsToConsider: "Salary of Temp, permenent, Consultancy Staffs & technicians.", remarks: null, responsiblePerson: null },
+  { code: "F03B", description: "Bonus (@ 8.33 % of Basic Salary )", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03C", description: "Leave Pay (@ 1 Day in 20 Working days) in Final Settlement", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03D", description: "Notice Pay( After 240 Days @ 1 Month Salary),50%", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03E", description: "PF ( 12.5 % of Basic Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03F", description: "ESIC (@ 3.25% of Total Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F03G", description: "Staff Accommodation", itemsToConsider: "Staffs room rent , Electricity & Water for room, if any", remarks: null, responsiblePerson: null },
+  { code: "F03H", description: "Staff Transportation", itemsToConsider: "Vehicle Hire charges, fuel expence.", remarks: "Site team to be earmarked for transportation purpose", responsiblePerson: null },
+  { code: "F04", description: "Sub Contractor", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04A", description: "Labour Subcontract Salary", itemsToConsider: "Subcontractors Labour Salary", remarks: null, responsiblePerson: null },
+  { code: "F04B", description: "Bonus (@ 8.33 % of Basic Salary )", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04C", description: "Leave Pay (@ 1 Day in 20 Working days) in Final Settlement", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04D", description: "Notice Pay( After 240 Days @ 1 Month Salary),50%", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04E", description: "PF ( 12.5 % of Basic Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04F", description: "ESIC (@ 3.25% of Total Salary)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04G", description: "Labour Accommodation", itemsToConsider: "Room Rent", remarks: "Site team to provide the details", responsiblePerson: null },
+  { code: "F04H", description: "Transportation", itemsToConsider: "Transportation Charges", remarks: "Site team to provide the details", responsiblePerson: null },
+  { code: "F04I", description: "Sub Contracts", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04J", description: "Sub Contractor Eletrical testing.", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F04K", description: "NDT Test + IBR Certification", itemsToConsider: "DP, PM, Radio etc", remarks: null, responsiblePerson: null },
+  { code: "F05", description: "Construction Equipment", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F05A", description: "Tools", itemsToConsider: "Tools Tackles , Power Tools", remarks: null, responsiblePerson: null },
+  { code: "F05B", description: "Test equipment", itemsToConsider: "Including Ferrule PM - Asset", remarks: null, responsiblePerson: null },
+  { code: "F05C", description: "Scaffolding Material", itemsToConsider: "Ladder, Trolley, Lifting Eqp- Asset", remarks: null, responsiblePerson: null },
+  { code: "F05D", description: "Machineries (Fixed Assets)", itemsToConsider: "Porta Cabin,Vehicle,DG Set, AC, Welding Machines etc", remarks: null, responsiblePerson: null },
+  { code: "F06", description: "Plant & Machinery (Hire Charges)", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F06A", description: "Lifting & Material Transportation", itemsToConsider: "Crane, truck, trailer, Pick up, Hydra, Manlift", remarks: null, responsiblePerson: null },
+  { code: "F06B", description: "DG set Hire", itemsToConsider: "DG Charge, Fuel expence- (Asset , if applicable)", remarks: null, responsiblePerson: null },
+  { code: "F07", description: "Consumables", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F07A", description: "Consumable", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F07B", description: "Sealing Material,Fire Proofing", itemsToConsider: "All sealing materials/ Fire proofing Materials,\nSilicon Sealnt Gun\nPUFF Sealnt  (PU Foam)", remarks: null, responsiblePerson: null },
+  { code: "F08", description: "Safety Items", itemsToConsider: "PPE's, Fire blanket, etc (List Attached)", remarks: null, responsiblePerson: null },
+  { code: "F09", description: "Construction Power Materials+Electricity Consumption Charges", itemsToConsider: "Monthly Site Electricity", remarks: null, responsiblePerson: null },
+  { code: "F10", description: "Site Office/Store/Calibration Room/Ware House", itemsToConsider: "(Other thanTrans porta cabin, AC) Office Chairs, Table, Rack etc", remarks: null, responsiblePerson: null },
+  { code: "F11", description: "PC, Printer, Comp Acc", itemsToConsider: "Asset", remarks: null, responsiblePerson: null },
+  { code: "F12", description: "STAFF GUEST HOUSE Facilities", itemsToConsider: "GUEST HOUSE expences", remarks: null, responsiblePerson: null },
+  { code: "F13", description: "Staff Welfare", itemsToConsider: "Refreshment of Staff, Client Ref., Donation, Pooja, etc", remarks: null, responsiblePerson: null },
+  { code: "F14", description: "Site Operating", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F14A", description: "Site Operating Expenses", itemsToConsider: "Mobile exp, Internet, Printing , Stationery, Courier, Ho Visit.", remarks: null, responsiblePerson: null },
+  { code: "F14B", description: "Mobilisation Expense", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F15", description: "Labour License", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F16", description: "CEA Apprroval , Miscellaneous", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F17", description: "BG, SBLC", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F18", description: "BOCW", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F19", description: "Local Union Expences", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F20", description: "Business Promotion", itemsToConsider: "Gift Expences to Client", remarks: null, responsiblePerson: null },
+  { code: "F21", description: "Miscellaneous", itemsToConsider: null, remarks: null, responsiblePerson: null },
+  { code: "F22", description: "Security Deposits", itemsToConsider: "Gas /Telephone/Electricity/Water) G.House/site- Asset", remarks: null, responsiblePerson: null },
+  { code: "F23", description: "Project Supply Materials (Inc Freight,Transit ins & TP)", itemsToConsider: "Transportation cost of Supply Material", remarks: null, responsiblePerson: null },
+  { code: "F24", description: "Welfare Funds, Half Yearly Returns", itemsToConsider: null, remarks: null, responsiblePerson: null },
+];

@@ -11,5 +11,7 @@ router.get('/employees', reportsController.employeeReportHandler);
 router.get('/attendance', reportsController.attendanceReportHandler);
 router.get('/recruitment', reportsController.recruitmentReportHandler);
 router.get('/payroll', reportsController.payrollReportHandler);
+router.get('/procurement-summary', reportsController.procurementSummaryReportHandler);
+router.get('/vendor-spend', reportsController.vendorSpendReportHandler);
 
 export default router;

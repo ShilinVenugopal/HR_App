@@ -241,6 +241,7 @@ export async function bulkImportCandidates(
       clientInterviewStatus: row.clientInterviewStatus,
       remarks: row.remarks || null,
       status: row.status,
+      costCode: row.costCode ?? null,
     };
 
     const existingId = existingByContactMap.get(row.contactNumber);

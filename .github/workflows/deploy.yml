@@ -1,0 +1,38 @@
+name: Deploy to production
+
+# Manual-trigger only until you've configured the secrets below — an
+# auto-trigger on push would just fail loudly on every commit in the
+# meantime. Once configured, uncomment the `push` trigger to deploy
+# automatically whenever main updates.
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull
+            docker compose -f docker-compose.prod.yml up -d --build
+
+# ── One-time setup, in this repo's Settings → Secrets and variables → Actions ──
+#   DEPLOY_HOST      the server's IP or hostname, e.g. 203.0.113.10
+#   DEPLOY_USER      the SSH user, e.g. deploy (see DEPLOYMENT.md step 2)
+#   DEPLOY_SSH_KEY   the private half of an SSH keypair whose public half
+#                    is in that user's ~/.ssh/authorized_keys on the server
+#   DEPLOY_PATH      absolute path to the cloned repo on the server,
+#                    e.g. /home/deploy/HR_App
+#
+# Generate a dedicated deploy keypair (don't reuse your personal key):
+#   ssh-keygen -t ed25519 -f deploy_key -N ""
+#   # deploy_key.pub -> append to the server's ~/.ssh/authorized_keys
+#   # deploy_key     -> paste as the DEPLOY_SSH_KEY secret (private key contents)

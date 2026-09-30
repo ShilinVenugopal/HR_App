@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CandidateStatus, InterviewStage } from '@prisma/client';
+import { CandidateStatus, EmployeeCostCode, InterviewStage } from '@prisma/client';
 
 export const createCandidateSchema = z.object({
   body: z.object({
@@ -16,6 +16,10 @@ export const createCandidateSchema = z.object({
     clientInterviewStatus: z.nativeEnum(InterviewStage).default(InterviewStage.NOT_STARTED),
     remarks: z.string().trim().optional(),
     status: z.nativeEnum(CandidateStatus).default(CandidateStatus.APPLIED),
+    // Fixed 3-option payroll cost category (F01A/F02A/F03A) — z.nativeEnum
+    // rejects anything else outright, so no other code can ever be
+    // manually entered or created through this endpoint.
+    costCode: z.nativeEnum(EmployeeCostCode).optional().nullable(),
   }),
 });
 
@@ -44,6 +48,10 @@ const bulkCandidateRowSchema = z.object({
   clientInterviewStatus: z.nativeEnum(InterviewStage).default(InterviewStage.NOT_STARTED),
   remarks: z.string().trim().optional().nullable(),
   status: z.nativeEnum(CandidateStatus).default(CandidateStatus.APPLIED),
+  // Same enforcement as the manual form — an invalid code fails Zod
+  // validation, which the service turns into a per-row import failure
+  // rather than a silently-imported bad value.
+  costCode: z.nativeEnum(EmployeeCostCode).optional().nullable(),
 });
 
 export const checkDuplicatesSchema = z.object({

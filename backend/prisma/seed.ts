@@ -1,6 +1,10 @@
 import { ModuleName, PrismaClient, Role, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { NAYARA_TEMPLATE } from '../src/modules/projectWages/nayaraTemplate';
+import { syncBuiltInWageTemplates } from '../src/modules/projectWages/templateSync';
+import { seedCostCodeMasterData } from '../src/modules/costCodes/costCodeMasterSeed';
+import { seedDefaultPoTerms, backfillPurchaseOrderTermsSnapshot } from '../src/modules/poTerms/poTermsSeed';
+import { seedDemoProjectUnits } from '../src/modules/projectUnits/projectUnitsSeed';
+import { seedTicketCategories, seedSampleTickets } from '../src/modules/tickets/ticketsSeed';
 
 const prisma = new PrismaClient();
 
@@ -84,12 +88,12 @@ async function main() {
   }
 
   const projectSeed = [
-    { projectName: 'RIL Jamnagar', clientName: 'Reliance Industries Ltd', location: 'Jamnagar, Gujarat' },
-    { projectName: 'IOCL Panipat', clientName: 'Indian Oil Corporation Ltd', location: 'Panipat, Haryana' },
-    { projectName: 'OPaL', clientName: 'ONGC Petro additions Ltd', location: 'Dahej, Gujarat' },
-    { projectName: 'HPCL', clientName: 'Hindustan Petroleum Corporation Ltd', location: 'Visakhapatnam, AP' },
-    { projectName: 'Dangote', clientName: 'Dangote Group', location: 'Lagos, Nigeria' },
-    { projectName: 'Nayara AMC', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat' },
+    { projectName: 'RIL Jamnagar', clientName: 'Reliance Industries Ltd', location: 'Jamnagar, Gujarat', projectNumber: 'PRJ-001' },
+    { projectName: 'IOCL Panipat', clientName: 'Indian Oil Corporation Ltd', location: 'Panipat, Haryana', projectNumber: 'PRJ-002' },
+    { projectName: 'OPaL', clientName: 'ONGC Petro additions Ltd', location: 'Dahej, Gujarat', projectNumber: 'PRJ-003' },
+    { projectName: 'HPCL', clientName: 'Hindustan Petroleum Corporation Ltd', location: 'Visakhapatnam, AP', projectNumber: 'PRJ-004' },
+    { projectName: 'Dangote', clientName: 'Dangote Group', location: 'Lagos, Nigeria', projectNumber: 'PRJ-005' },
+    { projectName: 'Nayara AMC', clientName: 'Nayara Energy', location: 'Vadinar, Gujarat', projectNumber: 'PRJ-006' },
   ];
 
   const projectIdByName = new Map<string, string>();
@@ -102,14 +106,7 @@ async function main() {
   }
 
   // ── Project-wise Wages templates ────────────────────────────────────
-  const nayaraProjectId = projectIdByName.get('Nayara AMC');
-  if (nayaraProjectId) {
-    await prisma.wageProjectTemplate.upsert({
-      where: { code: NAYARA_TEMPLATE.code },
-      update: { name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId, active: true },
-      create: { code: NAYARA_TEMPLATE.code, name: NAYARA_TEMPLATE.name, columns: NAYARA_TEMPLATE.columns as object, projectId: nayaraProjectId },
-    });
-  }
+  await syncBuiltInWageTemplates();
 
   // ── Departments & Designations ─────────────────────────────────────
   const departments = ['Human Resources', 'Operations', 'Finance & Accounts', 'Safety (HSE)', 'Administration', 'Engineering'];
@@ -120,6 +117,54 @@ async function main() {
   const designations = ['Site Supervisor', 'HR Officer', 'Safety Officer', 'Technician', 'Helper', 'Engineer', 'Project Manager', 'Accountant'];
   for (const name of designations) {
     await prisma.designation.upsert({ where: { name }, update: {}, create: { name } });
+  }
+
+  // ── Cost Codes (Procurement) ────────────────────────────────────────
+  // The 8 fixed categories from the client's real PUR-01.xlsx purchase
+  // requisition template (sections A-H). PR items reference these; the
+  // printed PR groups items by category via this same relation.
+  const costCodes = [
+    { code: 'F05A', name: 'Tools Tackles/Power Tools' },
+    { code: 'F05D', name: 'Machineries (Fixed Assets)' },
+    { code: 'F07A', name: 'Consumable' },
+    { code: 'F08', name: 'Safety Items' },
+    { code: 'F09', name: 'Construction Power' },
+    { code: 'F10', name: 'Site Facilities' },
+    { code: 'F11', name: 'PC, Printer Etc' },
+    { code: 'F12', name: 'GH Items' },
+  ];
+  for (const cc of costCodes) {
+    await prisma.costCode.upsert({ where: { code: cc.code }, update: { name: cc.name }, create: cc });
+  }
+
+  // ── Cost Code Master (full reference import) ─────────────────────────
+  // The broader F01-F24 Cost Code Summary — create-only, never overwrites
+  // the 8 PUR-01-specific codes above or any future Super Admin edit.
+  await seedCostCodeMasterData();
+
+  // ── Purchase Order Terms & Conditions template ────────────────────────
+  // Create-only default template, then freeze every pre-existing PO at
+  // exactly what it already displays before the template becomes
+  // Super-Admin-editable. Order matters: the backfill reads whatever is
+  // currently in the table, so it must run after the seed.
+  await seedDefaultPoTerms();
+  await backfillPurchaseOrderTermsSnapshot();
+
+  // ── Attendance Units (per-project demo data) ──────────────────────────
+  await seedDemoProjectUnits();
+
+  // ── Ticket Categories (configurable master data) ─────────────────────
+  await seedTicketCategories(prisma);
+
+  // ── Vendors (Procurement) ────────────────────────────────────────────
+  const vendors = [
+    { name: 'Bosch Power Tools India Pvt Ltd', address: 'Adugodi, Bengaluru, Karnataka, India', gstNumber: '29AABCB1234M1Z5', email: 'sales@boschtools.example', phone: '+919876500001', contactPerson: 'Rajesh Kumar' },
+    { name: 'Ashirvad Safety Equipments', address: 'Industrial Area, Vadodara, Gujarat, India', gstNumber: '24AABCA5678N1Z2', email: 'orders@ashirvadsafety.example', phone: '+919876500002', contactPerson: 'Priya Shah' },
+  ];
+  for (const v of vendors) {
+    const existing = await prisma.vendor.findFirst({ where: { name: v.name } });
+    if (existing) await prisma.vendor.update({ where: { id: existing.id }, data: v });
+    else await prisma.vendor.create({ data: v });
   }
 
   // ── Super Administrator ────────────────────────────────────────────
@@ -146,7 +191,7 @@ async function main() {
   });
 
   // ── Site Administrator (assigned RIL Jamnagar + IOCL Panipat only) ──
-  await upsertUser({
+  const siteAdminUser = await upsertUser({
     name: 'Site Administrator - West Zone',
     email: 'site.admin@foraysgroup.com',
     mobile: '+919999999901',
@@ -162,12 +207,25 @@ async function main() {
       ADVANCES: { view: true, approve: true },
       REPORTS: { view: true },
       SETTINGS: { view: true, add: true, edit: true },
+      BILLING_STATUS: { view: true, add: true, edit: true },
+      // Site team: drafts and saves statements, but cannot re-open a
+      // Saved statement — that "correction" right (canApprove) is reserved
+      // for the office-side users below.
+      SITE_ACCOUNTS: { view: true, add: true, edit: true },
+      // Site team enters/updates the monthly expense sheet; delete is
+      // reserved for Finance below, same office-oversight split as
+      // BILLING_STATUS/SITE_ACCOUNTS.
+      EXPENSE: { view: true, add: true, edit: true },
+      // Site Admin can raise/act on their own tickets and also see every
+      // user's tickets org-wide (canApprove doubles as the "All Tickets"
+      // elevated-visibility flag, same pattern as SITE_ACCOUNTS above).
+      TICKETS: { view: true, add: true, edit: true, approve: true },
     }),
     projectIdByName,
   });
 
   // ── HR Executive ─────────────────────────────────────────────────────
-  await upsertUser({
+  const hrExecutiveUser = await upsertUser({
     name: 'HR Executive - RIL Jamnagar',
     email: 'hr.executive@foraysgroup.com',
     mobile: '+919999999902',
@@ -181,12 +239,15 @@ async function main() {
       RECRUITMENT: { view: true, add: true, edit: true, approve: true },
       EMPLOYEES: { view: true, add: true, edit: true },
       ATTENDANCE: { view: true, add: true },
+      // HR is a common ticket destination in the example scenarios, and
+      // Human Resources naturally has org-wide helpdesk visibility.
+      TICKETS: { view: true, add: true, edit: true, approve: true },
     }),
     projectIdByName,
   });
 
   // ── Project Manager ──────────────────────────────────────────────────
-  await upsertUser({
+  const projectManagerUser = await upsertUser({
     name: 'Project Manager - IOCL Panipat',
     email: 'project.manager@foraysgroup.com',
     mobile: '+919999999903',
@@ -200,6 +261,11 @@ async function main() {
       ATTENDANCE: { view: true, approve: true },
       REPORTS: { view: true },
       WAGES: { view: true },
+      EXPENSE: { view: true },
+      // Base helpdesk access only — raises/works tickets assigned to them,
+      // no "All Tickets" visibility (matches the requirement that most
+      // roles must not automatically see every user's tickets).
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
@@ -210,18 +276,30 @@ async function main() {
     email: 'finance@foraysgroup.com',
     mobile: '+919999999904',
     role: Role.FINANCE,
-    projectNames: ['OPaL'],
+    // Also assigned RIL Jamnagar (alongside Site Administrator) so the
+    // Site Accounts DRAFT (site team) -> SAVED -> correction (office team,
+    // canApprove) workflow can actually be exercised end to end on the
+    // same project in this demo dataset.
+    projectNames: ['OPaL', 'RIL Jamnagar'],
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       WAGES: { view: true, add: true, edit: true, approve: true },
       ADVANCES: { view: true, add: true, edit: true, approve: true },
       REPORTS: { view: true },
+      BILLING_STATUS: { view: true, add: true, edit: true, delete: true },
+      // Office team: views every statement and holds the "correction"
+      // right (canApprove) to re-open a Saved statement.
+      SITE_ACCOUNTS: { view: true, approve: true },
+      // Office/finance oversight: full CRUD, unlike the site team's
+      // view+add+edit-only grant above.
+      EXPENSE: { view: true, add: true, edit: true, delete: true },
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
   });
 
   // ── Normal User (view-only) ───────────────────────────────────────────
-  await upsertUser({
+  const normalUser = await upsertUser({
     name: 'Normal User - RIL Jamnagar',
     email: 'normal.user@foraysgroup.com',
     mobile: '+919999999905',
@@ -230,8 +308,152 @@ async function main() {
     permissions: permissionsFor({
       DASHBOARD: { view: true },
       EMPLOYEES: { view: true },
+      // Every authorized user can raise a ticket — this is the baseline
+      // grant, deliberately without canApprove, so "All Tickets" stays
+      // hidden for a normal user by default.
+      TICKETS: { view: true, add: true },
     }),
     projectIdByName,
+  });
+
+  // ── Procurement roles ──────────────────────────────────────────────
+  // Modules/pages for these don't exist yet (built out phase-by-phase in
+  // later work) — seeding the accounts + permission rows now means the
+  // Permission Matrix Editor already shows the new modules, and each
+  // account is ready to use the instant its module ships.
+
+  const procurementAdminUser = await upsertUser({
+    name: 'Procurement Admin - Multi-Site',
+    email: 'procurement.admin@foraysgroup.com',
+    mobile: '+919999999906',
+    role: Role.PROCUREMENT_ADMIN,
+    projectNames: ['RIL Jamnagar', 'IOCL Panipat', 'Nayara AMC'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PROCUREMENT_DASHBOARD: { view: true },
+      INVENTORY: { view: true, add: true, edit: true, delete: true, approve: true },
+      ASSETS: { view: true, add: true, edit: true, delete: true },
+      PURCHASE_REQUISITION: { view: true, add: true, edit: true, delete: true, approve: true },
+      PURCHASE_ORDER: { view: true, add: true, edit: true, delete: true, approve: true },
+      GRN: { view: true, add: true, edit: true, delete: true, approve: true },
+      REPORTS: { view: true },
+      SETTINGS: { view: true, add: true, edit: true },
+      // Stands in for "IT Admin" in the example ticket scenarios — an
+      // org-wide helpdesk admin.
+      TICKETS: { view: true, add: true, edit: true, approve: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Project Engineer - RIL Jamnagar',
+    email: 'project.engineer@foraysgroup.com',
+    mobile: '+919999999907',
+    role: Role.PROJECT_ENGINEER,
+    projectNames: ['RIL Jamnagar'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      ASSETS: { view: true },
+      PURCHASE_REQUISITION: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Store Incharge - IOCL Panipat',
+    email: 'store.incharge@foraysgroup.com',
+    mobile: '+919999999908',
+    role: Role.STORE_INCHARGE,
+    projectNames: ['IOCL Panipat'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true, add: true, edit: true },
+      ASSETS: { view: true, add: true, edit: true },
+      PURCHASE_ORDER: { view: true },
+      GRN: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Purchase Team - OPaL',
+    email: 'purchase.team@foraysgroup.com',
+    mobile: '+919999999909',
+    role: Role.PURCHASE_TEAM,
+    projectNames: ['OPaL'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      ASSETS: { view: true },
+      PURCHASE_REQUISITION: { view: true },
+      PURCHASE_ORDER: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Accounts - HPCL',
+    email: 'accounts@foraysgroup.com',
+    mobile: '+919999999910',
+    role: Role.ACCOUNTS,
+    projectNames: ['HPCL'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PURCHASE_ORDER: { view: true },
+      GRN: { view: true },
+      REPORTS: { view: true },
+      BILLING_STATUS: { view: true, add: true, edit: true },
+      SITE_ACCOUNTS: { view: true, approve: true },
+      EXPENSE: { view: true, add: true, edit: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Site User - Dangote',
+    email: 'site.user@foraysgroup.com',
+    mobile: '+919999999911',
+    role: Role.SITE_USER,
+    projectNames: ['Dangote'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      INVENTORY: { view: true },
+      ASSETS: { view: true },
+      PURCHASE_REQUISITION: { view: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  await upsertUser({
+    name: 'Approver - Nayara AMC',
+    email: 'approver@foraysgroup.com',
+    mobile: '+919999999912',
+    role: Role.APPROVER,
+    projectNames: ['Nayara AMC'],
+    permissions: permissionsFor({
+      DASHBOARD: { view: true },
+      PROCUREMENT_DASHBOARD: { view: true },
+      PURCHASE_REQUISITION: { view: true, approve: true },
+      PURCHASE_ORDER: { view: true, approve: true },
+      GRN: { view: true, approve: true },
+      TICKETS: { view: true, add: true },
+    }),
+    projectIdByName,
+  });
+
+  // ── Sample Tickets (idempotent — skipped once any ticket exists) ─────
+  await seedSampleTickets(prisma, {
+    raiser: superAdmin.id,
+    hr: hrExecutiveUser.id,
+    it: procurementAdminUser.id,
+    pm: projectManagerUser.id,
+    normal: normalUser.id,
   });
 
   console.log('Seed complete.');
@@ -242,6 +464,13 @@ async function main() {
   console.log('  project.manager@foraysgroup.com (Project Manager)');
   console.log('  finance@foraysgroup.com (Finance)');
   console.log('  normal.user@foraysgroup.com (Normal User, view-only)');
+  console.log('  procurement.admin@foraysgroup.com (Procurement Admin)');
+  console.log('  project.engineer@foraysgroup.com (Project Engineer)');
+  console.log('  store.incharge@foraysgroup.com (Store Incharge)');
+  console.log('  purchase.team@foraysgroup.com (Purchase Team)');
+  console.log('  accounts@foraysgroup.com (Accounts)');
+  console.log('  site.user@foraysgroup.com (Site User)');
+  console.log('  approver@foraysgroup.com (Approver)');
 }
 
 main()

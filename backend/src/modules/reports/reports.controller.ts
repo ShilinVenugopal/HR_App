@@ -29,3 +29,13 @@ export const payrollReportHandler = asyncHandler(async (req: Request, res: Respo
   const data = await reportsService.payrollReport(req, month, year);
   return sendSuccess(res, data, 'Payroll report fetched');
 });
+
+export const procurementSummaryReportHandler = asyncHandler(async (req: Request, res: Response) => {
+  const data = await reportsService.procurementSummaryReport(req);
+  return sendSuccess(res, data, 'Procurement summary report fetched');
+});
+
+export const vendorSpendReportHandler = asyncHandler(async (req: Request, res: Response) => {
+  const data = await reportsService.vendorSpendReport(req);
+  return sendSuccess(res, data, 'Vendor spend report fetched');
+});

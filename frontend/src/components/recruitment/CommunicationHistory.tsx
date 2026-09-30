@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Paperclip, RotateCw } from 'lucide-react';
+import { Download, Paperclip, RotateCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DataTable, Column } from '../common/DataTable';
 import { Modal } from '../common/Modal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Badge } from '../common/Badge';
 import { apiErrorMessage } from '../../api/client';
 import { CommChannel, CommunicationMessageLog, communicationApi } from '../../api/modules';
@@ -12,7 +13,7 @@ import { useProjectOptions } from '../../hooks/useLookups';
 import { MESSAGE_STATUS_OPTIONS } from '../../utils/communicationConstants';
 
 export function CommunicationHistory() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin } = useAuth();
   const canManage = can('RECRUITMENT', 'approve');
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
@@ -22,6 +23,7 @@ export function CommunicationHistory() {
   const [filters, setFilters] = useState({ channel: '', status: '', projectId: '', dateFrom: '', dateTo: '' });
   const [detail, setDetail] = useState<CommunicationMessageLog | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CommunicationMessageLog | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['comm-history', page, search, filters],
@@ -32,6 +34,16 @@ export function CommunicationHistory() {
     mutationFn: (id: string) => communicationApi.resend(id),
     onSuccess: () => {
       toast.success('Message re-queued for sending');
+      queryClient.invalidateQueries({ queryKey: ['comm-history'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => communicationApi.deleteHistory(id),
+    onSuccess: () => {
+      toast.success('Communication deleted successfully.');
+      setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ['comm-history'] });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -166,8 +178,35 @@ export function CommunicationHistory() {
                 <RotateCw size={14} />
               </button>
             )}
+            {isSuperAdmin && (
+              <button
+                className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
+                title="Delete"
+                disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
+                onClick={() => setDeleteTarget(r)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         )}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete Communication?"
+        message={
+          `Are you sure you want to delete this communication record? This only removes it from the ERP history — it does not unsend or recall anything already delivered.\n\n` +
+          `Candidate: ${deleteTarget?.candidate?.candidateName ?? '—'}\n` +
+          `Recipient: ${deleteTarget?.recipientEmail ?? deleteTarget?.recipientPhone ?? '—'}\n` +
+          `Subject: ${deleteTarget?.subject || deleteTarget?.body || '—'}\n` +
+          `Status: ${deleteTarget?.status ?? '—'}`
+        }
+        confirmLabel="Delete"
+        danger
+        confirmDisabled={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Message Detail" size="lg">

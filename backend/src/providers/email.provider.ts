@@ -1,17 +1,9 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { env } from '../config/env';
-import { ProviderAttachment, ProviderSendResult } from './types';
+import { EmailProvider, ProviderSendResult, SendEmailInput } from './types';
+import { BrevoEmailProvider } from './brevoEmail.provider';
 
-export interface SendEmailInput {
-  to: string;
-  subject: string;
-  html: string;
-  attachments?: ProviderAttachment[];
-}
-
-export interface EmailProvider {
-  send(input: SendEmailInput): Promise<ProviderSendResult>;
-}
+export type { EmailProvider, SendEmailInput };
 
 /// Plain SMTP over nodemailer — works with any mailbox (Gmail app
 /// password, Office365, or an SMTP relay in front of SendGrid/SES/
@@ -26,6 +18,11 @@ export interface EmailProvider {
 /// message log will only ever be populated by a provider that supports
 /// webhooks; "Opened" is tracked independently via a tracking pixel
 /// (see communication.service.ts) which works with any provider.
+///
+/// Most cloud VPS hosts block outbound SMTP ports by default, which makes
+/// this provider unusable in production on those hosts — see
+/// BrevoEmailProvider (brevoEmail.provider.ts) for the HTTPS-based
+/// alternative that's picked automatically below when BREVO_API_KEY is set.
 class SmtpEmailProvider implements EmailProvider {
   private transporter: Transporter | null = null;
 
@@ -66,4 +63,4 @@ class SmtpEmailProvider implements EmailProvider {
   }
 }
 
-export const emailProvider: EmailProvider = new SmtpEmailProvider();
+export const emailProvider: EmailProvider = env.brevo.apiKey ? new BrevoEmailProvider() : new SmtpEmailProvider();

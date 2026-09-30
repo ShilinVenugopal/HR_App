@@ -6,14 +6,37 @@ import Dashboard from './pages/Dashboard';
 import Recruitment from './pages/Recruitment';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
+import ManpowerSummary from './pages/ManpowerSummary';
+import UnitManagement from './pages/UnitManagement';
 import Wages from './pages/Wages';
 import ProjectWagesPage from './pages/ProjectWagesPage';
 import Compliance from './pages/Compliance';
 import Advances from './pages/Advances';
+import Expense from './pages/Expense';
+import Inventory from './pages/Inventory';
+import Assets from './pages/Assets';
+import PurchaseRequisitions from './pages/PurchaseRequisitions';
+import PurchaseRequisitionDetail from './pages/PurchaseRequisitionDetail';
+import PurchaseOrders from './pages/PurchaseOrders';
+import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
+import VendorManagement from './pages/VendorManagement';
+import GoodsReceivedNotes from './pages/GoodsReceivedNotes';
+import GoodsReceivedNoteDetail from './pages/GoodsReceivedNoteDetail';
+import ProcurementDashboard from './pages/ProcurementDashboard';
+import BillingStatus from './pages/BillingStatus';
+import SiteAccounts from './pages/SiteAccounts';
+import SiteAccountDetail from './pages/SiteAccountDetail';
+import CostCodeMaster from './pages/CostCodeMaster';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import AuditLogs from './pages/AuditLogs';
+import TicketsDashboard from './pages/TicketsDashboard';
+import MyTickets from './pages/MyTickets';
+import AssignedToMe from './pages/AssignedToMe';
+import AllTickets from './pages/AllTickets';
+import RaiseTicket from './pages/RaiseTicket';
+import TicketDetail from './pages/TicketDetail';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -28,10 +51,33 @@ export default function App() {
           <Route path="/recruitment" element={<Recruitment />} />
           <Route path="/employees" element={<Employees />} />
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/manpower-summary" element={<ManpowerSummary />} />
+          <Route path="/unit-management" element={<UnitManagement />} />
           <Route path="/wages" element={<Wages />} />
           <Route path="/wages/:code" element={<ProjectWagesPage />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/advances" element={<Advances />} />
+          <Route path="/expense" element={<Expense />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/assets" element={<Assets />} />
+          <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
+          <Route path="/purchase-requisitions/:id" element={<PurchaseRequisitionDetail />} />
+          <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/purchase-orders/:id" element={<PurchaseOrderDetail />} />
+          <Route path="/vendors" element={<VendorManagement />} />
+          <Route path="/grns" element={<GoodsReceivedNotes />} />
+          <Route path="/grns/:id" element={<GoodsReceivedNoteDetail />} />
+          <Route path="/procurement-dashboard" element={<ProcurementDashboard />} />
+          <Route path="/billing-status" element={<BillingStatus />} />
+          <Route path="/site-accounts" element={<SiteAccounts />} />
+          <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
+          <Route path="/cost-code-master" element={<CostCodeMaster />} />
+          <Route path="/tickets/dashboard" element={<TicketsDashboard />} />
+          <Route path="/tickets/my" element={<MyTickets />} />
+          <Route path="/tickets/assigned" element={<AssignedToMe />} />
+          <Route path="/tickets/all" element={<AllTickets />} />
+          <Route path="/tickets/new" element={<RaiseTicket />} />
+          <Route path="/tickets/:id" element={<TicketDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route
