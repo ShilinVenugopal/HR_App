@@ -16,6 +16,8 @@ export interface SiteAccountCostCodeRow {
 
 export const SITE_ACCOUNT_COST_CODES: SiteAccountCostCodeRow[] = [
   { code: 'F01', description: 'Direct Labour', parentCode: null, displayOrder: 10, hasSubtotal: true },
+  { code: 'F01G', description: 'Prof. Tax', parentCode: 'F01', displayOrder: 11, hasSubtotal: false },
+  { code: 'F01H', description: 'Retrenchment – 15 Days Salary, One Time', parentCode: 'F01', displayOrder: 12, hasSubtotal: false },
   { code: 'F01I', description: 'Drinking Water at Site', parentCode: 'F01', displayOrder: 20, hasSubtotal: false },
   { code: 'F01J', description: 'Medical Exp, PCC', parentCode: 'F01', displayOrder: 30, hasSubtotal: false },
   { code: 'F01K', description: 'Insurance- PMSBY,PMJJBY', parentCode: 'F01', displayOrder: 40, hasSubtotal: false },
