@@ -43,7 +43,7 @@ export async function getProject(id: string) {
 }
 
 export async function createProject(
-  input: { projectName: string; clientName: string; location?: string; status?: ProjectStatus },
+  input: { projectName: string; clientName: string; location?: string; projectNumber?: string; status?: ProjectStatus },
   actingUserId: string,
   meta?: import('../../utils/requestMeta').RequestMeta
 ) {
@@ -62,7 +62,7 @@ export async function createProject(
 
 export async function updateProject(
   id: string,
-  input: Partial<{ projectName: string; clientName: string; location: string; status: ProjectStatus }>,
+  input: Partial<{ projectName: string; clientName: string; location: string; projectNumber: string; status: ProjectStatus }>,
   actingUserId: string,
   meta?: import('../../utils/requestMeta').RequestMeta
 ) {

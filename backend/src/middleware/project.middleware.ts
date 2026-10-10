@@ -24,9 +24,13 @@ export function projectScopeWhere(req: Request, field = 'projectId') {
 }
 
 export function hasProjectAccess(req: Request, projectId: string | null | undefined): boolean {
-  if (!projectId) return false;
   const ids = getAccessibleProjectIds(req);
+  // Super Admin bypasses project scoping unconditionally — must be checked
+  // before the null guard below, otherwise a record with a nullable
+  // projectId (e.g. CommunicationMessageLog, when its candidate had no
+  // project) incorrectly denies even the Super Admin.
   if (ids === 'ALL') return true;
+  if (!projectId) return false;
   return ids.includes(projectId);
 }
 

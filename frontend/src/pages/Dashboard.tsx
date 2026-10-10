@@ -6,7 +6,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
 import { useAuth } from '../context/AuthContext';
 
-const PIE_COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+const PIE_COLORS = ['#463dd6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export default function Dashboard() {
   const { session, isSuperAdmin } = useAuth();
@@ -38,19 +38,19 @@ export default function Dashboard() {
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card p-5">
-          <h3 className="mb-4 text-sm font-semibold">Project-wise Employees</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Project-wise Employees</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={charts?.projectWiseEmployees ?? []}>
               <XAxis dataKey="projectName" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#463dd6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         <div className="card p-5">
-          <h3 className="mb-4 text-sm font-semibold">Attendance Trend (last 14 days)</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Attendance Trend (last 14 days)</h3>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={charts?.attendanceTrend ?? []}>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -64,7 +64,7 @@ export default function Dashboard() {
         </div>
 
         <div className="card p-5">
-          <h3 className="mb-4 text-sm font-semibold">Recruitment Funnel</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Recruitment Funnel</h3>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={charts?.recruitmentFunnel ?? []} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={90} label>
@@ -79,7 +79,7 @@ export default function Dashboard() {
         </div>
 
         <div className="card p-5">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
             <Wallet size={16} /> Payroll Status (this month)
           </h3>
           <ResponsiveContainer width="100%" height={260}>
@@ -87,7 +87,7 @@ export default function Dashboard() {
               <XAxis dataKey="status" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

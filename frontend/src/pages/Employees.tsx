@@ -12,9 +12,11 @@ import { useAuth } from '../context/AuthContext';
 import { useDepartmentOptions, useDesignationOptions, useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 import { EmployeeBulkImportModal } from '../components/employees/EmployeeBulkImportModal';
-import { ColumnCustomizerModal } from '../components/employees/ColumnCustomizerModal';
+import { ColumnCustomizerModal } from '../components/common/ColumnCustomizerModal';
 import { EmployeeProfileModal } from '../components/employees/EmployeeProfileModal';
 import { DEFAULT_VISIBLE_COLUMNS, EMPLOYEE_FIELDS, EmployeeFieldKey, STATUS_OPTIONS, downloadEmployeeTemplate, exportEmployeesExcel, statusLabel } from '../utils/employeeExcel';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from '../utils/employeeCostCode';
+import { useColumnPreference } from '../hooks/useColumnPreference';
 
 const CONTACT_RE = /^\d{10}$/;
 const AADHAAR_RE = /^\d{12}$/;
@@ -45,26 +47,8 @@ const emptyForm = {
   bankAccountName: '',
   address: '',
   status: 'ACTIVE',
+  costCode: '',
 };
-
-function useColumnPreference(userId: string | undefined) {
-  const storageKey = `hr_app_employee_columns_${userId ?? 'anon'}`;
-  const [visibleColumns, setVisibleColumns] = useState<EmployeeFieldKey[]>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved) as EmployeeFieldKey[];
-    } catch {
-      // ignore malformed saved preference, fall back to default
-    }
-    return DEFAULT_VISIBLE_COLUMNS;
-  });
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(visibleColumns));
-  }, [visibleColumns, storageKey]);
-
-  return [visibleColumns, setVisibleColumns] as const;
-}
 
 export default function Employees() {
   const { can, session } = useAuth();
@@ -87,7 +71,10 @@ export default function Employees() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [columnCustomizerOpen, setColumnCustomizerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useColumnPreference(session?.user.id);
+  const [visibleColumns, setVisibleColumns] = useColumnPreference(
+    `hr_app_employee_columns_${session?.user.id ?? 'anon'}`,
+    DEFAULT_VISIBLE_COLUMNS
+  );
 
   // Instant search that doesn't refetch on every single keystroke.
   useEffect(() => {
@@ -137,6 +124,7 @@ export default function Employees() {
       bankAccountName: employee.bankAccountName ?? '',
       address: employee.address ?? '',
       status: employee.status,
+      costCode: employee.costCode ?? '',
     });
     setErrors({});
     setModalOpen(true);
@@ -163,6 +151,7 @@ export default function Employees() {
         bankName: form.bankName || null,
         bankAccountName: form.bankAccountName || null,
         address: form.address || null,
+        costCode: form.costCode || null,
       };
       if (editing) return employeesApi.update(editing.id, payload);
       return employeesApi.create(payload);
@@ -231,6 +220,7 @@ export default function Employees() {
       dateOfBirth: (r) => (r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleDateString() : '—'),
       joiningDate: (r) => (r.joiningDate ? new Date(r.joiningDate).toLocaleDateString() : '—'),
       status: (r) => <Badge value={r.status} label={statusLabel(r.status)} />,
+      costCode: (r) => (r.costCode ? `${r.costCode} – ${employeeCostCodeLabel(r.costCode)}` : '—'),
     }),
     []
   );
@@ -443,6 +433,17 @@ export default function Employees() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="label">Employee Cost Code</label>
+                <select className="input" value={form.costCode} onChange={(e) => setForm((f) => ({ ...f, costCode: e.target.value }))}>
+                  <option value="">Select</option>
+                  {EMPLOYEE_COST_CODE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.value} – {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -528,8 +529,11 @@ export default function Employees() {
       <ColumnCustomizerModal
         open={columnCustomizerOpen}
         onClose={() => setColumnCustomizerOpen(false)}
+        fields={EMPLOYEE_FIELDS}
         visibleKeys={visibleColumns}
+        defaultKeys={DEFAULT_VISIBLE_COLUMNS}
         onChange={setVisibleColumns}
+        description="Choose which columns to show in the employee list. Your selection is remembered."
       />
 
       <ConfirmDialog

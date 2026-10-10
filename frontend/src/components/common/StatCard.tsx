@@ -15,20 +15,20 @@ export function StatCard({
   accent?: 'brand' | 'emerald' | 'amber' | 'red';
 }) {
   const accentClass = {
-    brand: 'bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300',
-    emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
-    amber: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
-    red: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
+    brand: 'bg-gradient-to-br from-brand-600 to-accent-500 shadow-glow',
+    emerald: 'bg-gradient-to-br from-emerald-500 to-teal-500 shadow-[0_8px_24px_-6px_rgb(16_185_129/0.4)]',
+    amber: 'bg-gradient-to-br from-amber-500 to-orange-500 shadow-[0_8px_24px_-6px_rgb(245_158_11/0.4)]',
+    red: 'bg-gradient-to-br from-red-500 to-rose-500 shadow-[0_8px_24px_-6px_rgb(239_68_68/0.4)]',
   }[accent];
 
   return (
-    <div className="card flex items-center gap-4 p-5">
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accentClass}`}>
+    <div className="card card-hover flex items-center gap-4 p-5">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white ${accentClass}`}>
         <Icon size={22} />
       </div>
-      <div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-        {loading ? <Skeleton className="mt-1 h-6 w-16" /> : <p className="text-2xl font-semibold">{value}</p>}
+      <div className="min-w-0">
+        <p className="text-sm font-medium leading-snug text-slate-500 dark:text-slate-400">{label}</p>
+        {loading ? <Skeleton className="mt-1.5 h-7 w-16" /> : <p className="text-[26px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white">{value}</p>}
       </div>
     </div>
   );

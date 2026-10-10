@@ -5,7 +5,7 @@ import { PaginationParams } from '../../utils/pagination';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
 
-type MasterEntity = 'department' | 'designation';
+type MasterEntity = 'department' | 'designation' | 'ticketCategory';
 
 interface MasterDelegate {
   findMany: (args: any) => Promise<any[]>;
@@ -16,18 +16,28 @@ interface MasterDelegate {
   delete: (args: any) => Promise<any>;
 }
 
-const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation' };
+const LABEL: Record<MasterEntity, string> = { department: 'Department', designation: 'Designation', ticketCategory: 'Ticket Category' };
 
-/// Departments and Designations are structurally identical master-data
-/// tables (name + status), so a single generic service backs both REST
-/// resources instead of duplicating four near-identical CRUD blocks.
+/// Departments, Designations, and Ticket Categories are structurally
+/// identical master-data tables, so one generic service backs all three
+/// REST resources instead of duplicating CRUD blocks. Cost Codes used to be
+/// a fourth entity here, but graduated into its own dedicated module
+/// (backend/src/modules/costCodes) once its requirements diverged — Super-
+/// Admin-only mutations instead of the SETTINGS permission matrix, plus
+/// extra fields the others don't have — rather than bending this generic
+/// pattern to fit both.
 function delegateFor(entity: MasterEntity): MasterDelegate {
-  return entity === 'department' ? (prisma.department as unknown as MasterDelegate) : (prisma.designation as unknown as MasterDelegate);
+  if (entity === 'department') return prisma.department as unknown as MasterDelegate;
+  if (entity === 'designation') return prisma.designation as unknown as MasterDelegate;
+  return prisma.ticketCategory as unknown as MasterDelegate;
 }
 
-export async function listMasters(entity: MasterEntity, pagination: PaginationParams) {
+export async function listMasters(entity: MasterEntity, pagination: PaginationParams, status?: ProjectStatus) {
   const delegate = delegateFor(entity);
-  const where = pagination.search ? { name: { contains: pagination.search, mode: 'insensitive' } } : {};
+  const where = {
+    ...(pagination.search ? { name: { contains: pagination.search, mode: 'insensitive' } } : {}),
+    ...(status ? { status } : {}),
+  };
 
   const [rows, total] = await Promise.all([
     delegate.findMany({
@@ -42,17 +52,13 @@ export async function listMasters(entity: MasterEntity, pagination: PaginationPa
   return { rows, total };
 }
 
-export async function createMaster(
-  entity: MasterEntity,
-  input: { name: string; status?: ProjectStatus },
-  actingUserId: string,
-  meta?: RequestMeta
-) {
+export async function createMaster(entity: MasterEntity, input: { name: string; status?: ProjectStatus }, actingUserId: string, meta?: RequestMeta) {
   const delegate = delegateFor(entity);
+
   const existing = await delegate.findUnique({ where: { name: input.name } });
   if (existing) throw ApiError.conflict(`${LABEL[entity]} "${input.name}" already exists`);
 
-  const row = await delegate.create({ data: input });
+  const row = await delegate.create({ data: { name: input.name, status: input.status } });
   await recordAuditLog({
     userId: actingUserId,
     action: 'CREATE',
@@ -75,7 +81,7 @@ export async function updateMaster(
   const existing = await delegate.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound(`${LABEL[entity]} not found`);
 
-  const row = await delegate.update({ where: { id }, data: input });
+  const row = await delegate.update({ where: { id }, data: { name: input.name, status: input.status } });
   await recordAuditLog({
     userId: actingUserId,
     action: 'UPDATE',

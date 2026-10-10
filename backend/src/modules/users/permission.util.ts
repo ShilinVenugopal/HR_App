@@ -2,18 +2,16 @@ import { ModuleName } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { PermissionClaim } from '../../utils/jwt';
 
-export const ALL_MODULES: ModuleName[] = [
-  ModuleName.DASHBOARD,
-  ModuleName.RECRUITMENT,
-  ModuleName.EMPLOYEES,
-  ModuleName.ATTENDANCE,
-  ModuleName.WAGES,
-  ModuleName.COMPLIANCE,
-  ModuleName.ADVANCES,
-  ModuleName.REPORTS,
-  ModuleName.SETTINGS,
-  ModuleName.USER_MANAGEMENT,
-];
+/// Derived directly from the Prisma enum — never hand-list modules here.
+/// This list previously hard-coded only 10 of the 18 ModuleName values and
+/// silently fell out of sync as new modules (Inventory, Purchase Order,
+/// GRN, etc.) were added, which meant getUserDetail()'s permission map
+/// (below) dropped any saved permission for the missing modules on every
+/// read — so the Permission Matrix appeared to "forget" checks for those
+/// modules as soon as the user list/edit screen reloaded, and a subsequent
+/// save (full delete+recreate in users.service.ts) would then permanently
+/// erase them from the database.
+export const ALL_MODULES: ModuleName[] = Object.values(ModuleName);
 
 const EMPTY_CLAIM: PermissionClaim = {
   canView: false,
