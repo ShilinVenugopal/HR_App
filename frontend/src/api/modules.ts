@@ -1246,7 +1246,7 @@ export interface BillingItemInput {
   plantUnit: string;
   invoiceNo?: string;
   jmsNo?: string;
-  invoiceDate: string;
+  invoiceDate?: string;
   abstractAmount: number;
   taxAmount?: number;
   status?: BillingItemStatus;

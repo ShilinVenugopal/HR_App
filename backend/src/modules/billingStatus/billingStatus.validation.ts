@@ -5,9 +5,8 @@ const billingItemSchema = z.object({
   plantUnit: z.string().trim().min(1, 'Plant/Unit is required'),
   invoiceNo: z.string().trim().optional(),
   jmsNo: z.string().trim().optional(),
-  // Mandatory for new entries only — updateBillingItemSchema below makes it
-  // optional so pre-existing rows without one can still be edited.
-  invoiceDate: z.coerce.date({ required_error: 'Invoice Date is required', invalid_type_error: 'Invoice Date is required' }),
+  // Optional — bill details can be saved without an invoice date.
+  invoiceDate: z.coerce.date().optional(),
   abstractAmount: z.coerce.number().nonnegative('Abstract Amount cannot be negative'),
   taxAmount: z.coerce.number().nonnegative('Tax Amount cannot be negative').default(0),
   status: z.nativeEnum(BillingItemStatus).default('PENDING_CERTIFICATION'),

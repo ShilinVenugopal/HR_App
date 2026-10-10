@@ -99,7 +99,7 @@ export interface BillingItemInput {
   plantUnit: string;
   invoiceNo?: string;
   jmsNo?: string;
-  invoiceDate: Date;
+  invoiceDate?: Date;
   abstractAmount: number;
   taxAmount?: number;
   status?: BillingItemStatus;
@@ -122,7 +122,7 @@ function computeItemData(item: BillingItemInput, srNo: number, userId: string) {
     plantUnit: item.plantUnit,
     invoiceNo: item.invoiceNo || null,
     jmsNo: item.jmsNo || null,
-    invoiceDate: item.invoiceDate,
+    invoiceDate: item.invoiceDate || null,
     abstractAmount: item.abstractAmount,
     taxAmount,
     totalAmount,

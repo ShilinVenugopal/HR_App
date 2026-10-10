@@ -68,13 +68,12 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
       if (!projectId) throw new Error('Select a project');
       const filledRows = rows.filter((r) => r.plantUnit.trim());
       if (!filledRows.length) throw new Error('Add at least one bill row with Plant/Unit filled in');
-      if (filledRows.some((r) => !r.invoiceDate)) throw new Error('Invoice Date is required for every row');
 
       const items: BillingItemInput[] = filledRows.map((r) => ({
         plantUnit: r.plantUnit.trim(),
         invoiceNo: r.invoiceNo.trim() || undefined,
         jmsNo: r.jmsNo.trim() || undefined,
-        invoiceDate: r.invoiceDate,
+        invoiceDate: r.invoiceDate || undefined,
         abstractAmount: Number(r.abstractAmount) || 0,
         taxAmount: Number(r.taxAmount) || 0,
         status: r.status,
@@ -168,7 +167,7 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
                   <th className="px-2 py-1.5">Sr No</th>
                   <th className="px-2 py-1.5">Plant/Unit *</th>
                   <th className="px-2 py-1.5">Invoice No</th>
-                  <th className="px-2 py-1.5">Invoice Date *</th>
+                  <th className="px-2 py-1.5">Invoice Date</th>
                   <th className="px-2 py-1.5">JMS No</th>
                   <th className="px-2 py-1.5">Abstract Amount *</th>
                   <th className="px-2 py-1.5">Tax Amount</th>
