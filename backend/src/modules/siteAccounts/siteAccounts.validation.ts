@@ -35,7 +35,11 @@ export const createStatementSchema = z.object({
     statementDate: z.coerce.date(),
     periodFrom: z.coerce.date(),
     periodTo: z.coerce.date(),
-    openingBalance: z.coerce.number().nonnegative('Opening Balance cannot be negative').default(0),
+    // Unlike every other amount field here, Opening Balance may legitimately
+    // be negative (e.g. a carried-forward shortfall) — it is simply added
+    // into totalReceipts/balanceInHand in computeTotals, so negative values
+    // flow through the calculation correctly without any special-casing.
+    openingBalance: z.coerce.number().default(0),
     siteFundReceived: z.coerce.number().nonnegative('Site Fund Received cannot be negative').default(0),
     entries: z.array(entrySchema).default([]),
   }),

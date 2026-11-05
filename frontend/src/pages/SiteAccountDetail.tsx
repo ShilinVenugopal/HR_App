@@ -369,7 +369,7 @@ export default function SiteAccountDetail() {
             <div>
               <label className="label">Opening Balance</label>
               {isEditable ? (
-                <input type="number" min="0" step="0.01" className="input" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} />
+                <input type="number" step="0.01" className="input" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} />
               ) : (
                 <p className="font-medium">₹{Number(openingBalance || 0).toLocaleString('en-IN')}</p>
               )}
