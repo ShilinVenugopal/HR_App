@@ -130,6 +130,17 @@ export default function GoodsReceivedNoteDetail() {
   const canDecide = grn?.status === 'PENDING_APPROVAL' && can('GRN', 'approve');
   const canUpdateInventory = grn?.status === 'APPROVED' && !grn.inventoryUpdatedAt && can('GRN', 'edit');
 
+  // Narrow exception to the lock above: if a Super Admin has deleted the
+  // invoice from an otherwise-locked GRN, the original creator (or a Super
+  // Admin) may upload a replacement without the rest of the form becoming
+  // editable — no other field here is affected by this flag.
+  const canReuploadInvoiceWhileLocked =
+    !isNew &&
+    !isEditable &&
+    Boolean(grn) &&
+    !grn?.invoiceFileUrl &&
+    (session?.user.role === 'SUPER_ADMIN' || (Boolean(grn?.createdById) && grn?.createdById === session?.user.id));
+
   const updateRow = (key: string, patch: Partial<DraftItem>) => setItems((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   const rejectedQtyFor = (row: DraftItem) => {
@@ -308,7 +319,7 @@ export default function GoodsReceivedNoteDetail() {
                 </button>
               </>
             )}
-            {isEditable && can('GRN', isNew ? 'add' : 'edit') && (
+            {(isEditable || (canReuploadInvoiceWhileLocked && invoiceFileUrl)) && can('GRN', isNew ? 'add' : 'edit') && (
               <button className="btn-primary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                 Save Draft
               </button>
@@ -450,7 +461,7 @@ export default function GoodsReceivedNoteDetail() {
           </div>
           <div>
             <label className="label">Upload Invoice (optional)</label>
-            {isEditable ? (
+            {isEditable || canReuploadInvoiceWhileLocked ? (
               <div className="flex flex-wrap items-center gap-3">
                 <label className="btn-secondary inline-flex cursor-pointer items-center gap-2 px-2 py-1 text-xs">
                   <Upload size={14} />
@@ -479,6 +490,11 @@ export default function GoodsReceivedNoteDetail() {
                       <X size={14} />
                     </button>
                   </>
+                )}
+                {canReuploadInvoiceWhileLocked && (
+                  <p className="w-full text-xs text-slate-400">
+                    The invoice was removed from this {grn?.status.toLowerCase().replace('_', ' ')} GRN — upload a replacement and click Save Draft.
+                  </p>
                 )}
               </div>
             ) : grn?.invoiceFileUrl ? (

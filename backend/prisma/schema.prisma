@@ -373,6 +373,7 @@ model User {
   prsApproving                   PurchaseRequisition[]  @relation("PRCurrentApprover")
   posCreated                     PurchaseOrder[]        @relation("POCreatedBy")
   posApproved                    PurchaseOrder[]        @relation("POApprovedBy")
+  grnsCreated                     GoodsReceivedNote[]    @relation("GRNCreatedBy")
   grnsSubmitted                  GoodsReceivedNote[]    @relation("GRNSubmittedBy")
   grnsApproving                  GoodsReceivedNote[]    @relation("GRNCurrentApprover")
   grnsInventoryUpdated           GoodsReceivedNote[]    @relation("GRNInventoryUpdatedBy")
@@ -1454,6 +1455,12 @@ model GoodsReceivedNote {
   /// Manually typed name of the person who created this GRN — intentionally
   /// NOT derived from the logged-in user, per the design brief.
   createdByName        String?
+  /// The actual logged-in user account that created this GRN (distinct from
+  /// createdByName above, which is free text) — used only to authorize the
+  /// narrow "re-upload a replacement invoice on an otherwise-locked GRN"
+  /// path after a Super Admin deletes the invoice. Nullable because GRNs
+  /// created before this field existed have no recorded creator.
+  createdById          String?
   /// Optional supplier invoice attached to this GRN (PDF/JPG/PNG), stored
   /// via the existing generic uploads endpoint — same pattern as
   /// PurchaseOrder.signatureImageUrl. Never required to create a GRN.
@@ -1474,6 +1481,7 @@ model GoodsReceivedNote {
 
   project               Project                 @relation(fields: [projectId], references: [id])
   po                    PurchaseOrder           @relation(fields: [poId], references: [id])
+  createdBy             User?                   @relation("GRNCreatedBy", fields: [createdById], references: [id])
   submittedBy           User?                   @relation("GRNSubmittedBy", fields: [submittedById], references: [id])
   currentApprover       User?                   @relation("GRNCurrentApprover", fields: [currentApproverId], references: [id])
   inventoryUpdatedBy    User?                   @relation("GRNInventoryUpdatedBy", fields: [inventoryUpdatedById], references: [id])

@@ -13,6 +13,7 @@ import { createNotification } from '../notifications/notifications.service';
 const includeRelations = {
   project: { select: { id: true, projectName: true, projectNumber: true } },
   po: { select: { id: true, poNumber: true, poDate: true, vendor: { select: { id: true, name: true } } } },
+  createdBy: { select: { id: true, name: true, email: true } },
   submittedBy: { select: { id: true, name: true, email: true } },
   currentApprover: { select: { id: true, name: true, email: true } },
   inventoryUpdatedBy: { select: { id: true, name: true } },
@@ -141,6 +142,7 @@ export async function createGoodsReceivedNote(req: Request, input: CreateGrnInpu
       lrDate: input.lrDate || null,
       transporterName: input.transporterName || null,
       createdByName: input.createdByName || null,
+      createdById: req.user!.sub,
       invoiceFileUrl: input.invoiceFileUrl || null,
       invoiceFileName: input.invoiceFileName || null,
       status: 'DRAFT',
@@ -164,10 +166,49 @@ export async function createGoodsReceivedNote(req: Request, input: CreateGrnInpu
 
 export type UpdateGrnInput = Partial<Omit<CreateGrnInput, 'projectId' | 'poId'>>;
 
+/// Normally a GRN can only be edited while Draft/Returned (EDITABLE_STATUSES).
+/// This one narrow exception lets the invoice be replaced on an otherwise
+/// locked GRN: if a Super Admin has deleted the invoice (so there is
+/// currently none attached), the original creator — or a Super Admin —
+/// may upload a replacement without unlocking anything else. It never
+/// requires a new GRN and never touches grnNumber/date/items/any other
+/// field; the GRN simply stays exactly as it was, minus/plus the invoice.
+function canReuploadInvoiceWhileLocked(req: Request, existing: { createdById: string | null; invoiceFileUrl: string | null }, input: UpdateGrnInput): boolean {
+  if (existing.invoiceFileUrl) return false;
+  if (!input.invoiceFileUrl) return false;
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  const isCreator = existing.createdById !== null && existing.createdById === req.user!.sub;
+  return isSuperAdmin || isCreator;
+}
+
 export async function updateGoodsReceivedNote(req: Request, id: string, input: UpdateGrnInput, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
-  if (!EDITABLE_STATUSES.includes(existing.status)) {
+  const invoiceOnlyReupload = !EDITABLE_STATUSES.includes(existing.status) && canReuploadInvoiceWhileLocked(req, existing, input);
+
+  if (!EDITABLE_STATUSES.includes(existing.status) && !invoiceOnlyReupload) {
     throw ApiError.badRequest(`This Goods Received Note is ${existing.status.toLowerCase()} and cannot be edited`);
+  }
+
+  // The narrow path: write only the invoice fields, leave absolutely
+  // everything else (status, items, dates, grnNumber, ...) untouched.
+  if (invoiceOnlyReupload) {
+    const grn = await prisma.goodsReceivedNote.update({
+      where: { id },
+      data: { invoiceFileUrl: input.invoiceFileUrl || null, invoiceFileName: input.invoiceFileName || null },
+      include: includeRelations,
+    });
+
+    await recordAuditLog({
+      userId: req.user!.sub,
+      action: 'UPDATE',
+      module: 'GRN',
+      projectId: existing.projectId,
+      status: 'SUCCESS',
+      meta,
+      details: { grnId: id, invoiceReuploadedWhileLocked: true, status: existing.status },
+    });
+
+    return grn;
   }
 
   const grn = await prisma.$transaction(async (tx) => {

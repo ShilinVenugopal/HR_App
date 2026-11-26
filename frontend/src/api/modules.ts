@@ -1064,6 +1064,12 @@ export interface GoodsReceivedNote {
   /// Manually typed name of the GRN creator — never auto-filled from the
   /// logged-in user.
   createdByName?: string | null;
+  /// The actual logged-in user account that created this GRN (distinct
+  /// from createdByName above) — used only to determine whether the
+  /// current user may re-upload a replacement invoice on an otherwise
+  /// locked GRN. Null for GRNs created before this field existed.
+  createdById?: string | null;
+  createdBy?: { id: string; name: string; email: string } | null;
   /// Optional supplier invoice (PDF/JPG/PNG) uploaded via the existing
   /// generic uploads endpoint.
   invoiceFileUrl?: string | null;
