@@ -170,7 +170,7 @@ export function AddBillDetailsModal({ open, onClose }: { open: boolean; onClose:
                   <th className="px-2 py-1.5">Invoice Date</th>
                   <th className="px-2 py-1.5">JMS No</th>
                   <th className="px-2 py-1.5">Abstract Amount *</th>
-                  <th className="px-2 py-1.5">Tax Amount</th>
+                  <th className="px-2 py-1.5">GST Amount</th>
                   <th className="px-2 py-1.5">Total Amount</th>
                   <th className="px-2 py-1.5">Status</th>
                   <th className="px-2 py-1.5">Actions</th>

@@ -1121,6 +1121,9 @@ export const grnsApi = {
   returnToSubmitter: (id: string, comments: string) => apiClient.post(`/grns/${id}/return`, { comments }).then((r) => r.data.data as GoodsReceivedNote),
   unlock: (id: string) => apiClient.patch(`/grns/${id}/unlock`).then((r) => r.data.data as GoodsReceivedNote),
   updateInventory: (id: string) => apiClient.post(`/grns/${id}/update-inventory`).then((r) => r.data.data as GoodsReceivedNote),
+  // Super-Admin-only: deletes just the uploaded invoice, regardless of the
+  // GRN's lock status, without deleting the GRN itself.
+  removeInvoice: (id: string) => apiClient.delete(`/grns/${id}/invoice`).then((r) => r.data.data as GoodsReceivedNote),
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1199,7 +1202,10 @@ export const BILLING_PAYMENT_STATUS_OPTIONS: { value: BillingPaymentStatus; labe
 export interface BillingPayment {
   id: string;
   billingItemId: string;
+  /// "Abstract Amount Received" in the UI.
   amountReceived: string | number;
+  gstAmountReceived: string | number;
+  tdsAmountDeducted: string | number;
   paymentDate: string;
   remarks?: string | null;
   createdBy?: { id: string; name: string } | null;
@@ -1273,6 +1279,8 @@ export interface BillingItemUpdateInput {
 
 export interface BillingPaymentInput {
   amountReceived: number;
+  gstAmountReceived?: number;
+  tdsAmountDeducted?: number;
   paymentDate: string;
   remarks?: string;
 }

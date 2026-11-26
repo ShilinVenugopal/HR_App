@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Boxes, FileDown, Printer, Send, Trash2, Unlock as UnlockIcon, Upload } from 'lucide-react';
+import { ArrowLeft, Boxes, FileDown, Printer, Send, Trash2, Unlock as UnlockIcon, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -60,6 +60,7 @@ export default function GoodsReceivedNoteDetail() {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [decisionAction, setDecisionAction] = useState<DecisionAction | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteInvoiceConfirmOpen, setDeleteInvoiceConfirmOpen] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['grn', id],
@@ -166,8 +167,12 @@ export default function GoodsReceivedNoteDetail() {
         lrDate: lrDate || undefined,
         transporterName: transporterName || undefined,
         createdByName: createdByName || undefined,
-        invoiceFileUrl: invoiceFileUrl || undefined,
-        invoiceFileName: invoiceFileName || undefined,
+        // Sent as plain strings (not `|| undefined`) so that clearing the
+        // invoice locally (the "Remove" control below) actually reaches the
+        // backend as an explicit clear on Save, rather than being dropped
+        // from the payload and leaving the old invoice in place.
+        invoiceFileUrl,
+        invoiceFileName,
         items: itemsPayload,
       };
       return isNew ? grnsApi.create(payload) : grnsApi.update(id!, payload);
@@ -196,6 +201,30 @@ export default function GoodsReceivedNoteDetail() {
       setUploadingInvoice(false);
     }
   };
+
+  // Clears the invoice locally so the user can then upload a corrected one
+  // (or leave it blank) — takes effect once "Save Draft" is clicked, same
+  // as every other field on this editable form.
+  const handleRemoveInvoiceLocal = () => {
+    setInvoiceFileUrl('');
+    setInvoiceFileName('');
+  };
+
+  // Super-Admin-only: deletes the uploaded invoice immediately via its own
+  // endpoint, regardless of the GRN's lock status — for fixing an
+  // incorrect/duplicate invoice on a GRN that's already been submitted or
+  // approved, where the regular edit form is locked.
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: () => grnsApi.removeInvoice(id!),
+    onSuccess: () => {
+      toast.success('Invoice deleted');
+      setInvoiceFileUrl('');
+      setInvoiceFileName('');
+      setDeleteInvoiceConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['grn', id] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
 
   const submitMutation = useMutation({
     mutationFn: (approverId: string) => grnsApi.submit(id!, approverId),
@@ -289,11 +318,14 @@ export default function GoodsReceivedNoteDetail() {
                 <Send size={16} /> Proceed for Approval
               </button>
             )}
-            {!isNew && grn?.status === 'DRAFT' && can('GRN', 'delete') && (
-              <button className="btn-secondary text-red-600" onClick={() => setDeleteConfirmOpen(true)}>
-                <Trash2 size={16} /> Delete
-              </button>
-            )}
+            {!isNew &&
+              grn &&
+              ((grn.status === 'DRAFT' && can('GRN', 'delete')) ||
+                (session?.user.role === 'SUPER_ADMIN' && grn.status !== 'DRAFT' && !grn.inventoryUpdatedAt)) && (
+                <button className="btn-secondary text-red-600" onClick={() => setDeleteConfirmOpen(true)}>
+                  <Trash2 size={16} /> Delete
+                </button>
+              )}
             {canDecide && (
               <>
                 <button className="btn-primary" onClick={() => setDecisionAction('APPROVE')}>
@@ -419,7 +451,7 @@ export default function GoodsReceivedNoteDetail() {
           <div>
             <label className="label">Upload Invoice (optional)</label>
             {isEditable ? (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <label className="btn-secondary inline-flex cursor-pointer items-center gap-2 px-2 py-1 text-xs">
                   <Upload size={14} />
                   {uploadingInvoice ? 'Uploading...' : 'Choose File'}
@@ -434,9 +466,19 @@ export default function GoodsReceivedNoteDetail() {
                   />
                 </label>
                 {invoiceFileUrl && (
-                  <a href={invoiceFileUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-600 underline">
-                    {invoiceFileName || 'View Invoice'}
-                  </a>
+                  <>
+                    <a href={invoiceFileUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-600 underline">
+                      {invoiceFileName || 'View Invoice'}
+                    </a>
+                    <button
+                      type="button"
+                      className="btn-ghost p-1 text-red-500"
+                      title="Remove Invoice (replace or leave blank, then Save Draft)"
+                      onClick={handleRemoveInvoiceLocal}
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
                 )}
               </div>
             ) : grn?.invoiceFileUrl ? (
@@ -445,6 +487,19 @@ export default function GoodsReceivedNoteDetail() {
               </a>
             ) : (
               <p className="font-medium">—</p>
+            )}
+            {/* Super Admin only — deletes the uploaded invoice immediately,
+                regardless of the GRN's lock status (unlike the "Remove"
+                control above, which only clears it locally until Save). */}
+            {!isNew && grn?.invoiceFileUrl && session?.user.role === 'SUPER_ADMIN' && (
+              <button
+                type="button"
+                className="btn-ghost mt-1 block px-2 py-1 text-xs text-red-600"
+                disabled={deleteInvoiceMutation.isPending}
+                onClick={() => setDeleteInvoiceConfirmOpen(true)}
+              >
+                <Trash2 size={13} className="mr-1 inline" /> Delete Invoice (Super Admin)
+              </button>
             )}
           </div>
         </div>
@@ -593,7 +648,11 @@ export default function GoodsReceivedNoteDetail() {
       <ConfirmDialog
         open={deleteConfirmOpen}
         title="Delete Goods Received Note"
-        message={`Delete Draft "${grn?.grnNumber}"? This cannot be undone.`}
+        message={
+          grn?.status === 'DRAFT'
+            ? `Delete Draft "${grn?.grnNumber}"? This cannot be undone.`
+            : `"${grn?.grnNumber}" is ${grn?.status?.toLowerCase().replace('_', ' ')}, not a Draft. As Super Admin you can still permanently delete it, but this cannot be undone and will remove its approval history. Continue?`
+        }
         confirmLabel="Delete"
         danger
         onCancel={() => setDeleteConfirmOpen(false)}
@@ -601,6 +660,17 @@ export default function GoodsReceivedNoteDetail() {
           setDeleteConfirmOpen(false);
           deleteMutation.mutate();
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteInvoiceConfirmOpen}
+        title="Delete Uploaded Invoice"
+        message={`Delete the invoice "${invoiceFileName || grn?.invoiceFileName || 'file'}" uploaded against "${grn?.grnNumber}"? The GRN itself is not affected. This cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        confirmDisabled={deleteInvoiceMutation.isPending}
+        onCancel={() => setDeleteInvoiceConfirmOpen(false)}
+        onConfirm={() => deleteInvoiceMutation.mutate()}
       />
     </div>
   );

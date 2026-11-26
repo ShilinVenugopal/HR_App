@@ -35,6 +35,11 @@ export const deleteGrnHandler = asyncHandler(async (req: Request, res: Response)
   return sendSuccess(res, null, 'Goods Received Note deleted successfully');
 });
 
+export const deleteGrnInvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
+  const grn = await grnService.deleteGrnInvoice(req, req.params.id, req.meta);
+  return sendSuccess(res, grn, 'Uploaded invoice deleted successfully');
+});
+
 export const listApproversHandler = asyncHandler(async (req: Request, res: Response) => {
   const approvers = await grnService.listApprovers(req, req.query.projectId as string);
   return sendSuccess(res, approvers, 'Eligible approvers fetched');

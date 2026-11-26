@@ -1,4 +1,4 @@
-import { Prisma, GRNStatus } from '@prisma/client';
+import { Prisma, GRNStatus, Role } from '@prisma/client';
 import { Request } from 'express';
 import { prisma } from '../../config/database';
 import { ApiError } from '../../utils/apiError';
@@ -209,13 +209,39 @@ export async function updateGoodsReceivedNote(req: Request, id: string, input: U
   return grn;
 }
 
+/// Regular users (whoever holds GRN 'delete') may only ever remove their
+/// own Draft GRNs — unchanged from before. Super Admin additionally gets a
+/// permanent-delete power that works on a GRN in any status, for the case
+/// where an incorrect/duplicate GRN needs removing after submission —
+/// same bypass shape as deletePurchaseOrder's Super Admin power.
+///
+/// The inventory-updated check is NOT bypassed for Super Admin: once
+/// "Update Inventory" has credited live stock quantities (InventoryItem)
+/// and recorded InventoryTransaction rows that reference this GRN,
+/// deleting it would either leave those transactions pointing at nothing
+/// or (since the FK has no cascade) fail outright — either way the stock
+/// movement would lose its underlying paper trail. Matches
+/// deletePurchaseOrder's "GRN check is NOT bypassed" precedent.
 export async function deleteGoodsReceivedNote(req: Request, id: string, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
-  if (existing.status !== 'DRAFT') {
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  if (!isSuperAdmin && existing.status !== 'DRAFT') {
     throw ApiError.badRequest('Only Draft Goods Received Notes can be deleted');
   }
+  if (existing.inventoryUpdatedAt) {
+    throw ApiError.conflict(
+      'This Goods Received Note has already updated inventory and cannot be deleted — that receipt history (and the inventory credited from it) must be preserved.'
+    );
+  }
 
-  await prisma.goodsReceivedNote.delete({ where: { id } });
+  await prisma.$transaction([
+    // Approval is intentionally polymorphic (not a typed Prisma relation),
+    // so nothing FK-cascades it; clean it up explicitly to avoid leaving
+    // orphan rows, same reasoning as deletePurchaseOrder.
+    prisma.approval.deleteMany({ where: { documentType: 'GRN', documentId: id } }),
+    // GoodsReceivedNoteItem cascades automatically (onDelete: Cascade).
+    prisma.goodsReceivedNote.delete({ where: { id } }),
+  ]);
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -224,8 +250,38 @@ export async function deleteGoodsReceivedNote(req: Request, id: string, meta?: R
     projectId: existing.projectId,
     status: 'SUCCESS',
     meta,
-    details: { grnId: id },
+    details: { grnId: id, grnNumber: existing.grnNumber, permanentDelete: existing.status !== 'DRAFT' },
   });
+}
+
+/// Super-Admin-only: clears an incorrect/duplicate uploaded invoice from a
+/// GRN without touching anything else on it (items, status, approval
+/// history) and without deleting the GRN itself. Works regardless of the
+/// GRN's lock status, unlike the regular edit flow, since the whole point
+/// is to fix a mistake on a GRN that may already be submitted/approved.
+export async function deleteGrnInvoice(req: Request, id: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  if (!existing.invoiceFileUrl) {
+    throw ApiError.badRequest('This Goods Received Note has no uploaded invoice to delete');
+  }
+
+  const grn = await prisma.goodsReceivedNote.update({
+    where: { id },
+    data: { invoiceFileUrl: null, invoiceFileName: null },
+    include: includeRelations,
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'DELETE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, removedInvoiceFileName: existing.invoiceFileName },
+  });
+
+  return grn;
 }
 
 export async function listApprovers(req: Request, projectId: string) {

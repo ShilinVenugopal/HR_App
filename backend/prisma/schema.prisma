@@ -1659,7 +1659,14 @@ model BillingItem {
 model BillingPayment {
   id             String   @id @default(uuid())
   billingItemId  String
+  /// "Abstract Amount Received" in the UI.
   amountReceived Decimal  @db.Decimal(14, 2)
+  /// Defaults to 0 so existing payment rows (recorded before this field
+  /// existed) keep working unchanged — their GST portion is simply 0.
+  gstAmountReceived Decimal @default(0) @db.Decimal(14, 2)
+  /// TDS deducted by the client against this payment — same backward-
+  /// compatible default-0 reasoning as gstAmountReceived.
+  tdsAmountDeducted Decimal @default(0) @db.Decimal(14, 2)
   paymentDate    DateTime
   remarks        String?
   createdById    String

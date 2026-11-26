@@ -57,12 +57,23 @@ export interface ComputedBillingFields {
 /// never stored — so they can never drift out of sync with their inputs
 /// (req. #8), and changing the Super Admin's dueDays setting instantly
 /// "recalculates" every invoice's due date on the next read (req. #6).
+/// Sum of all three payment components for one payment row — Abstract
+/// Amount Received, GST Amount Received and TDS Amount Deducted all count
+/// toward the invoice's outstanding balance (req. #3).
+function paymentTotal(p: { amountReceived: Prisma.Decimal | number; gstAmountReceived: Prisma.Decimal | number; tdsAmountDeducted: Prisma.Decimal | number }): number {
+  return Number(p.amountReceived) + Number(p.gstAmountReceived) + Number(p.tdsAmountDeducted);
+}
+
 function computeBillingFields(
-  item: { invoiceDate: Date | null; totalAmount: Prisma.Decimal | number; payments: { amountReceived: Prisma.Decimal | number }[] },
+  item: {
+    invoiceDate: Date | null;
+    totalAmount: Prisma.Decimal | number;
+    payments: { amountReceived: Prisma.Decimal | number; gstAmountReceived: Prisma.Decimal | number; tdsAmountDeducted: Prisma.Decimal | number }[];
+  },
   dueDays: number
 ): ComputedBillingFields {
   const totalAmount = Number(item.totalAmount);
-  const totalReceived = round2(item.payments.reduce((sum, p) => sum + Number(p.amountReceived), 0));
+  const totalReceived = round2(item.payments.reduce((sum, p) => sum + paymentTotal(p), 0));
   const outstandingAmount = round2(totalAmount - totalReceived);
 
   let paymentStatus: PaymentStatus;
@@ -429,6 +440,8 @@ export async function deleteBillingItem(req: Request, itemId: string, meta?: Req
 
 export interface BillingPaymentInput {
   amountReceived: number;
+  gstAmountReceived?: number;
+  tdsAmountDeducted?: number;
   paymentDate: Date;
   remarks?: string;
 }
@@ -448,26 +461,55 @@ async function getBillingItemWithComputed(req: Request, itemId: string) {
   return { ...item, ...computeBillingFields(item, settings.dueDays) };
 }
 
+/// Req. #3.5: the combined Abstract/GST/TDS amounts across every payment
+/// against an invoice must never exceed its Total Amount — there is no
+/// "authorized adjustment" override in this app, so this is a hard stop.
+/// `otherPaymentsTotal` excludes the payment being added/edited.
+function assertWithinInvoiceTotal(totalAmount: number, otherPaymentsTotal: number, candidate: { amountReceived: number; gstAmountReceived: number; tdsAmountDeducted: number }) {
+  const candidateTotal = candidate.amountReceived + candidate.gstAmountReceived + candidate.tdsAmountDeducted;
+  const combined = round2(otherPaymentsTotal + candidateTotal);
+  if (combined > totalAmount) {
+    const available = Math.max(0, round2(totalAmount - otherPaymentsTotal));
+    throw ApiError.badRequest(
+      `Abstract Amount Received + GST Amount Received + TDS Amount Deducted (₹${combined}) would exceed the invoice's Total Amount (₹${totalAmount}). At most ₹${available} remains available across these three fields.`
+    );
+  }
+}
+
 /// Adds one payment row against an invoice — multiple rows accumulate for
-/// partial payments (req. #2); amountReceived/outstandingAmount are never
-/// stored, only ever derived by computeBillingFields, so they recompute
-/// automatically on every read. Guards against an accidental double-submit
-/// recording the same payment twice by rejecting an exact amount+date
-/// duplicate against the same invoice.
+/// partial payments (req. #2, #4); the three amount fields are never
+/// stored as a combined total, only ever summed by computeBillingFields,
+/// so outstanding/status recompute automatically on every read. Guards
+/// against an accidental double-submit recording the same payment twice by
+/// rejecting an exact duplicate (same three amounts + date) against the
+/// same invoice.
 export async function addBillingPayment(req: Request, itemId: string, input: BillingPaymentInput, meta?: RequestMeta) {
   const item = await loadItemAndAuthorize(req, itemId);
+  const gstAmountReceived = input.gstAmountReceived ?? 0;
+  const tdsAmountDeducted = input.tdsAmountDeducted ?? 0;
 
   const duplicate = await prisma.billingPayment.findFirst({
-    where: { billingItemId: itemId, amountReceived: input.amountReceived, paymentDate: input.paymentDate },
+    where: {
+      billingItemId: itemId,
+      amountReceived: input.amountReceived,
+      gstAmountReceived,
+      tdsAmountDeducted,
+      paymentDate: input.paymentDate,
+    },
   });
   if (duplicate) {
     throw ApiError.conflict('A payment with this exact amount and date has already been recorded against this invoice');
   }
 
+  const otherPaymentsTotal = round2(item.payments.reduce((sum, p) => sum + paymentTotal(p), 0));
+  assertWithinInvoiceTotal(Number(item.totalAmount), otherPaymentsTotal, { amountReceived: input.amountReceived, gstAmountReceived, tdsAmountDeducted });
+
   const payment = await prisma.billingPayment.create({
     data: {
       billingItemId: itemId,
       amountReceived: input.amountReceived,
+      gstAmountReceived,
+      tdsAmountDeducted,
       paymentDate: input.paymentDate,
       remarks: input.remarks || null,
       createdById: req.user!.sub,
@@ -481,7 +523,7 @@ export async function addBillingPayment(req: Request, itemId: string, input: Bil
     projectId: item.billingRecord.projectId,
     status: 'SUCCESS',
     meta,
-    details: { billingItemId: itemId, paymentId: payment.id, amountReceived: input.amountReceived, paymentDate: input.paymentDate },
+    details: { billingItemId: itemId, paymentId: payment.id, amountReceived: input.amountReceived, gstAmountReceived, tdsAmountDeducted, paymentDate: input.paymentDate },
   });
 
   return getBillingItemWithComputed(req, itemId);
@@ -491,14 +533,29 @@ export type UpdateBillingPaymentInput = Partial<BillingPaymentInput>;
 
 /// Editing a payment recalculates the invoice's outstanding amount and
 /// status for free, since both are derived at read time rather than stored
-/// (req. #2, #7).
+/// (req. #2, #7). Re-validates the invoice-total cap against every OTHER
+/// payment plus this one's new values.
 export async function updateBillingPayment(req: Request, paymentId: string, input: UpdateBillingPaymentInput, meta?: RequestMeta) {
   const existing = await loadPaymentAndAuthorize(req, paymentId);
+
+  const nextAmountReceived = input.amountReceived ?? Number(existing.amountReceived);
+  const nextGstAmountReceived = input.gstAmountReceived ?? Number(existing.gstAmountReceived);
+  const nextTdsAmountDeducted = input.tdsAmountDeducted ?? Number(existing.tdsAmountDeducted);
+
+  const otherPayments = existing.billingItem.payments.filter((p) => p.id !== paymentId);
+  const otherPaymentsTotal = round2(otherPayments.reduce((sum, p) => sum + paymentTotal(p), 0));
+  assertWithinInvoiceTotal(Number(existing.billingItem.totalAmount), otherPaymentsTotal, {
+    amountReceived: nextAmountReceived,
+    gstAmountReceived: nextGstAmountReceived,
+    tdsAmountDeducted: nextTdsAmountDeducted,
+  });
 
   const payment = await prisma.billingPayment.update({
     where: { id: paymentId },
     data: {
       amountReceived: input.amountReceived ?? undefined,
+      gstAmountReceived: input.gstAmountReceived ?? undefined,
+      tdsAmountDeducted: input.tdsAmountDeducted ?? undefined,
       paymentDate: input.paymentDate ?? undefined,
       remarks: input.remarks !== undefined ? input.remarks || null : undefined,
       updatedById: req.user!.sub,
@@ -517,6 +574,10 @@ export async function updateBillingPayment(req: Request, paymentId: string, inpu
       paymentId,
       oldAmountReceived: Number(existing.amountReceived),
       newAmountReceived: Number(payment.amountReceived),
+      oldGstAmountReceived: Number(existing.gstAmountReceived),
+      newGstAmountReceived: Number(payment.gstAmountReceived),
+      oldTdsAmountDeducted: Number(existing.tdsAmountDeducted),
+      newTdsAmountDeducted: Number(payment.tdsAmountDeducted),
       oldPaymentDate: existing.paymentDate,
       newPaymentDate: payment.paymentDate,
     },
@@ -541,7 +602,14 @@ export async function deleteBillingPayment(req: Request, paymentId: string, meta
     projectId: existing.billingItem.billingRecord.projectId,
     status: 'SUCCESS',
     meta,
-    details: { billingItemId: existing.billingItemId, paymentId, amountReceived: Number(existing.amountReceived), paymentDate: existing.paymentDate },
+    details: {
+      billingItemId: existing.billingItemId,
+      paymentId,
+      amountReceived: Number(existing.amountReceived),
+      gstAmountReceived: Number(existing.gstAmountReceived),
+      tdsAmountDeducted: Number(existing.tdsAmountDeducted),
+      paymentDate: existing.paymentDate,
+    },
   });
 
   return getBillingItemWithComputed(req, existing.billingItemId);

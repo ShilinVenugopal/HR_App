@@ -54,17 +54,28 @@ export const itemIdParamSchema = z.object({ params: z.object({ itemId: z.string(
 export const paymentIdParamSchema = z.object({ params: z.object({ paymentId: z.string().uuid() }) });
 
 export const createBillingPaymentSchema = z.object({
-  body: z.object({
-    amountReceived: z.coerce.number().positive('Amount Received must be greater than 0'),
-    paymentDate: z.coerce.date({ required_error: 'Payment Date is required', invalid_type_error: 'Payment Date is required' }),
-    remarks: z.string().trim().optional(),
-  }),
+  body: z
+    .object({
+      // "Abstract Amount Received" in the UI — 0 is allowed here since a
+      // payment entry may consist purely of a GST/TDS adjustment.
+      amountReceived: z.coerce.number().nonnegative('Abstract Amount Received cannot be negative').default(0),
+      gstAmountReceived: z.coerce.number().nonnegative('GST Amount Received cannot be negative').default(0),
+      tdsAmountDeducted: z.coerce.number().nonnegative('TDS Amount Deducted cannot be negative').default(0),
+      paymentDate: z.coerce.date({ required_error: 'Payment Date is required', invalid_type_error: 'Payment Date is required' }),
+      remarks: z.string().trim().optional(),
+    })
+    .refine((v) => v.amountReceived > 0 || v.gstAmountReceived > 0 || v.tdsAmountDeducted > 0, {
+      message: 'Enter at least one of Abstract Amount Received, GST Amount Received or TDS Amount Deducted',
+      path: ['amountReceived'],
+    }),
 });
 
 export const updateBillingPaymentSchema = z.object({
   body: z
     .object({
-      amountReceived: z.coerce.number().positive('Amount Received must be greater than 0').optional(),
+      amountReceived: z.coerce.number().nonnegative('Abstract Amount Received cannot be negative').optional(),
+      gstAmountReceived: z.coerce.number().nonnegative('GST Amount Received cannot be negative').optional(),
+      tdsAmountDeducted: z.coerce.number().nonnegative('TDS Amount Deducted cannot be negative').optional(),
       paymentDate: z.coerce.date().optional(),
       remarks: z.string().trim().optional().nullable(),
     })

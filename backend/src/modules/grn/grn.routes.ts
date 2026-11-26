@@ -24,6 +24,10 @@ router.get('/:id', requirePermission('GRN', 'view'), validate(idParamSchema), gr
 router.post('/', requirePermission('GRN', 'add'), validate(createGrnSchema), grnController.createGrnHandler);
 router.put('/:id', requirePermission('GRN', 'edit'), validate(idParamSchema), validate(updateGrnSchema), grnController.updateGrnHandler);
 router.delete('/:id', requirePermission('GRN', 'delete'), validate(idParamSchema), grnController.deleteGrnHandler);
+// Super-Admin-only: remove just the uploaded invoice (e.g. an incorrect or
+// duplicate file) without deleting the GRN itself — works regardless of
+// the GRN's lock status, unlike every other write route here.
+router.delete('/:id/invoice', requireSuperAdmin, validate(idParamSchema), grnController.deleteGrnInvoiceHandler);
 
 router.post('/:id/submit', requirePermission('GRN', 'edit'), validate(idParamSchema), validate(submitGrnSchema), grnController.submitGrnHandler);
 router.post('/:id/approve', requirePermission('GRN', 'approve'), validate(idParamSchema), validate(decideGrnSchema), grnController.approveGrnHandler);

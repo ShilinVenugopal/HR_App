@@ -59,6 +59,8 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
 
   const [addingPayment, setAddingPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentGstAmount, setPaymentGstAmount] = useState('');
+  const [paymentTdsAmount, setPaymentTdsAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentRemarks, setPaymentRemarks] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
@@ -77,6 +79,8 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setAddingPayment(false);
     setEditingPaymentId(null);
     setPaymentAmount('');
+    setPaymentGstAmount('');
+    setPaymentTdsAmount('');
     setPaymentDate('');
     setPaymentRemarks('');
   }, [item]);
@@ -112,16 +116,28 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
   const addPaymentMutation = useMutation({
     mutationFn: () => {
       if (!currentItem) throw new Error('No item selected');
-      const amount = Number(paymentAmount);
-      if (!(amount > 0)) throw new Error('Amount Received must be greater than 0');
+      const amount = Number(paymentAmount) || 0;
+      const gstAmount = Number(paymentGstAmount) || 0;
+      const tdsAmount = Number(paymentTdsAmount) || 0;
+      if (!(amount > 0 || gstAmount > 0 || tdsAmount > 0)) {
+        throw new Error('Enter at least one of Abstract Amount Received, GST Amount Received or TDS Amount Deducted');
+      }
       if (!paymentDate) throw new Error('Payment Date is required');
-      return billingStatusApi.addPayment(currentItem.id, { amountReceived: amount, paymentDate, remarks: paymentRemarks.trim() || undefined });
+      return billingStatusApi.addPayment(currentItem.id, {
+        amountReceived: amount,
+        gstAmountReceived: gstAmount,
+        tdsAmountDeducted: tdsAmount,
+        paymentDate,
+        remarks: paymentRemarks.trim() || undefined,
+      });
     },
     onSuccess: (updated) => {
       toast.success('Payment recorded');
       setCurrentItem(updated);
       setAddingPayment(false);
       setPaymentAmount('');
+      setPaymentGstAmount('');
+      setPaymentTdsAmount('');
       setPaymentDate('');
       setPaymentRemarks('');
       queryClient.invalidateQueries({ queryKey: ['billing-status'] });
@@ -134,16 +150,28 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
   const editPaymentMutation = useMutation({
     mutationFn: () => {
       if (!editingPaymentId) throw new Error('No payment selected');
-      const amount = Number(paymentAmount);
-      if (!(amount > 0)) throw new Error('Amount Received must be greater than 0');
+      const amount = Number(paymentAmount) || 0;
+      const gstAmount = Number(paymentGstAmount) || 0;
+      const tdsAmount = Number(paymentTdsAmount) || 0;
+      if (!(amount > 0 || gstAmount > 0 || tdsAmount > 0)) {
+        throw new Error('Enter at least one of Abstract Amount Received, GST Amount Received or TDS Amount Deducted');
+      }
       if (!paymentDate) throw new Error('Payment Date is required');
-      return billingStatusApi.updatePayment(editingPaymentId, { amountReceived: amount, paymentDate, remarks: paymentRemarks.trim() || undefined });
+      return billingStatusApi.updatePayment(editingPaymentId, {
+        amountReceived: amount,
+        gstAmountReceived: gstAmount,
+        tdsAmountDeducted: tdsAmount,
+        paymentDate,
+        remarks: paymentRemarks.trim() || undefined,
+      });
     },
     onSuccess: (updated) => {
       toast.success('Payment updated');
       setCurrentItem(updated);
       setEditingPaymentId(null);
       setPaymentAmount('');
+      setPaymentGstAmount('');
+      setPaymentTdsAmount('');
       setPaymentDate('');
       setPaymentRemarks('');
       queryClient.invalidateQueries({ queryKey: ['billing-status'] });
@@ -172,6 +200,11 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setEditingPaymentId(null);
     setAddingPayment(true);
     setPaymentAmount('');
+    // GST Amount Received is prefilled from the invoice's own GST Amount
+    // (req. #2B) — still freely editable, since GST may be received
+    // partially across multiple payments.
+    setPaymentGstAmount(String(item.taxAmount ?? 0));
+    setPaymentTdsAmount('');
     setPaymentDate(new Date().toISOString().slice(0, 10));
     setPaymentRemarks('');
   };
@@ -180,6 +213,8 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setAddingPayment(false);
     setEditingPaymentId(p.id);
     setPaymentAmount(String(p.amountReceived));
+    setPaymentGstAmount(String(p.gstAmountReceived ?? 0));
+    setPaymentTdsAmount(String(p.tdsAmountDeducted ?? 0));
     setPaymentDate(p.paymentDate.slice(0, 10));
     setPaymentRemarks(p.remarks ?? '');
   };
@@ -336,7 +371,9 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
               <thead className="bg-slate-50 uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                 <tr>
                   <th className="px-2 py-1.5">Payment Date</th>
-                  <th className="px-2 py-1.5">Amount Received</th>
+                  <th className="px-2 py-1.5">Abstract Amount Received</th>
+                  <th className="px-2 py-1.5">GST Amount Received</th>
+                  <th className="px-2 py-1.5">TDS Amount Deducted</th>
                   <th className="px-2 py-1.5">Remarks</th>
                   <th className="px-2 py-1.5">Entered By</th>
                   {canManagePayments && <th className="px-2 py-1.5 text-right">Actions</th>}
@@ -357,6 +394,26 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                           className="input py-1 text-xs"
                           value={paymentAmount}
                           onChange={(e) => setPaymentAmount(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="input py-1 text-xs"
+                          value={paymentGstAmount}
+                          onChange={(e) => setPaymentGstAmount(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="input py-1 text-xs"
+                          value={paymentTdsAmount}
+                          onChange={(e) => setPaymentTdsAmount(e.target.value)}
                         />
                       </td>
                       <td className="px-1 py-1">
@@ -382,6 +439,8 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                     <tr key={p.id}>
                       <td className="px-2 py-1.5">{fmtDate(p.paymentDate)}</td>
                       <td className="px-2 py-1.5 font-medium">{fmtMoney(Number(p.amountReceived))}</td>
+                      <td className="px-2 py-1.5">{fmtMoney(Number(p.gstAmountReceived ?? 0))}</td>
+                      <td className="px-2 py-1.5">{fmtMoney(Number(p.tdsAmountDeducted ?? 0))}</td>
                       <td className="px-2 py-1.5">{p.remarks || '—'}</td>
                       <td className="px-2 py-1.5 text-slate-400">{p.createdBy?.name ?? '—'}</td>
                       {canManagePayments && (
@@ -417,6 +476,28 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                     </td>
                     <td className="px-1 py-1">
                       <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input py-1 text-xs"
+                        placeholder="GST"
+                        value={paymentGstAmount}
+                        onChange={(e) => setPaymentGstAmount(e.target.value)}
+                      />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input py-1 text-xs"
+                        placeholder="TDS"
+                        value={paymentTdsAmount}
+                        onChange={(e) => setPaymentTdsAmount(e.target.value)}
+                      />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
                         className="input py-1 text-xs"
                         placeholder="Optional"
                         value={paymentRemarks}
@@ -438,7 +519,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                 )}
                 {payments.length === 0 && !addingPayment && (
                   <tr>
-                    <td colSpan={canManagePayments ? 5 : 4} className="px-2 py-3 text-center text-slate-400">
+                    <td colSpan={canManagePayments ? 7 : 6} className="px-2 py-3 text-center text-slate-400">
                       No payments recorded yet.
                     </td>
                   </tr>
