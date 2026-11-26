@@ -133,13 +133,12 @@ export default function GoodsReceivedNoteDetail() {
   // Narrow exception to the lock above: if a Super Admin has deleted the
   // invoice from an otherwise-locked GRN, the original creator (or a Super
   // Admin) may upload a replacement without the rest of the form becoming
-  // editable — no other field here is affected by this flag.
-  const canReuploadInvoiceWhileLocked =
-    !isNew &&
-    !isEditable &&
-    Boolean(grn) &&
-    !grn?.invoiceFileUrl &&
-    (session?.user.role === 'SUPER_ADMIN' || (Boolean(grn?.createdById) && grn?.createdById === session?.user.id));
+  // editable — no other field here is affected by this flag. createdById is
+  // the authoritative owner when present; GRNs from before that column
+  // existed fall back to submittedById, which every locked (i.e. submitted)
+  // GRN already has.
+  const isOwner = grn?.createdById ? grn.createdById === session?.user.id : Boolean(grn?.submittedById) && grn?.submittedById === session?.user.id;
+  const canReuploadInvoiceWhileLocked = !isNew && !isEditable && Boolean(grn) && !grn?.invoiceFileUrl && (session?.user.role === 'SUPER_ADMIN' || isOwner);
 
   const updateRow = (key: string, patch: Partial<DraftItem>) => setItems((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 

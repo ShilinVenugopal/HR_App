@@ -173,12 +173,22 @@ export type UpdateGrnInput = Partial<Omit<CreateGrnInput, 'projectId' | 'poId'>>
 /// may upload a replacement without unlocking anything else. It never
 /// requires a new GRN and never touches grnNumber/date/items/any other
 /// field; the GRN simply stays exactly as it was, minus/plus the invoice.
-function canReuploadInvoiceWhileLocked(req: Request, existing: { createdById: string | null; invoiceFileUrl: string | null }, input: UpdateGrnInput): boolean {
+function canReuploadInvoiceWhileLocked(
+  req: Request,
+  existing: { createdById: string | null; submittedById: string | null; invoiceFileUrl: string | null },
+  input: UpdateGrnInput,
+): boolean {
   if (existing.invoiceFileUrl) return false;
   if (!input.invoiceFileUrl) return false;
   const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
-  const isCreator = existing.createdById !== null && existing.createdById === req.user!.sub;
-  return isSuperAdmin || isCreator;
+  // createdById is the authoritative owner when present. GRNs created before
+  // that column existed have no recorded creator, but every GRN that ever
+  // reaches a locked status has necessarily been submitted — submittedById
+  // already identifies the real logged-in user who did that — so fall back
+  // to it rather than leaving every pre-existing GRN permanently stuck with
+  // only a Super Admin able to re-upload.
+  const isOwner = existing.createdById !== null ? existing.createdById === req.user!.sub : existing.submittedById !== null && existing.submittedById === req.user!.sub;
+  return isSuperAdmin || isOwner;
 }
 
 export async function updateGoodsReceivedNote(req: Request, id: string, input: UpdateGrnInput, meta?: RequestMeta) {
