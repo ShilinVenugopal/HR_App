@@ -29,6 +29,8 @@ import {
   Archive,
   UsersRound,
   ShoppingCart,
+  HardHat,
+  AlertTriangle,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -108,6 +110,15 @@ export const NAV_ITEMS: NavEntry[] = [
     ],
   },
   { module: 'BILLING_STATUS', label: 'Billing Status', path: '/billing-status', icon: Receipt },
+  {
+    label: 'Subcontractors',
+    icon: HardHat,
+    children: [
+      { module: 'SUBCONTRACTORS', label: 'Subcontractor Management', path: '/subcontractors', icon: HardHat },
+      { module: 'SUBCONTRACTORS', label: 'Subcontractor Payments', path: '/subcontractor-payments', icon: Receipt },
+      { module: 'SUBCONTRACTORS', label: 'Payment Due', path: '/subcontractor-payment-due', icon: AlertTriangle },
+    ],
+  },
   { module: 'SITE_ACCOUNTS', label: 'Site Accounts', path: '/site-accounts', icon: BookOpenText },
   { label: 'Cost Code Master', path: '/cost-code-master', icon: Tags, alwaysVisible: true },
   {

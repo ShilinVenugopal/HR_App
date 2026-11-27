@@ -62,6 +62,7 @@ enum ModuleName {
   EXPENSE
   TICKETS
   ASSETS
+  SUBCONTRACTORS
 }
 
 enum CandidateStatus {
@@ -418,6 +419,13 @@ model User {
   assetsCreated Asset[] @relation("AssetCreatedBy")
   assetsUpdated Asset[] @relation("AssetUpdatedBy")
 
+  subcontractorsCreated       Subcontractor[]                    @relation("SubcontractorCreatedBy")
+  subcontractorsUpdated       Subcontractor[]                    @relation("SubcontractorUpdatedBy")
+  subcontractorBillsCreated   SubcontractorBill[]                @relation("SubcontractorBillCreatedBy")
+  subcontractorBillsUpdated   SubcontractorBill[]                @relation("SubcontractorBillUpdatedBy")
+  subcontractorPaymentsCreated SubcontractorPaymentTransaction[] @relation("SubcontractorPaymentCreatedBy")
+  subcontractorPaymentsUpdated SubcontractorPaymentTransaction[] @relation("SubcontractorPaymentUpdatedBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -460,6 +468,7 @@ model Project {
   siteAccountStatements SiteAccountStatement[]
   expenses              Expense[]
   assets                Asset[]
+  subcontractorBills    SubcontractorBill[]
 
   @@index([status])
   @@map("projects")
@@ -2050,4 +2059,174 @@ model TicketActivity {
 
   @@index([ticketId])
   @@map("ticket_activity")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SUBCONTRACTORS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum SubcontractorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ContractingType {
+  VEHICLE
+  MANPOWER_SUPPLY
+  SERVICE_PROVIDER
+  OTHERS
+}
+
+enum MSMEType {
+  MICRO
+  SMALL
+  MEDIUM
+  OTHERS
+}
+
+enum AdditionalAmountType {
+  OT
+  EXTRA_HOURS
+  EXTRA_KMS
+  OTHERS
+}
+
+/// Whether a SubcontractorBill's tdsAmount is kept in sync with
+/// basicAmount * tdsPercentage / 100 (AUTO) or was explicitly overridden by
+/// the user (MANUAL) — surfaced in the UI so it's always clear which one is
+/// in effect, per the design brief.
+enum TdsCalculationMode {
+  AUTO
+  MANUAL
+}
+
+/// PROCESSED: money has been sent/initiated but not yet confirmed landed.
+/// PAID: confirmed — only PAID transactions reduce a bill's outstanding
+/// balance; PROCESSED ones are shown separately as "in progress" and never
+/// touch the bill's remaining Net Payable/GST/TDS balances.
+enum SubcontractorPaymentStatus {
+  PROCESSED
+  PAID
+}
+
+/// Subcontractor company master — independent of any one project, the same
+/// way Vendor is for material suppliers. A subcontractor with billing
+/// history is never hard-deleted (blocked in the service, same convention
+/// as Vendor/PurchaseOrder) — set to INACTIVE instead so historical bills
+/// keep a valid reference.
+model Subcontractor {
+  id                 String              @id @default(uuid())
+  companyName        String
+  contactPerson      String?
+  address            String?
+  gstNumber          String?
+  panNumber          String?
+  msmeAvailable      Boolean             @default(false)
+  /// Required only when msmeAvailable is true — enforced in
+  /// subcontractors.validation.ts, not at the DB level, so a subcontractor
+  /// can be switched back to msmeAvailable=false without clearing history.
+  msmeNumber         String?
+  msmeType           MSMEType?
+  contactNumber      String
+  email              String?
+  bankAccountNumber  String
+  bankName           String
+  ifscCode           String
+  contractingType    ContractingType
+  status             SubcontractorStatus @default(ACTIVE)
+  createdById        String
+  updatedById        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  createdBy User                 @relation("SubcontractorCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?                @relation("SubcontractorUpdatedBy", fields: [updatedById], references: [id])
+  bills     SubcontractorBill[]
+
+  @@index([companyName])
+  @@index([contractingType])
+  @@index([status])
+  @@map("subcontractors")
+}
+
+/// One row per subcontractor invoice against one project for one billing
+/// month. grossBillAmount/netPayableAmount are always server-computed from
+/// the amount fields — never trusted from the client — same "never store a
+/// client-submitted total" rule PO/GRN/Wages totals follow. tdsAmount is the
+/// one exception: when tdsCalculationMode is MANUAL the user's own figure is
+/// kept as-is (the design brief explicitly calls for a manual override).
+model SubcontractorBill {
+  id                     String                @id @default(uuid())
+  projectId              String
+  subcontractorId        String
+  billingMonth           Int
+  billingYear            Int
+  invoiceNumber          String
+  invoiceDate            DateTime
+  foraysWoNumber         String?
+  basicAmount            Decimal               @db.Decimal(14, 2)
+  additionalAmount       Decimal               @default(0) @db.Decimal(14, 2)
+  additionalAmountType   AdditionalAmountType?
+  gstAmount              Decimal               @default(0) @db.Decimal(14, 2)
+  /// 1-10, optional — no TDS percentage means no TDS deduction applies.
+  tdsPercentage          Int?
+  tdsAmount              Decimal               @default(0) @db.Decimal(14, 2)
+  tdsCalculationMode     TdsCalculationMode    @default(AUTO)
+  tollAmount             Decimal               @default(0) @db.Decimal(14, 2)
+  /// basicAmount + additionalAmount + gstAmount + tollAmount.
+  grossBillAmount        Decimal               @default(0) @db.Decimal(14, 2)
+  /// grossBillAmount - tdsAmount.
+  netPayableAmount       Decimal               @default(0) @db.Decimal(14, 2)
+  remarks                String?
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  project       Project                          @relation(fields: [projectId], references: [id])
+  subcontractor Subcontractor                    @relation(fields: [subcontractorId], references: [id])
+  createdBy     User                             @relation("SubcontractorBillCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?                            @relation("SubcontractorBillUpdatedBy", fields: [updatedById], references: [id])
+  payments      SubcontractorPaymentTransaction[]
+
+  // Prevents the same subcontractor's invoice number from being entered
+  // twice (req: "prevent duplicate invoice entries for the same
+  // subcontractor").
+  @@unique([subcontractorId, invoiceNumber])
+  @@index([projectId])
+  @@index([subcontractorId])
+  @@index([billingMonth, billingYear])
+  @@index([invoiceDate])
+  @@map("subcontractor_bills")
+}
+
+/// One row per instalment paid against a SubcontractorBill — multiple rows
+/// accumulate for partial payments, same "never overwrite, always append"
+/// convention as BillingPayment. amountProcessed/gstAmountProcessed/
+/// tdsAmountDeducted are tracked as separate components (never summed into
+/// one combined figure) so the bill's Net Payable/GST/TDS balances are each
+/// reduced only by their own matching component — amountProcessed never
+/// double-counts the GST or TDS portions, which are tracked purely against
+/// their own original bill amounts.
+model SubcontractorPaymentTransaction {
+  id                  String                     @id @default(uuid())
+  billId              String
+  paymentDate         DateTime
+  amountProcessed     Decimal                    @default(0) @db.Decimal(14, 2)
+  gstAmountProcessed  Decimal                    @default(0) @db.Decimal(14, 2)
+  tdsAmountDeducted   Decimal                    @default(0) @db.Decimal(14, 2)
+  paymentReference    String?
+  remarks             String?
+  status              SubcontractorPaymentStatus @default(PROCESSED)
+  createdById         String
+  updatedById         String?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  bill      SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("SubcontractorPaymentCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?             @relation("SubcontractorPaymentUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([billId])
+  @@map("subcontractor_payment_transactions")
 }

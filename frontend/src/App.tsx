@@ -24,6 +24,9 @@ import GoodsReceivedNotes from './pages/GoodsReceivedNotes';
 import GoodsReceivedNoteDetail from './pages/GoodsReceivedNoteDetail';
 import ProcurementDashboard from './pages/ProcurementDashboard';
 import BillingStatus from './pages/BillingStatus';
+import SubcontractorManagement from './pages/SubcontractorManagement';
+import SubcontractorPayments from './pages/SubcontractorPayments';
+import SubcontractorPaymentDue from './pages/SubcontractorPaymentDue';
 import SiteAccounts from './pages/SiteAccounts';
 import SiteAccountDetail from './pages/SiteAccountDetail';
 import CostCodeMaster from './pages/CostCodeMaster';
@@ -69,6 +72,9 @@ export default function App() {
           <Route path="/grns/:id" element={<GoodsReceivedNoteDetail />} />
           <Route path="/procurement-dashboard" element={<ProcurementDashboard />} />
           <Route path="/billing-status" element={<BillingStatus />} />
+          <Route path="/subcontractors" element={<SubcontractorManagement />} />
+          <Route path="/subcontractor-payments" element={<SubcontractorPayments />} />
+          <Route path="/subcontractor-payment-due" element={<SubcontractorPaymentDue />} />
           <Route path="/site-accounts" element={<SiteAccounts />} />
           <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
           <Route path="/cost-code-master" element={<CostCodeMaster />} />

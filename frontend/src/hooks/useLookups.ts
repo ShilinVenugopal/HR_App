@@ -6,6 +6,7 @@ import {
   employeesApi,
   projectsApi,
   projectUnitsApi,
+  subcontractorsApi,
   ticketCategoriesApi,
   ticketsApi,
   vendorsApi,
@@ -103,6 +104,19 @@ export function useEmployeeOptions(projectId?: string) {
     label: e.costCode ? `${e.name} (${e.employeeCode}) – ${employeeCostCodeLabel(e.costCode)}` : `${e.name} (${e.employeeCode})`,
     projectId: e.projectId,
   }));
+}
+
+/// Active subcontractors only — for the Subcontractor Payments bill-entry
+/// dropdown. Deactivated companies disappear from here immediately but
+/// existing bills keep showing whichever one they already reference (they
+/// store subcontractorId, not this list) — same convention as Cost Code
+/// and Project Unit's active-only lookups.
+export function useSubcontractorOptions() {
+  const { data } = useQuery({
+    queryKey: ['subcontractor-options'],
+    queryFn: () => subcontractorsApi.options(),
+  });
+  return (data ?? []).map((s) => ({ value: s.id, label: s.companyName, contractingType: s.contractingType }));
 }
 
 export function useTicketCategoryOptions() {

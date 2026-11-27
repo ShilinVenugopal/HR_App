@@ -1654,3 +1654,238 @@ export const ticketsApi = {
     input: { commentId?: string | null; fileName: string; filePath: string; fileSize: number; mimeType?: string | null }
   ) => apiClient.post(`/tickets/${id}/attachments`, input).then((r) => r.data.data as Ticket),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// SUBCONTRACTORS
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ContractingType = 'VEHICLE' | 'MANPOWER_SUPPLY' | 'SERVICE_PROVIDER' | 'OTHERS';
+export const CONTRACTING_TYPE_OPTIONS: { value: ContractingType; label: string }[] = [
+  { value: 'VEHICLE', label: 'Vehicle' },
+  { value: 'MANPOWER_SUPPLY', label: 'Manpower Supply' },
+  { value: 'SERVICE_PROVIDER', label: 'Service Provider' },
+  { value: 'OTHERS', label: 'Others' },
+];
+
+export type MSMEType = 'MICRO' | 'SMALL' | 'MEDIUM' | 'OTHERS';
+export const MSME_TYPE_OPTIONS: { value: MSMEType; label: string }[] = [
+  { value: 'MICRO', label: 'Micro' },
+  { value: 'SMALL', label: 'Small' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'OTHERS', label: 'Others' },
+];
+
+export type SubcontractorStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface Subcontractor {
+  id: string;
+  companyName: string;
+  contactPerson?: string | null;
+  address?: string | null;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  msmeAvailable: boolean;
+  msmeNumber?: string | null;
+  msmeType?: MSMEType | null;
+  contactNumber: string;
+  email?: string | null;
+  bankAccountNumber: string;
+  bankName: string;
+  ifscCode: string;
+  contractingType: ContractingType;
+  status: SubcontractorStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SubcontractorOption {
+  id: string;
+  companyName: string;
+  contractingType: ContractingType;
+}
+
+export const subcontractorsApi = {
+  ...createResourceApi<Subcontractor>('/subcontractors'),
+  options: () => apiClient.get('/subcontractors/options').then((r) => r.data.data as SubcontractorOption[]),
+};
+
+export type AdditionalAmountType = 'OT' | 'EXTRA_HOURS' | 'EXTRA_KMS' | 'OTHERS';
+export const ADDITIONAL_AMOUNT_TYPE_OPTIONS: { value: AdditionalAmountType; label: string }[] = [
+  { value: 'OT', label: 'OT' },
+  { value: 'EXTRA_HOURS', label: 'Extra Hours' },
+  { value: 'EXTRA_KMS', label: 'Extra KMs' },
+  { value: 'OTHERS', label: 'Others' },
+];
+
+export type TdsCalculationMode = 'AUTO' | 'MANUAL';
+
+export const TDS_PERCENTAGE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/// Transaction-level status — PROCESSED (in progress) vs PAID (settled);
+/// distinct from SubcontractorBillPaymentStatus below, which is the
+/// bill-level derived status.
+export type SubcontractorTransactionStatus = 'PROCESSED' | 'PAID';
+export const TRANSACTION_STATUS_OPTIONS: { value: SubcontractorTransactionStatus; label: string }[] = [
+  { value: 'PROCESSED', label: 'Processed' },
+  { value: 'PAID', label: 'Paid' },
+];
+
+export interface SubcontractorPaymentTransaction {
+  id: string;
+  billId: string;
+  paymentDate: string;
+  amountProcessed: number;
+  gstAmountProcessed: number;
+  tdsAmountDeducted: number;
+  paymentReference?: string | null;
+  remarks?: string | null;
+  status: SubcontractorTransactionStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/// Bill-level derived payment status — PENDING (nothing paid), PARTIALLY_PAID
+/// or PAID (cumulative Paid amount reaches the Net Payable Amount).
+export type SubcontractorBillPaymentStatus = 'PENDING' | 'PARTIALLY_PAID' | 'PAID';
+export const SUBCONTRACTOR_BILL_STATUS_OPTIONS: { value: SubcontractorBillPaymentStatus; label: string }[] = [
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
+  { value: 'PAID', label: 'Paid' },
+];
+
+export interface SubcontractorBill {
+  id: string;
+  projectId: string;
+  subcontractorId: string;
+  project?: { id: string; projectName: string; projectNumber?: string | null };
+  subcontractor?: { id: string; companyName: string; contractingType: ContractingType };
+  billingMonth: number;
+  billingYear: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  foraysWoNumber?: string | null;
+  basicAmount: number;
+  additionalAmount: number;
+  additionalAmountType?: AdditionalAmountType | null;
+  gstAmount: number;
+  tdsPercentage?: number | null;
+  tdsAmount: number;
+  tdsCalculationMode: TdsCalculationMode;
+  tollAmount: number;
+  grossBillAmount: number;
+  netPayableAmount: number;
+  remarks?: string | null;
+  payments?: SubcontractorPaymentTransaction[];
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt?: string;
+
+  // Server-computed, derived fresh on every read — never stored.
+  totalPaidAmount?: number;
+  totalPaidGstAmount?: number;
+  totalPaidTdsAmount?: number;
+  totalProcessedAmount?: number;
+  totalProcessedGstAmount?: number;
+  totalProcessedTdsAmount?: number;
+  outstandingAmount?: number;
+  remainingGstBalance?: number;
+  remainingTdsBalance?: number;
+  paymentStatus?: SubcontractorBillPaymentStatus;
+  dueDate?: string;
+  isOverdue?: boolean;
+}
+
+export interface SubcontractorBillInput {
+  projectId: string;
+  subcontractorId: string;
+  billingMonth: number;
+  billingYear: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  foraysWoNumber?: string;
+  basicAmount: number;
+  additionalAmount?: number;
+  additionalAmountType?: AdditionalAmountType;
+  gstAmount?: number;
+  tdsPercentage?: number;
+  tdsAmount?: number;
+  tdsCalculationMode?: TdsCalculationMode;
+  tollAmount?: number;
+  remarks?: string;
+}
+
+export type SubcontractorBillUpdateInput = Partial<SubcontractorBillInput>;
+
+export interface PaymentTransactionInput {
+  paymentDate: string;
+  amountProcessed?: number;
+  gstAmountProcessed?: number;
+  tdsAmountDeducted?: number;
+  paymentReference?: string;
+  remarks?: string;
+  status?: SubcontractorTransactionStatus;
+}
+
+export interface SubcontractorBillFilters {
+  projectId?: string;
+  subcontractorId?: string;
+  billingMonth?: number;
+  billingYear?: number;
+  invoiceNumber?: string;
+  paymentStatus?: SubcontractorBillPaymentStatus;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface SubcontractorBillTotals {
+  totalBills: number;
+  totalBasicAmount: number;
+  totalAdditionalAmount: number;
+  totalGstAmount: number;
+  totalTollAmount: number;
+  totalTdsAmount: number;
+  totalGrossBillAmount: number;
+  totalNetPayableAmount: number;
+  totalAmountPaid: number;
+  totalOutstandingAmount: number;
+}
+
+export interface SubcontractorPaymentDueFilters {
+  projectId?: string;
+  subcontractorId?: string;
+  billingMonth?: number;
+  billingYear?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export const subcontractorPaymentsApi = {
+  list: (params?: SubcontractorBillFilters) =>
+    apiClient
+      .get('/subcontractor-payments', { params })
+      .then((r) => r.data as { data: SubcontractorBill[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }),
+  totals: (params?: SubcontractorBillFilters) =>
+    apiClient.get('/subcontractor-payments/totals', { params }).then((r) => r.data.data as SubcontractorBillTotals),
+  get: (id: string) => apiClient.get(`/subcontractor-payments/${id}`).then((r) => r.data.data as SubcontractorBill),
+  create: (payload: SubcontractorBillInput) => apiClient.post('/subcontractor-payments', payload).then((r) => r.data.data as SubcontractorBill),
+  update: (id: string, payload: SubcontractorBillUpdateInput) =>
+    apiClient.put(`/subcontractor-payments/${id}`, payload).then((r) => r.data.data as SubcontractorBill),
+  remove: (id: string) => apiClient.delete(`/subcontractor-payments/${id}`).then(() => undefined),
+  addPayment: (billId: string, payload: PaymentTransactionInput) =>
+    apiClient.post(`/subcontractor-payments/${billId}/payments`, payload).then((r) => r.data.data as SubcontractorBill),
+  updatePayment: (paymentId: string, payload: Partial<PaymentTransactionInput>) =>
+    apiClient.patch(`/subcontractor-payments/payments/${paymentId}`, payload).then((r) => r.data.data as SubcontractorBill),
+  removePayment: (paymentId: string) =>
+    apiClient.delete(`/subcontractor-payments/payments/${paymentId}`).then((r) => r.data.data as SubcontractorBill),
+  paymentDue: (params?: SubcontractorPaymentDueFilters) =>
+    apiClient
+      .get('/subcontractor-payments/payment-due', { params })
+      .then((r) => r.data as { data: SubcontractorBill[]; meta: { total: number; page: number; pageSize: number; totalPages: number; totalOutstanding: number } }),
+};

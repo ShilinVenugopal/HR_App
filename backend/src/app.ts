@@ -42,6 +42,8 @@ import communicationRoutes from './modules/communication/communication.routes';
 import communicationPublicRoutes from './modules/communication/communicationPublic.routes';
 import ticketsRoutes from './modules/tickets/tickets.routes';
 import assetsRoutes from './modules/assets/assets.routes';
+import subcontractorsRoutes from './modules/subcontractors/subcontractors.routes';
+import subcontractorPaymentsRoutes from './modules/subcontractorPayments/subcontractorPayments.routes';
 
 const app = express();
 
@@ -101,6 +103,8 @@ api.use('/communication', communicationRoutes);
 api.use('/', communicationPublicRoutes);
 api.use('/tickets', ticketsRoutes);
 api.use('/assets', assetsRoutes);
+api.use('/subcontractors', subcontractorsRoutes);
+api.use('/subcontractor-payments', subcontractorPaymentsRoutes);
 
 app.use(env.apiPrefix, api);
 
