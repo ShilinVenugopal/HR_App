@@ -8,7 +8,7 @@ import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
 import { useAuth } from '../context/AuthContext';
-import { useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
+import { useBankAccountOptions, useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 
 const emptyForm = { employeeId: '', type: 'ADVANCE', amount: 0, reason: '', installments: 1 };
@@ -19,6 +19,7 @@ export default function Advances() {
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
   const employeeOptions = useEmployeeOptions();
+  const bankAccountOptions = useBankAccountOptions();
 
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ projectId: '', type: '', status: '' });
@@ -26,6 +27,8 @@ export default function Advances() {
   const [form, setForm] = useState(emptyForm);
   const [recoveryTarget, setRecoveryTarget] = useState<Advance | null>(null);
   const [recoveryForm, setRecoveryForm] = useState(emptyRecovery);
+  const [approveTarget, setApproveTarget] = useState<Advance | null>(null);
+  const [approveBankAccountId, setApproveBankAccountId] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['advances', page, filters],
@@ -46,9 +49,11 @@ export default function Advances() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => advancesApi.approve(id),
+    mutationFn: () => advancesApi.approve(approveTarget!.id, approveBankAccountId || undefined),
     onSuccess: () => {
       toast.success('Approved');
+      setApproveTarget(null);
+      setApproveBankAccountId('');
       invalidate();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -127,7 +132,7 @@ export default function Advances() {
           <div className="flex justify-end gap-1">
             {can('ADVANCES', 'approve') && row.status === 'PENDING' && (
               <>
-                <button className="btn-ghost p-1.5 text-emerald-600" onClick={() => approveMutation.mutate(row.id)}>
+                <button className="btn-ghost p-1.5 text-emerald-600" onClick={() => setApproveTarget(row)}>
                   <Check size={15} />
                 </button>
                 <button className="btn-ghost p-1.5 text-red-500" onClick={() => rejectMutation.mutate(row.id)}>
@@ -227,6 +232,35 @@ export default function Advances() {
             Outstanding balance: ₹{(Number(recoveryTarget.amount) - Number(recoveryTarget.recoveredAmount)).toLocaleString('en-IN')}
           </p>
         )}
+      </Modal>
+
+      <Modal
+        open={approveTarget !== null}
+        onClose={() => setApproveTarget(null)}
+        title={`Approve ${approveTarget?.type === 'LOAN' ? 'Loan' : 'Advance'} — ${approveTarget?.employee?.name ?? ''}`}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setApproveTarget(null)}>
+              Cancel
+            </button>
+            <button className="btn-primary" disabled={approveMutation.isPending} onClick={() => approveMutation.mutate()}>
+              Approve
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label className="label">Bank Account (optional)</label>
+          <select className="input" value={approveBankAccountId} onChange={(e) => setApproveBankAccountId(e.target.value)}>
+            <option value="">Not specified</option>
+            {bankAccountOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-slate-400">When selected, this disbursement will appear in the Bank Accounts — Payments section.</p>
+        </div>
       </Modal>
     </div>
   );

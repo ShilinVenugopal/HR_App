@@ -295,11 +295,13 @@ export interface WageRecord {
   otherDeductions: number;
   netWage: number;
   status: string;
+  bankAccountId?: string | null;
+  bankAccount?: { id: string; bankName: string; accountType: string; accountNumber: string } | null;
 }
 export const wagesApi = {
   ...createResourceApi<WageRecord>('/wages'),
   approve: (id: string) => apiClient.patch(`/wages/${id}/approve`).then((r) => r.data),
-  markPaid: (id: string) => apiClient.patch(`/wages/${id}/mark-paid`).then((r) => r.data),
+  markPaid: (id: string, bankAccountId?: string) => apiClient.patch(`/wages/${id}/mark-paid`, { bankAccountId }).then((r) => r.data),
 };
 
 // ── Project-wise Wages (template-driven) ──────────────────────────────
@@ -435,11 +437,13 @@ export interface Advance {
   installments: number;
   recoveredAmount: number;
   status: string;
+  bankAccountId?: string | null;
+  bankAccount?: { id: string; bankName: string; accountType: string; accountNumber: string } | null;
   recoveries?: { id: string; month: number; year: number; amount: number }[];
 }
 export const advancesApi = {
   ...createResourceApi<Advance>('/advances'),
-  approve: (id: string) => apiClient.patch(`/advances/${id}/approve`).then((r) => r.data),
+  approve: (id: string, bankAccountId?: string) => apiClient.patch(`/advances/${id}/approve`, { bankAccountId }).then((r) => r.data),
   reject: (id: string) => apiClient.patch(`/advances/${id}/reject`).then((r) => r.data),
   addRecovery: (id: string, payload: { month: number; year: number; amount: number }) =>
     apiClient.post(`/advances/${id}/recoveries`, payload).then((r) => r.data),
@@ -1214,6 +1218,8 @@ export interface BillingPayment {
   tdsAmountDeducted: string | number;
   paymentDate: string;
   remarks?: string | null;
+  bankAccountId?: string | null;
+  bankAccount?: { id: string; bankName: string; accountType: string; accountNumber: string } | null;
   createdBy?: { id: string; name: string } | null;
   updatedBy?: { id: string; name: string } | null;
   createdAt: string;
@@ -1289,6 +1295,7 @@ export interface BillingPaymentInput {
   tdsAmountDeducted?: number;
   paymentDate: string;
   remarks?: string;
+  bankAccountId?: string;
 }
 
 export interface BillingNotificationSettings {
@@ -1421,6 +1428,8 @@ export interface SiteAccountStatement {
   openingBalance: string | number;
   siteFundReceived: string | number;
   status: SiteAccountStatementStatus;
+  bankAccountId?: string | null;
+  bankAccount?: { id: string; bankName: string; accountType: string; accountNumber: string } | null;
   createdBy?: { id: string; name: string } | null;
   updatedBy?: { id: string; name: string } | null;
   createdAt: string;
@@ -1448,6 +1457,7 @@ export interface SiteAccountStatementCreateInput {
   openingBalance?: number;
   siteFundReceived?: number;
   entries?: SiteAccountEntryInput[];
+  bankAccountId?: string;
 }
 
 export interface SiteAccountStatementFilters {
@@ -1742,6 +1752,8 @@ export interface SubcontractorPaymentTransaction {
   paymentReference?: string | null;
   remarks?: string | null;
   status: SubcontractorTransactionStatus;
+  bankAccountId?: string | null;
+  bankAccount?: { id: string; bankName: string; accountType: string; accountNumber: string } | null;
   createdBy?: { id: string; name: string } | null;
   updatedBy?: { id: string; name: string } | null;
   createdAt: string;
@@ -1829,6 +1841,7 @@ export interface PaymentTransactionInput {
   paymentReference?: string;
   remarks?: string;
   status?: SubcontractorTransactionStatus;
+  bankAccountId?: string;
 }
 
 export interface SubcontractorBillFilters {
@@ -1888,4 +1901,216 @@ export const subcontractorPaymentsApi = {
     apiClient
       .get('/subcontractor-payments/payment-due', { params })
       .then((r) => r.data as { data: SubcontractorBill[]; meta: { total: number; page: number; pageSize: number; totalPages: number; totalOutstanding: number } }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// BANK ACCOUNTS
+// ─────────────────────────────────────────────────────────────────────────
+
+export type BankAccountType = 'OD' | 'CURRENT' | 'CC';
+export const BANK_ACCOUNT_TYPE_OPTIONS: { value: BankAccountType; label: string }[] = [
+  { value: 'OD', label: 'OD' },
+  { value: 'CURRENT', label: 'Current' },
+  { value: 'CC', label: 'CC' },
+];
+
+export type BankAccountStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountHolderName: string;
+  accountType: BankAccountType;
+  accountNumber: string;
+  branchName?: string | null;
+  ifscCode?: string | null;
+  openingBalance: number;
+  openingBalanceDate: string;
+  status: BankAccountStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BankAccountOption {
+  id: string;
+  bankName: string;
+  accountType: BankAccountType;
+  accountNumber: string;
+}
+
+export interface BankAccountInput {
+  bankName: string;
+  accountHolderName: string;
+  accountType: BankAccountType;
+  accountNumber: string;
+  branchName?: string;
+  ifscCode?: string;
+  openingBalance?: number;
+  openingBalanceDate: string;
+  status?: BankAccountStatus;
+}
+
+export const bankAccountsApi = {
+  list: (status?: BankAccountStatus) => apiClient.get('/bank-accounts', { params: { status } }).then((r) => r.data.data as BankAccount[]),
+  options: () => apiClient.get('/bank-accounts/options').then((r) => r.data.data as BankAccountOption[]),
+  get: (id: string) => apiClient.get(`/bank-accounts/${id}`).then((r) => r.data.data as BankAccount),
+  create: (payload: BankAccountInput) => apiClient.post('/bank-accounts', payload).then((r) => r.data.data as BankAccount),
+  update: (id: string, payload: Partial<BankAccountInput>) => apiClient.put(`/bank-accounts/${id}`, payload).then((r) => r.data.data as BankAccount),
+};
+
+export type BankTransactionType = 'RECEIPT' | 'PAYMENT' | 'TRANSFER';
+export type BankEntryType = 'AUTOMATIC' | 'MANUAL';
+export type BankTransactionStatus = 'ACTIVE' | 'VOIDED';
+export type BankSourceModule = 'BILLING_STATUS' | 'SUBCONTRACTOR_PAYMENTS' | 'ADVANCES' | 'WAGES' | 'SITE_ACCOUNTS' | 'MANUAL' | 'TRANSFER';
+export const SOURCE_MODULE_OPTIONS: { value: BankSourceModule; label: string }[] = [
+  { value: 'BILLING_STATUS', label: 'Billing Status' },
+  { value: 'SUBCONTRACTOR_PAYMENTS', label: 'Subcontractor Payments' },
+  { value: 'ADVANCES', label: 'Advances' },
+  { value: 'WAGES', label: 'Wages' },
+  { value: 'SITE_ACCOUNTS', label: 'Site Accounts' },
+  { value: 'MANUAL', label: 'Manual Entry' },
+  { value: 'TRANSFER', label: 'Internal Transfer' },
+];
+
+export interface BankTransaction {
+  id: string;
+  transactionDate: string;
+  bankAccountId: string;
+  bankAccount?: { id: string; bankName: string; accountType: BankAccountType; accountNumber: string };
+  transactionType: BankTransactionType;
+  projectId?: string | null;
+  project?: { id: string; projectName: string; projectNumber?: string | null } | null;
+  description: string;
+  remarks?: string | null;
+  originalAmount: number;
+  modifiedAmount?: number | null;
+  effectiveAmount: number;
+  sourceModule: BankSourceModule;
+  sourceRecordId?: string | null;
+  transferGroupId?: string | null;
+  entryType: BankEntryType;
+  status: BankTransactionStatus;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BankTransactionFilters {
+  month?: number;
+  year?: number;
+  projectId?: string;
+  accountType?: BankAccountType;
+  bankAccountId?: string;
+  description?: string;
+  sourceModule?: BankSourceModule;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UpdateTransactionInput {
+  description?: string;
+  remarks?: string;
+  amount?: number;
+  transactionDate?: string;
+  bankAccountId?: string;
+  projectId?: string | null;
+}
+
+export interface ManualTransactionInput {
+  transactionDate: string;
+  bankAccountId: string;
+  transactionType: 'RECEIPT' | 'PAYMENT';
+  projectId?: string;
+  description: string;
+  remarks?: string;
+  amount: number;
+}
+
+export interface TransferInput {
+  transactionDate: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number;
+  description?: string;
+  remarks?: string;
+}
+
+type BankTxListResponse = { data: BankTransaction[]; meta: { total: number; page: number; pageSize: number; totalPages: number; totalAmount: number } };
+
+export const bankTransactionsApi = {
+  listReceipts: (params?: BankTransactionFilters) => apiClient.get('/bank-transactions/receipts', { params }).then((r) => r.data as BankTxListResponse),
+  listPayments: (params?: BankTransactionFilters) => apiClient.get('/bank-transactions/payments', { params }).then((r) => r.data as BankTxListResponse),
+  get: (id: string) => apiClient.get(`/bank-transactions/${id}`).then((r) => r.data.data as BankTransaction),
+  update: (id: string, payload: UpdateTransactionInput) => apiClient.put(`/bank-transactions/${id}`, payload).then((r) => r.data.data as BankTransaction),
+  createManual: (payload: ManualTransactionInput) => apiClient.post('/bank-transactions/manual', payload).then((r) => r.data.data as BankTransaction),
+  removeManual: (id: string) => apiClient.delete(`/bank-transactions/${id}`).then(() => undefined),
+  createTransfer: (payload: TransferInput) =>
+    apiClient.post('/bank-transactions/transfer', payload).then((r) => r.data.data as { debit: BankTransaction; credit: BankTransaction }),
+};
+
+export type BankReconciliationStatus = 'RECONCILED' | 'RECONCILIATION_REQUIRED';
+
+export interface GenerateReconciliationStatementInput {
+  bankAccountId: string; // or 'BOTH'
+  periodFrom: string;
+  periodTo: string;
+}
+
+export interface ReconciliationAccountStatement {
+  bankAccount: { id: string; bankName: string; accountType: BankAccountType; accountNumber: string };
+  openingBalance: number;
+  totalReceipts: number;
+  totalPayments: number;
+  netTransfers: number;
+  closingBookBalance: number;
+  receipts: BankTransaction[];
+  payments: BankTransaction[];
+}
+
+export interface GeneratedReconciliationStatement extends ReconciliationAccountStatement {
+  combined: boolean;
+  accounts: ReconciliationAccountStatement[];
+}
+
+export interface SaveReconciliationInput {
+  bankAccountId: string; // single account only, not 'BOTH'
+  periodFrom: string;
+  periodTo: string;
+  bankStatementBalance: number;
+  bankStatementDate?: string;
+  bankStatementRemarks?: string;
+  remarks?: string;
+}
+
+export interface BankReconciliation {
+  id: string;
+  bankAccountId: string;
+  bankAccount?: { id: string; bankName: string; accountType: BankAccountType; accountNumber: string };
+  periodFrom: string;
+  periodTo: string;
+  openingBalance: number;
+  totalReceipts: number;
+  totalPayments: number;
+  closingBookBalance: number;
+  bankStatementBalance: number;
+  bankStatementDate?: string | null;
+  bankStatementRemarks?: string | null;
+  reconciliationDifference: number;
+  reconciliationStatus: BankReconciliationStatus;
+  remarks?: string | null;
+  reconciledBy?: { id: string; name: string } | null;
+  reconciledAt: string;
+}
+
+export const bankReconciliationApi = {
+  generate: (payload: GenerateReconciliationStatementInput) =>
+    apiClient.post('/bank-reconciliation/generate', payload).then((r) => r.data.data as GeneratedReconciliationStatement),
+  save: (payload: SaveReconciliationInput) => apiClient.post('/bank-reconciliation/save', payload).then((r) => r.data.data as BankReconciliation),
+  history: (params?: { bankAccountId?: string; page?: number; pageSize?: number }) =>
+    apiClient
+      .get('/bank-reconciliation/history', { params })
+      .then((r) => r.data as { data: BankReconciliation[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }),
 };

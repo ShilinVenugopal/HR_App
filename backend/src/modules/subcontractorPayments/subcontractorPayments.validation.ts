@@ -58,6 +58,7 @@ export const createPaymentTransactionSchema = z.object({
       paymentReference: z.string().trim().optional(),
       remarks: z.string().trim().optional(),
       status: z.nativeEnum(SubcontractorPaymentStatus).default('PROCESSED'),
+      bankAccountId: z.string().uuid().optional(),
     })
     .refine((v) => v.amountProcessed > 0 || v.gstAmountProcessed > 0 || v.tdsAmountDeducted > 0, {
       message: 'Enter at least one of Amount Processed, GST Amount Processed or TDS Amount Deducted',
@@ -75,6 +76,7 @@ export const updatePaymentTransactionSchema = z.object({
       paymentReference: z.string().trim().optional().nullable(),
       remarks: z.string().trim().optional().nullable(),
       status: z.nativeEnum(SubcontractorPaymentStatus).optional(),
+      bankAccountId: z.string().uuid().optional().nullable(),
     })
     .refine((v) => Object.keys(v).length > 0, { message: 'At least one field must be provided' }),
 });

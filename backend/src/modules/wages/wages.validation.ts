@@ -17,6 +17,10 @@ export const createWageSchema = z.object({
   }),
 });
 
+export const markWagePaidSchema = z.object({
+  body: z.object({ bankAccountId: z.string().uuid().optional() }),
+});
+
 export const updateWageSchema = z.object({
   body: createWageSchema.shape.body.partial().omit({ employeeId: true, month: true, year: true }),
 });

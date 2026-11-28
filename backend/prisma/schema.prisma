@@ -63,6 +63,7 @@ enum ModuleName {
   TICKETS
   ASSETS
   SUBCONTRACTORS
+  BANK_ACCOUNTS
 }
 
 enum CandidateStatus {
@@ -426,6 +427,12 @@ model User {
   subcontractorPaymentsCreated SubcontractorPaymentTransaction[] @relation("SubcontractorPaymentCreatedBy")
   subcontractorPaymentsUpdated SubcontractorPaymentTransaction[] @relation("SubcontractorPaymentUpdatedBy")
 
+  bankAccountsCreated      BankAccount[]         @relation("BankAccountCreatedBy")
+  bankAccountsUpdated      BankAccount[]         @relation("BankAccountUpdatedBy")
+  bankTransactionsCreated  BankTransaction[]     @relation("BankTransactionCreatedBy")
+  bankTransactionsUpdated  BankTransaction[]     @relation("BankTransactionUpdatedBy")
+  bankReconciliationsDone  BankReconciliation[]  @relation("BankReconciliationReconciledBy")
+
   @@index([role])
   @@index([status])
   @@map("users")
@@ -469,6 +476,7 @@ model Project {
   expenses              Expense[]
   assets                Asset[]
   subcontractorBills    SubcontractorBill[]
+  bankTransactions      BankTransaction[]
 
   @@index([status])
   @@map("projects")
@@ -905,12 +913,18 @@ model WageRecord {
   status          PayrollStatus @default(DRAFT)
   approvedById    String?
   approvedAt      DateTime?
+  /// Which registered company bank account this salary was paid from —
+  /// optional, set only when marking paid via the Bank Account dropdown;
+  /// generates a matching BankTransaction row (see wages.service.ts).
+  bankAccountId   String?
+  paidAt          DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  project    Project  @relation(fields: [projectId], references: [id])
-  approvedBy User?    @relation("WageApprover", fields: [approvedById], references: [id])
+  employee    Employee     @relation(fields: [employeeId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
+  approvedBy  User?        @relation("WageApprover", fields: [approvedById], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
 
   @@unique([employeeId, month, year])
   @@index([projectId])
@@ -961,13 +975,19 @@ model Advance {
   status          AdvanceStatus @default(PENDING)
   approvedById    String?
   approvedAt      DateTime?
+  /// Which registered company bank account this advance/loan was
+  /// disbursed from — optional, set only when approving via the Bank
+  /// Account dropdown; generates a matching BankTransaction row (see
+  /// advances.service.ts).
+  bankAccountId   String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  employee   Employee          @relation(fields: [employeeId], references: [id])
-  project    Project           @relation(fields: [projectId], references: [id])
-  approvedBy User?             @relation("AdvanceApprover", fields: [approvedById], references: [id])
-  recoveries AdvanceRecovery[]
+  employee    Employee          @relation(fields: [employeeId], references: [id])
+  project     Project           @relation(fields: [projectId], references: [id])
+  approvedBy  User?             @relation("AdvanceApprover", fields: [approvedById], references: [id])
+  bankAccount BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  recoveries  AdvanceRecovery[]
 
   @@index([projectId])
   @@index([employeeId])
@@ -1686,14 +1706,20 @@ model BillingPayment {
   tdsAmountDeducted Decimal @default(0) @db.Decimal(14, 2)
   paymentDate    DateTime
   remarks        String?
+  /// Which registered company bank account this payment was received into
+  /// — optional (existing/most payments have none and keep working
+  /// unchanged) and, when set, generates a matching BankTransaction row
+  /// (see BankTransaction's own comment) via billingStatus.service.ts.
+  bankAccountId  String?
   createdById    String
   updatedById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  billingItem BillingItem @relation(fields: [billingItemId], references: [id], onDelete: Cascade)
-  createdBy   User        @relation("BillingPaymentCreatedBy", fields: [createdById], references: [id])
-  updatedBy   User?       @relation("BillingPaymentUpdatedBy", fields: [updatedById], references: [id])
+  billingItem BillingItem  @relation(fields: [billingItemId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+  createdBy   User         @relation("BillingPaymentCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?        @relation("BillingPaymentUpdatedBy", fields: [updatedById], references: [id])
 
   @@index([billingItemId])
   @@map("billing_payments")
@@ -1786,15 +1812,24 @@ model SiteAccountStatement {
   openingBalance   Decimal                    @default(0) @db.Decimal(14, 2)
   siteFundReceived Decimal                    @default(0) @db.Decimal(14, 2)
   status           SiteAccountStatementStatus @default(DRAFT)
+  /// Which registered company bank account this statement's expense
+  /// entries were paid from (and OTHER_RECEIPT entries were received into)
+  /// — optional, one account per statement (entries don't carry their own,
+  /// since a project's monthly site account is typically run through a
+  /// single account). Set only on Save; generates one BankTransaction per
+  /// entry, regenerated wholesale on every subsequent correction (see
+  /// siteAccounts.service.ts — entries have no stable id across edits).
+  bankAccountId    String?
   createdById      String
   updatedById      String?
   createdAt        DateTime                   @default(now())
   updatedAt        DateTime                   @updatedAt
 
-  project   Project            @relation(fields: [projectId], references: [id])
-  createdBy User               @relation("SiteAccountStatementCreatedBy", fields: [createdById], references: [id])
-  updatedBy User?              @relation("SiteAccountStatementUpdatedBy", fields: [updatedById], references: [id])
-  entries   SiteAccountEntry[]
+  project     Project            @relation(fields: [projectId], references: [id])
+  bankAccount BankAccount?       @relation(fields: [bankAccountId], references: [id])
+  createdBy   User               @relation("SiteAccountStatementCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?              @relation("SiteAccountStatementUpdatedBy", fields: [updatedById], references: [id])
+  entries     SiteAccountEntry[]
 
   @@index([projectId])
   @@index([statementMonth, statementYear])
@@ -2218,15 +2253,197 @@ model SubcontractorPaymentTransaction {
   paymentReference    String?
   remarks             String?
   status              SubcontractorPaymentStatus @default(PROCESSED)
+  /// Which registered company bank account this instalment was paid from —
+  /// optional; when set and status is PAID, generates a matching
+  /// BankTransaction row via subcontractorPayments.service.ts.
+  bankAccountId       String?
   createdById         String
   updatedById         String?
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
 
-  bill      SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
-  createdBy User              @relation("SubcontractorPaymentCreatedBy", fields: [createdById], references: [id])
-  updatedBy User?             @relation("SubcontractorPaymentUpdatedBy", fields: [updatedById], references: [id])
+  bill        SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  createdBy   User              @relation("SubcontractorPaymentCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?             @relation("SubcontractorPaymentUpdatedBy", fields: [updatedById], references: [id])
 
   @@index([billId])
   @@map("subcontractor_payment_transactions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BANK ACCOUNTS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum BankAccountType {
+  OD
+  CURRENT
+  CC
+}
+
+enum BankAccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BankTransactionType {
+  RECEIPT
+  PAYMENT
+  TRANSFER
+}
+
+/// AUTOMATIC rows are generated by a source module's own create/update
+/// (sourceModule/sourceRecordId are then set); MANUAL rows are entered
+/// directly on the Bank Accounts page and carry no source reference.
+enum BankEntryType {
+  AUTOMATIC
+  MANUAL
+}
+
+/// ACTIVE participates in every balance/reconciliation calculation. VOIDED
+/// is what an automatic row becomes when its source record is deleted —
+/// never hard-deleted, so the transaction's history (who/when/why) is
+/// preserved, but excluded from every sum, same as a cancelled cheque.
+enum BankTransactionStatus {
+  ACTIVE
+  VOIDED
+}
+
+/// The closed set of existing HR App modules this release wires up for
+/// automatic bank-transaction sync, plus MANUAL/TRANSFER for rows with no
+/// originating module. Adding a new source later means adding a new value
+/// here, not a schema migration anywhere else.
+enum BankSourceModule {
+  BILLING_STATUS
+  SUBCONTRACTOR_PAYMENTS
+  ADVANCES
+  WAGES
+  SITE_ACCOUNTS
+  MANUAL
+  TRANSFER
+}
+
+enum BankReconciliationStatus {
+  RECONCILED
+  RECONCILIATION_REQUIRED
+}
+
+/// Registered company bank account. Never hard-deleted once it has any
+/// transaction history (enforced in bankAccounts.service.ts) — deactivate
+/// instead (status), same "status field over deletion" convention as
+/// Vendor/Subcontractor, so historical transactions always keep a valid
+/// account reference.
+model BankAccount {
+  id                  String            @id @default(uuid())
+  bankName            String
+  accountHolderName   String
+  accountType         BankAccountType
+  accountNumber       String
+  branchName          String?
+  ifscCode            String?
+  openingBalance      Decimal           @default(0) @db.Decimal(14, 2)
+  openingBalanceDate  DateTime
+  status              BankAccountStatus @default(ACTIVE)
+  createdById         String
+  updatedById         String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  createdBy             User                              @relation("BankAccountCreatedBy", fields: [createdById], references: [id])
+  updatedBy             User?                             @relation("BankAccountUpdatedBy", fields: [updatedById], references: [id])
+  transactions          BankTransaction[]
+  reconciliations       BankReconciliation[]
+  billingPayments       BillingPayment[]
+  subcontractorPayments SubcontractorPaymentTransaction[]
+  advances              Advance[]
+  wageRecords           WageRecord[]
+  siteAccountStatements SiteAccountStatement[]
+
+  @@unique([accountNumber])
+  @@index([status])
+  @@map("bank_accounts")
+}
+
+/// One row per receipt/payment/transfer leg against a registered bank
+/// account. AUTOMATIC rows are kept in sync with their source record by
+/// the owning module's own service (see each model's bankAccountId
+/// comment) — there is deliberately no DB-level uniqueness constraint on
+/// (sourceModule, sourceRecordId): BILLING_STATUS/SUBCONTRACTOR_PAYMENTS/
+/// ADVANCES/WAGES are a true 1:1 (one row per source record, upserted in
+/// place), but SITE_ACCOUNTS is 1:many (one statement fans out to one row
+/// per entry, the whole set regenerated together on every save/correction
+/// since entries have no stable id across edits) — the owning service is
+/// what guarantees "no duplicates, edits update in place" for its own
+/// source, not a database constraint that can't express both shapes.
+/// originalAmount is the amount as fetched from the source at sync time;
+/// modifiedAmount, when set, is a correction entered on this page and is
+/// what every balance/reconciliation calculation actually uses (see
+/// bankTransactions.service.ts effectiveAmount) — originalAmount is never
+/// overwritten, so the correction is always visible and auditable.
+model BankTransaction {
+  id                String                 @id @default(uuid())
+  transactionDate   DateTime
+  bankAccountId     String
+  transactionType   BankTransactionType
+  projectId         String?
+  description       String
+  remarks           String?
+  originalAmount    Decimal                @db.Decimal(14, 2)
+  modifiedAmount    Decimal?               @db.Decimal(14, 2)
+  sourceModule      BankSourceModule
+  sourceRecordId    String?
+  /// Pairs the debit leg and credit leg of one internal transfer — null
+  /// for every non-TRANSFER row.
+  transferGroupId   String?
+  entryType         BankEntryType          @default(MANUAL)
+  status            BankTransactionStatus  @default(ACTIVE)
+  createdById       String
+  updatedById       String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+  project     Project?    @relation(fields: [projectId], references: [id])
+  createdBy   User        @relation("BankTransactionCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?       @relation("BankTransactionUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([bankAccountId])
+  @@index([transactionDate])
+  @@index([transactionType])
+  @@index([sourceModule, sourceRecordId])
+  @@index([status])
+  @@map("bank_transactions")
+}
+
+/// One saved reconciliation statement for one bank account over one
+/// period. Never updated/overwritten once saved (req: "Do not overwrite
+/// previously completed reconciliation records when generating a new
+/// statement") — generating again always inserts a new row, so the
+/// history is a true append-only log. A "Both accounts" selection in the
+/// UI is a read-only combined view; saving to history always writes one
+/// row per account, never a synthetic "combined" row.
+model BankReconciliation {
+  id                        String                    @id @default(uuid())
+  bankAccountId             String
+  periodFrom                DateTime
+  periodTo                  DateTime
+  openingBalance            Decimal                   @db.Decimal(14, 2)
+  totalReceipts             Decimal                   @db.Decimal(14, 2)
+  totalPayments             Decimal                   @db.Decimal(14, 2)
+  closingBookBalance        Decimal                   @db.Decimal(14, 2)
+  bankStatementBalance      Decimal                   @db.Decimal(14, 2)
+  bankStatementDate         DateTime?
+  bankStatementRemarks      String?
+  reconciliationDifference  Decimal                   @db.Decimal(14, 2)
+  reconciliationStatus      BankReconciliationStatus
+  remarks                   String?
+  reconciledById            String
+  reconciledAt              DateTime                  @default(now())
+
+  bankAccount  BankAccount @relation(fields: [bankAccountId], references: [id])
+  reconciledBy User        @relation("BankReconciliationReconciledBy", fields: [reconciledById], references: [id])
+
+  @@index([bankAccountId])
+  @@index([periodFrom, periodTo])
+  @@map("bank_reconciliations")
 }

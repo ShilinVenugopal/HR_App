@@ -7,7 +7,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
-import { useProjectOptions } from '../hooks/useLookups';
+import { useBankAccountOptions, useProjectOptions } from '../hooks/useLookups';
 import { SiteAccountCostCode, SiteAccountEntryInput, siteAccountsApi } from '../api/modules';
 import { apiErrorMessage } from '../api/client';
 import { parseDatesText, formatDatesText } from '../utils/siteAccountDates';
@@ -55,6 +55,7 @@ export default function SiteAccountDetail() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
+  const bankAccountOptions = useBankAccountOptions();
 
   const [projectId, setProjectId] = useState('');
   const [statementDate, setStatementDate] = useState(new Date().toISOString().slice(0, 10));
@@ -62,6 +63,7 @@ export default function SiteAccountDetail() {
   const [periodTo, setPeriodTo] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
   const [siteFundReceived, setSiteFundReceived] = useState('');
+  const [bankAccountId, setBankAccountId] = useState('');
   const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>([]);
   const [receiptRows, setReceiptRows] = useState<ReceiptRow[]>([]);
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
@@ -121,6 +123,7 @@ export default function SiteAccountDetail() {
     setPeriodTo(statement.periodTo.slice(0, 10));
     setOpeningBalance(String(statement.openingBalance));
     setSiteFundReceived(String(statement.siteFundReceived));
+    setBankAccountId(statement.bankAccountId ?? '');
     setExpenseRows(buildRowsFromCostCodes(costCodes, statement.entries));
     setReceiptRows(
       statement.entries
@@ -225,6 +228,7 @@ export default function SiteAccountDetail() {
         openingBalance: Number(openingBalance) || 0,
         siteFundReceived: Number(siteFundReceived) || 0,
         entries: buildEntriesPayload(),
+        bankAccountId: bankAccountId || undefined,
       };
       return isNew ? siteAccountsApi.create(payload) : siteAccountsApi.update(id!, payload);
     },
@@ -381,6 +385,22 @@ export default function SiteAccountDetail() {
               ) : (
                 <p className="font-medium">₹{Number(siteFundReceived || 0).toLocaleString('en-IN')}</p>
               )}
+            </div>
+            <div>
+              <label className="label">Bank Account (optional)</label>
+              {isEditable ? (
+                <select className="input" value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
+                  <option value="">Not specified</option>
+                  {bankAccountOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="font-medium">{statement?.bankAccount ? `${statement.bankAccount.bankName} – ${statement.bankAccount.accountType}` : '—'}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">When set, this statement's receipts/expenses appear in the Bank Accounts page once Saved.</p>
             </div>
           </div>
 

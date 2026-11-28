@@ -6,6 +6,7 @@ import { PaginationParams } from '../../utils/pagination';
 import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
+import { syncAutoTransaction, voidAutoTransaction } from '../bankTransactions/bankTransactions.service';
 
 const DUE_DAYS = 30;
 
@@ -19,6 +20,7 @@ const billInclude = {
 const paymentInclude = {
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } },
+  bankAccount: { select: { id: true, bankName: true, accountType: true, accountNumber: true } },
 } satisfies Prisma.SubcontractorPaymentTransactionInclude;
 
 const billWithPaymentsInclude = {
@@ -438,6 +440,40 @@ export interface PaymentTransactionInput {
   paymentReference?: string;
   remarks?: string;
   status?: SubcontractorPaymentStatus;
+  /// Which registered company bank account this instalment was paid from
+  /// — optional; only synced to a Bank Accounts Payment entry once status
+  /// is PAID (a PROCESSED-only instalment hasn't actually moved money yet).
+  bankAccountId?: string;
+}
+
+function subcontractorPaymentDescription(bill: { invoiceNumber: string; subcontractor: { companyName: string } }): string {
+  return `${bill.subcontractor.companyName} – Subcontractor Payment – Invoice No. ${bill.invoiceNumber}`;
+}
+
+/// PROCESSED-only instalments haven't actually moved money, so they never
+/// reach the bank ledger — only PAID ones do (req. 4.E/F). A status
+/// transition away from PAID (edit, or PROCESSED→PAID reversed) voids any
+/// existing bank row instead of leaving a stale PAID-only transaction.
+async function syncSubcontractorPaymentBankTransaction(
+  bill: { projectId: string; invoiceNumber: string; subcontractor: { companyName: string } },
+  payment: { id: string; paymentDate: Date; bankAccountId: string | null; status: SubcontractorPaymentStatus; amountProcessed: number; gstAmountProcessed: number; tdsAmountDeducted: number },
+  userId: string
+) {
+  if (payment.status !== 'PAID') {
+    await voidAutoTransaction('SUBCONTRACTOR_PAYMENTS', payment.id);
+    return;
+  }
+  await syncAutoTransaction({
+    sourceModule: 'SUBCONTRACTOR_PAYMENTS',
+    sourceRecordId: payment.id,
+    bankAccountId: payment.bankAccountId,
+    transactionType: 'PAYMENT',
+    transactionDate: payment.paymentDate,
+    projectId: bill.projectId,
+    description: subcontractorPaymentDescription(bill),
+    amount: round2(payment.amountProcessed + payment.gstAmountProcessed),
+    userId,
+  });
 }
 
 async function loadPaymentAndAuthorize(req: Request, paymentId: string) {
@@ -511,6 +547,7 @@ export async function addPaymentTransaction(req: Request, billId: string, input:
       paymentReference: input.paymentReference || null,
       remarks: input.remarks || null,
       status: input.status ?? 'PROCESSED',
+      bankAccountId: input.bankAccountId || null,
       createdById: req.user!.sub,
     },
   });
@@ -524,6 +561,8 @@ export async function addPaymentTransaction(req: Request, billId: string, input:
     meta,
     details: { billId, paymentId: payment.id, amountProcessed, gstAmountProcessed, tdsAmountDeducted, paymentStatus: payment.status },
   });
+
+  await syncSubcontractorPaymentBankTransaction(bill, { ...payment, amountProcessed, gstAmountProcessed, tdsAmountDeducted }, req.user!.sub);
 
   return getBillWithComputed(req, billId);
 }
@@ -550,6 +589,7 @@ export async function updatePaymentTransaction(req: Request, paymentId: string, 
       paymentReference: input.paymentReference !== undefined ? input.paymentReference || null : undefined,
       remarks: input.remarks !== undefined ? input.remarks || null : undefined,
       status: input.status ?? undefined,
+      bankAccountId: input.bankAccountId !== undefined ? input.bankAccountId || null : undefined,
       updatedById: req.user!.sub,
     },
   });
@@ -564,6 +604,12 @@ export async function updatePaymentTransaction(req: Request, paymentId: string, 
     details: { billId: existing.billId, paymentId, changes: input, oldStatus: existing.status, newStatus: payment.status },
   });
 
+  await syncSubcontractorPaymentBankTransaction(
+    existing.bill,
+    { ...payment, amountProcessed, gstAmountProcessed, tdsAmountDeducted },
+    req.user!.sub
+  );
+
   return getBillWithComputed(req, existing.billId);
 }
 
@@ -571,6 +617,7 @@ export async function deletePaymentTransaction(req: Request, paymentId: string, 
   const existing = await loadPaymentAndAuthorize(req, paymentId);
 
   await prisma.subcontractorPaymentTransaction.delete({ where: { id: paymentId } });
+  await voidAutoTransaction('SUBCONTRACTOR_PAYMENTS', paymentId);
 
   await recordAuditLog({
     userId: req.user!.sub,

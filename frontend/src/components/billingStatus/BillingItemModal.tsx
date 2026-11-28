@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Badge } from '../common/Badge';
 import { apiErrorMessage } from '../../api/client';
 import { BILLING_STATUS_OPTIONS, BillingItem, BillingItemStatus, BillingPayment, billingStatusApi } from '../../api/modules';
+import { useBankAccountOptions } from '../../hooks/useLookups';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,8 +64,10 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
   const [paymentTdsAmount, setPaymentTdsAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentRemarks, setPaymentRemarks] = useState('');
+  const [paymentBankAccountId, setPaymentBankAccountId] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [deletePayment, setDeletePayment] = useState<BillingPayment | null>(null);
+  const bankAccountOptions = useBankAccountOptions();
 
   useEffect(() => {
     setCurrentItem(item);
@@ -83,6 +86,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setPaymentTdsAmount('');
     setPaymentDate('');
     setPaymentRemarks('');
+    setPaymentBankAccountId('');
   }, [item]);
 
   const totalAmount = (Number(abstractAmount) || 0) + (Number(taxAmount) || 0);
@@ -129,6 +133,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
         tdsAmountDeducted: tdsAmount,
         paymentDate,
         remarks: paymentRemarks.trim() || undefined,
+        bankAccountId: paymentBankAccountId || undefined,
       });
     },
     onSuccess: (updated) => {
@@ -163,6 +168,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
         tdsAmountDeducted: tdsAmount,
         paymentDate,
         remarks: paymentRemarks.trim() || undefined,
+        bankAccountId: paymentBankAccountId || undefined,
       });
     },
     onSuccess: (updated) => {
@@ -174,6 +180,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
       setPaymentTdsAmount('');
       setPaymentDate('');
       setPaymentRemarks('');
+      setPaymentBankAccountId('');
       queryClient.invalidateQueries({ queryKey: ['billing-status'] });
       queryClient.invalidateQueries({ queryKey: ['billing-status-summary'] });
       queryClient.invalidateQueries({ queryKey: ['billing-payment-due'] });
@@ -207,6 +214,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setPaymentTdsAmount('');
     setPaymentDate(new Date().toISOString().slice(0, 10));
     setPaymentRemarks('');
+    setPaymentBankAccountId('');
   };
 
   const startEditPayment = (p: BillingPayment) => {
@@ -217,6 +225,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
     setPaymentTdsAmount(String(p.tdsAmountDeducted ?? 0));
     setPaymentDate(p.paymentDate.slice(0, 10));
     setPaymentRemarks(p.remarks ?? '');
+    setPaymentBankAccountId(p.bankAccountId ?? '');
   };
 
   const cancelPaymentForm = () => {
@@ -375,6 +384,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                   <th className="px-2 py-1.5">GST Amount Received</th>
                   <th className="px-2 py-1.5">TDS Amount Deducted</th>
                   <th className="px-2 py-1.5">Remarks</th>
+                  <th className="px-2 py-1.5">Bank Account</th>
                   <th className="px-2 py-1.5">Entered By</th>
                   {canManagePayments && <th className="px-2 py-1.5 text-right">Actions</th>}
                 </tr>
@@ -419,6 +429,16 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                       <td className="px-1 py-1">
                         <input className="input py-1 text-xs" value={paymentRemarks} onChange={(e) => setPaymentRemarks(e.target.value)} />
                       </td>
+                      <td className="px-1 py-1">
+                        <select className="input py-1 text-xs" value={paymentBankAccountId} onChange={(e) => setPaymentBankAccountId(e.target.value)}>
+                          <option value="">—</option>
+                          {bankAccountOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-2 py-1.5 text-slate-400">{p.createdBy?.name ?? '—'}</td>
                       <td className="px-1 py-1">
                         <div className="flex justify-end gap-1">
@@ -442,6 +462,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                       <td className="px-2 py-1.5">{fmtMoney(Number(p.gstAmountReceived ?? 0))}</td>
                       <td className="px-2 py-1.5">{fmtMoney(Number(p.tdsAmountDeducted ?? 0))}</td>
                       <td className="px-2 py-1.5">{p.remarks || '—'}</td>
+                      <td className="px-2 py-1.5">{p.bankAccount ? `${p.bankAccount.bankName} – ${p.bankAccount.accountType}` : '—'}</td>
                       <td className="px-2 py-1.5 text-slate-400">{p.createdBy?.name ?? '—'}</td>
                       {canManagePayments && (
                         <td className="px-1 py-1">
@@ -504,6 +525,16 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                         onChange={(e) => setPaymentRemarks(e.target.value)}
                       />
                     </td>
+                    <td className="px-1 py-1">
+                      <select className="input py-1 text-xs" value={paymentBankAccountId} onChange={(e) => setPaymentBankAccountId(e.target.value)}>
+                        <option value="">—</option>
+                        {bankAccountOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-2 py-1.5 text-slate-400">—</td>
                     <td className="px-1 py-1">
                       <div className="flex justify-end gap-1">
@@ -519,7 +550,7 @@ export function BillingItemModal({ item, onClose, readOnly }: { item: BillingIte
                 )}
                 {payments.length === 0 && !addingPayment && (
                   <tr>
-                    <td colSpan={canManagePayments ? 7 : 6} className="px-2 py-3 text-center text-slate-400">
+                    <td colSpan={canManagePayments ? 8 : 7} className="px-2 py-3 text-center text-slate-400">
                       No payments recorded yet.
                     </td>
                   </tr>

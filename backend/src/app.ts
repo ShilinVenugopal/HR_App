@@ -44,6 +44,9 @@ import ticketsRoutes from './modules/tickets/tickets.routes';
 import assetsRoutes from './modules/assets/assets.routes';
 import subcontractorsRoutes from './modules/subcontractors/subcontractors.routes';
 import subcontractorPaymentsRoutes from './modules/subcontractorPayments/subcontractorPayments.routes';
+import bankAccountsRoutes from './modules/bankAccounts/bankAccounts.routes';
+import bankTransactionsRoutes from './modules/bankTransactions/bankTransactions.routes';
+import bankReconciliationRoutes from './modules/bankReconciliation/bankReconciliation.routes';
 
 const app = express();
 
@@ -105,6 +108,9 @@ api.use('/tickets', ticketsRoutes);
 api.use('/assets', assetsRoutes);
 api.use('/subcontractors', subcontractorsRoutes);
 api.use('/subcontractor-payments', subcontractorPaymentsRoutes);
+api.use('/bank-accounts', bankAccountsRoutes);
+api.use('/bank-transactions', bankTransactionsRoutes);
+api.use('/bank-reconciliation', bankReconciliationRoutes);
 
 app.use(env.apiPrefix, api);
 

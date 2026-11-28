@@ -17,6 +17,7 @@ import {
   TRANSACTION_STATUS_OPTIONS,
 } from '../../api/modules';
 import { computeAutoTds, computeGrossBillAmount, computeNetPayableAmount, formatRupees } from '../../utils/subcontractorCalc';
+import { useBankAccountOptions } from '../../hooks/useLookups';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -68,8 +69,10 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentRemarks, setPaymentRemarks] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'PROCESSED' | 'PAID'>('PROCESSED');
+  const [paymentBankAccountId, setPaymentBankAccountId] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<SubcontractorPaymentTransaction | null>(null);
+  const bankAccountOptions = useBankAccountOptions();
 
   useEffect(() => {
     setCurrentBill(bill);
@@ -167,6 +170,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
     setPaymentReference('');
     setPaymentRemarks('');
     setPaymentStatus('PROCESSED');
+    setPaymentBankAccountId('');
   };
 
   const startEditPayment = (p: SubcontractorPaymentTransaction) => {
@@ -179,6 +183,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
     setPaymentReference(p.paymentReference ?? '');
     setPaymentRemarks(p.remarks ?? '');
     setPaymentStatus(p.status);
+    setPaymentBankAccountId(p.bankAccountId ?? '');
   };
 
   function cancelPaymentForm() {
@@ -202,6 +207,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
         paymentReference: paymentReference.trim() || undefined,
         remarks: paymentRemarks.trim() || undefined,
         status: paymentStatus,
+        bankAccountId: paymentBankAccountId || undefined,
       });
     },
     onSuccess: (updated) => {
@@ -229,6 +235,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
         paymentReference: paymentReference.trim() || undefined,
         remarks: paymentRemarks.trim() || undefined,
         status: paymentStatus,
+        bankAccountId: paymentBankAccountId || undefined,
       });
     },
     onSuccess: (updated) => {
@@ -441,6 +448,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
                   <th className="px-2 py-1.5">TDS Deducted</th>
                   <th className="px-2 py-1.5">Reference</th>
                   <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5">Bank Account</th>
                   <th className="px-2 py-1.5">Entered By</th>
                   {canManage && <th className="px-2 py-1.5 text-right">Actions</th>}
                 </tr>
@@ -473,6 +481,16 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
                           ))}
                         </select>
                       </td>
+                      <td className="px-1 py-1">
+                        <select className="input py-1 text-xs" value={paymentBankAccountId} onChange={(e) => setPaymentBankAccountId(e.target.value)}>
+                          <option value="">—</option>
+                          {bankAccountOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-2 py-1.5 text-slate-400">{p.createdBy?.name ?? '—'}</td>
                       <td className="px-1 py-1">
                         <div className="flex justify-end gap-1">
@@ -497,6 +515,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
                           {TRANSACTION_STATUS_OPTIONS.find((o) => o.value === p.status)?.label ?? p.status}
                         </span>
                       </td>
+                      <td className="px-2 py-1.5">{p.bankAccount ? `${p.bankAccount.bankName} – ${p.bankAccount.accountType}` : '—'}</td>
                       <td className="px-2 py-1.5 text-slate-400">{p.createdBy?.name ?? '—'}</td>
                       {canManage && (
                         <td className="px-1 py-1">
@@ -539,6 +558,16 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
                         ))}
                       </select>
                     </td>
+                    <td className="px-1 py-1">
+                      <select className="input py-1 text-xs" value={paymentBankAccountId} onChange={(e) => setPaymentBankAccountId(e.target.value)}>
+                        <option value="">—</option>
+                        {bankAccountOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-2 py-1.5 text-slate-400">—</td>
                     <td className="px-1 py-1">
                       <div className="flex justify-end gap-1">
@@ -554,7 +583,7 @@ export function BillDetailModal({ bill, onClose, readOnly }: { bill: Subcontract
                 )}
                 {payments.length === 0 && !addingPayment && (
                   <tr>
-                    <td colSpan={canManage ? 8 : 7} className="px-2 py-3 text-center text-slate-400">
+                    <td colSpan={canManage ? 9 : 8} className="px-2 py-3 text-center text-slate-400">
                       No payment processing entries recorded yet.
                     </td>
                   </tr>

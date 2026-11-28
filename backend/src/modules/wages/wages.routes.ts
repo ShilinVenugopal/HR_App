@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.middleware';
 import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createWageSchema, idParamSchema, updateWageSchema } from './wages.validation';
+import { createWageSchema, idParamSchema, markWagePaidSchema, updateWageSchema } from './wages.validation';
 import * as wagesController from './wages.controller';
 
 const router = Router();
@@ -20,6 +20,12 @@ router.put(
 );
 router.delete('/:id', requirePermission('WAGES', 'delete'), validate(idParamSchema), wagesController.deleteWageHandler);
 router.patch('/:id/approve', requirePermission('WAGES', 'approve'), validate(idParamSchema), wagesController.approveWageHandler);
-router.patch('/:id/mark-paid', requirePermission('WAGES', 'approve'), validate(idParamSchema), wagesController.markWagePaidHandler);
+router.patch(
+  '/:id/mark-paid',
+  requirePermission('WAGES', 'approve'),
+  validate(idParamSchema),
+  validate(markWagePaidSchema),
+  wagesController.markWagePaidHandler
+);
 
 export default router;

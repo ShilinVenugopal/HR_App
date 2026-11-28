@@ -6,16 +6,49 @@ import { PaginationParams } from '../../utils/pagination';
 import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
+import { resyncSiteAccountBatch } from '../bankTransactions/bankTransactions.service';
 
 const statementInclude = {
   project: { select: { id: true, projectName: true, projectNumber: true } },
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } },
+  bankAccount: { select: { id: true, bankName: true, accountType: true, accountNumber: true } },
   entries: {
     include: { costCode: true, dates: { orderBy: { date: 'asc' as const } } },
     orderBy: { createdAt: 'asc' as const },
   },
 } satisfies Prisma.SiteAccountStatementInclude;
+
+/// Only a SAVED statement's entries are synced to the Bank Accounts page
+/// (req: DRAFT is freely editable and not yet final) — regenerated
+/// wholesale every time since entries carry no stable id across edits
+/// (see resyncSiteAccountBatch's own comment).
+async function syncStatementBankTransactions(statement: {
+  id: string;
+  projectId: string;
+  statementDate: Date;
+  bankAccountId: string | null;
+  entries: { id: string; entryType: SiteAccountEntryType; particulars: string | null; receiptAmount: Prisma.Decimal | number; paymentAmount: Prisma.Decimal | number; costCode: { description: string } | null; dates: { date: Date }[] }[];
+}, userId: string) {
+  await resyncSiteAccountBatch(
+    statement.id,
+    statement.bankAccountId,
+    statement.entries.map((e) => ({
+      id: e.id,
+      entryType: e.entryType,
+      particulars: e.particulars,
+      costCodeDescription: e.costCode?.description ?? null,
+      receiptAmount: Number(e.receiptAmount),
+      paymentAmount: Number(e.paymentAmount),
+      // An entry may span several dates (see SiteAccountEntryDate's own
+      // comment) — the first one is used as this transaction's date; falls
+      // back to the statement's own date for an entry with none recorded.
+      transactionDate: e.dates[0]?.date ?? statement.statementDate,
+    })),
+    statement.projectId,
+    userId
+  );
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -40,6 +73,11 @@ export interface CreateStatementInput {
   openingBalance?: number;
   siteFundReceived?: number;
   entries?: EntryInput[];
+  /// Which registered company bank account this statement's expenses were
+  /// paid from (and other receipts received into) — optional; only synced
+  /// to the Bank Accounts page once the statement is Saved (see
+  /// syncStatementBankTransactions).
+  bankAccountId?: string;
 }
 
 function entryCreateData(entry: EntryInput, userId: string) {
@@ -71,6 +109,7 @@ export async function createStatement(req: Request, input: CreateStatementInput,
         statementYear: periodFrom.getFullYear(),
         openingBalance: input.openingBalance ?? 0,
         siteFundReceived: input.siteFundReceived ?? 0,
+        bankAccountId: input.bankAccountId || null,
         createdById: req.user!.sub,
         entries: { create: (input.entries ?? []).map((e) => entryCreateData(e, req.user!.sub)) },
       },
@@ -241,6 +280,7 @@ export async function updateStatement(req: Request, id: string, input: UpdateSta
         statementYear: input.periodFrom ? new Date(input.periodFrom).getFullYear() : undefined,
         openingBalance: input.openingBalance,
         siteFundReceived: input.siteFundReceived,
+        bankAccountId: input.bankAccountId !== undefined ? input.bankAccountId || null : undefined,
         updatedById: req.user!.sub,
         entries: input.entries ? { create: input.entries.map((e) => entryCreateData(e, req.user!.sub)) } : undefined,
       },
@@ -249,6 +289,14 @@ export async function updateStatement(req: Request, id: string, input: UpdateSta
   });
 
   const afterTotals = computeTotals(statement);
+
+  // Only a SAVED statement is synced to the Bank Accounts page — a DRAFT
+  // correction isn't final yet. Always regenerated on any edit while
+  // SAVED, not just when entries changed, since bankAccountId itself may
+  // have changed.
+  if (existing.status === 'SAVED') {
+    await syncStatementBankTransactions(statement, req.user!.sub);
+  }
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -298,6 +346,8 @@ export async function saveStatement(req: Request, id: string, meta?: RequestMeta
     meta,
     details: { statementId: id, saved: true },
   });
+
+  await syncStatementBankTransactions(statement, req.user!.sub);
 
   return withComputedTotals(statement);
 }

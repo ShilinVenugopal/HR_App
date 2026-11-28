@@ -42,6 +42,7 @@ export const createStatementSchema = z.object({
     openingBalance: z.coerce.number().default(0),
     siteFundReceived: z.coerce.number().nonnegative('Site Fund Received cannot be negative').default(0),
     entries: z.array(entrySchema).default([]),
+    bankAccountId: z.string().uuid().optional(),
   }),
 });
 

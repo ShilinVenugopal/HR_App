@@ -6,11 +6,13 @@ import { PaginationParams } from '../../utils/pagination';
 import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
+import { syncAutoTransaction } from '../bankTransactions/bankTransactions.service';
 
 const includeRelations = {
   employee: { select: { id: true, name: true, employeeCode: true } },
   project: { select: { id: true, projectName: true } },
   approvedBy: { select: { id: true, name: true } },
+  bankAccount: { select: { id: true, bankName: true, accountType: true, accountNumber: true } },
 } satisfies Prisma.WageRecordInclude;
 
 interface WageInput {
@@ -210,11 +212,16 @@ export async function approveWage(req: Request, id: string, meta?: RequestMeta) 
   return record;
 }
 
-export async function markWagePaid(req: Request, id: string, meta?: RequestMeta) {
+export async function markWagePaid(req: Request, id: string, bankAccountId: string | undefined, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
   if (existing.status !== 'APPROVED') throw ApiError.badRequest('Only approved payroll records can be marked as paid');
 
-  const record = await prisma.wageRecord.update({ where: { id }, data: { status: 'PAID' }, include: includeRelations });
+  const paidAt = new Date();
+  const record = await prisma.wageRecord.update({
+    where: { id },
+    data: { status: 'PAID', paidAt, bankAccountId: bankAccountId || null },
+    include: includeRelations,
+  });
 
   await recordAuditLog({
     userId: req.user!.sub,
@@ -224,6 +231,18 @@ export async function markWagePaid(req: Request, id: string, meta?: RequestMeta)
     status: 'SUCCESS',
     meta,
     details: { wageId: id, markedPaid: true },
+  });
+
+  await syncAutoTransaction({
+    sourceModule: 'WAGES',
+    sourceRecordId: record.id,
+    bankAccountId,
+    transactionType: 'PAYMENT',
+    transactionDate: paidAt,
+    projectId: record.projectId,
+    description: `${record.employee.name} – Salary Payment – ${record.month}/${record.year}`,
+    amount: Number(record.netWage),
+    userId: req.user!.sub,
   });
 
   return record;

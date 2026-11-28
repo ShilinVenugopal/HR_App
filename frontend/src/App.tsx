@@ -27,6 +27,9 @@ import BillingStatus from './pages/BillingStatus';
 import SubcontractorManagement from './pages/SubcontractorManagement';
 import SubcontractorPayments from './pages/SubcontractorPayments';
 import SubcontractorPaymentDue from './pages/SubcontractorPaymentDue';
+import BankAccountManagement from './pages/BankAccountManagement';
+import BankTransactions from './pages/BankTransactions';
+import BankReconciliation from './pages/BankReconciliation';
 import SiteAccounts from './pages/SiteAccounts';
 import SiteAccountDetail from './pages/SiteAccountDetail';
 import CostCodeMaster from './pages/CostCodeMaster';
@@ -75,6 +78,9 @@ export default function App() {
           <Route path="/subcontractors" element={<SubcontractorManagement />} />
           <Route path="/subcontractor-payments" element={<SubcontractorPayments />} />
           <Route path="/subcontractor-payment-due" element={<SubcontractorPaymentDue />} />
+          <Route path="/bank-accounts" element={<BankAccountManagement />} />
+          <Route path="/bank-transactions" element={<BankTransactions />} />
+          <Route path="/bank-reconciliation" element={<BankReconciliation />} />
           <Route path="/site-accounts" element={<SiteAccounts />} />
           <Route path="/site-accounts/:id" element={<SiteAccountDetail />} />
           <Route path="/cost-code-master" element={<CostCodeMaster />} />

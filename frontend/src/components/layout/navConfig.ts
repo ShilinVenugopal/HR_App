@@ -31,6 +31,9 @@ import {
   ShoppingCart,
   HardHat,
   AlertTriangle,
+  Landmark,
+  ArrowLeftRight,
+  Scale,
   LucideIcon,
 } from 'lucide-react';
 import { ModuleName } from '../../types';
@@ -120,6 +123,15 @@ export const NAV_ITEMS: NavEntry[] = [
     ],
   },
   { module: 'SITE_ACCOUNTS', label: 'Site Accounts', path: '/site-accounts', icon: BookOpenText },
+  {
+    label: 'Bank Accounts',
+    icon: Landmark,
+    children: [
+      { module: 'BANK_ACCOUNTS', label: 'Bank Account Management', path: '/bank-accounts', icon: Landmark },
+      { module: 'BANK_ACCOUNTS', label: 'Receipts & Payments', path: '/bank-transactions', icon: ArrowLeftRight },
+      { module: 'BANK_ACCOUNTS', label: 'Bank Reconciliation', path: '/bank-reconciliation', icon: Scale },
+    ],
+  },
   { label: 'Cost Code Master', path: '/cost-code-master', icon: Tags, alwaysVisible: true },
   {
     label: 'Tickets',

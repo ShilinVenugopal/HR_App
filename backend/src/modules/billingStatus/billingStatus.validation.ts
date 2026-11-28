@@ -63,6 +63,7 @@ export const createBillingPaymentSchema = z.object({
       tdsAmountDeducted: z.coerce.number().nonnegative('TDS Amount Deducted cannot be negative').default(0),
       paymentDate: z.coerce.date({ required_error: 'Payment Date is required', invalid_type_error: 'Payment Date is required' }),
       remarks: z.string().trim().optional(),
+      bankAccountId: z.string().uuid().optional(),
     })
     .refine((v) => v.amountReceived > 0 || v.gstAmountReceived > 0 || v.tdsAmountDeducted > 0, {
       message: 'Enter at least one of Abstract Amount Received, GST Amount Received or TDS Amount Deducted',
@@ -78,6 +79,7 @@ export const updateBillingPaymentSchema = z.object({
       tdsAmountDeducted: z.coerce.number().nonnegative('TDS Amount Deducted cannot be negative').optional(),
       paymentDate: z.coerce.date().optional(),
       remarks: z.string().trim().optional().nullable(),
+      bankAccountId: z.string().uuid().optional().nullable(),
     })
     .refine((v) => Object.keys(v).length > 0, { message: 'At least one field must be provided' }),
 });

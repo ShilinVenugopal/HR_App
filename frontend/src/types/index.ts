@@ -34,7 +34,8 @@ export type ModuleName =
   | 'EXPENSE'
   | 'TICKETS'
   | 'ASSETS'
-  | 'SUBCONTRACTORS';
+  | 'SUBCONTRACTORS'
+  | 'BANK_ACCOUNTS';
 
 export const ALL_MODULES: ModuleName[] = [
   'DASHBOARD',
@@ -58,6 +59,7 @@ export const ALL_MODULES: ModuleName[] = [
   'TICKETS',
   'ASSETS',
   'SUBCONTRACTORS',
+  'BANK_ACCOUNTS',
 ];
 
 export const MODULE_LABELS: Record<ModuleName, string> = {
@@ -82,6 +84,7 @@ export const MODULE_LABELS: Record<ModuleName, string> = {
   TICKETS: 'Tickets',
   ASSETS: 'Assets',
   SUBCONTRACTORS: 'Subcontractors',
+  BANK_ACCOUNTS: 'Bank Accounts',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

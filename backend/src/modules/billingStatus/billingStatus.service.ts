@@ -6,6 +6,7 @@ import { PaginationParams } from '../../utils/pagination';
 import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
+import { syncAutoTransaction, voidAutoTransaction } from '../bankTransactions/bankTransactions.service';
 
 const recordInclude = {
   project: { select: { id: true, projectName: true, projectNumber: true } },
@@ -16,6 +17,7 @@ const recordInclude = {
 const paymentInclude = {
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } },
+  bankAccount: { select: { id: true, bankName: true, accountType: true, accountNumber: true } },
 } satisfies Prisma.BillingPaymentInclude;
 
 const itemInclude = {
@@ -444,6 +446,16 @@ export interface BillingPaymentInput {
   tdsAmountDeducted?: number;
   paymentDate: Date;
   remarks?: string;
+  /// Which registered company bank account this was received into —
+  /// optional; when set, generates/updates a matching Bank Accounts
+  /// Receipt entry (BankTransaction, sourceModule BILLING_STATUS).
+  bankAccountId?: string;
+}
+
+/// Mirrors the Receipt Description example in the Bank Accounts spec
+/// ("RIL Jamnagar – Invoice Payment – Invoice No. 125").
+function billingPaymentDescription(item: { invoiceNo: string | null; billingRecord: { project: { projectName: string } } }): string {
+  return `${item.billingRecord.project.projectName} – Invoice Payment${item.invoiceNo ? ` – Invoice No. ${item.invoiceNo}` : ''}`;
 }
 
 async function loadPaymentAndAuthorize(req: Request, paymentId: string) {
@@ -512,6 +524,7 @@ export async function addBillingPayment(req: Request, itemId: string, input: Bil
       tdsAmountDeducted,
       paymentDate: input.paymentDate,
       remarks: input.remarks || null,
+      bankAccountId: input.bankAccountId || null,
       createdById: req.user!.sub,
     },
   });
@@ -524,6 +537,18 @@ export async function addBillingPayment(req: Request, itemId: string, input: Bil
     status: 'SUCCESS',
     meta,
     details: { billingItemId: itemId, paymentId: payment.id, amountReceived: input.amountReceived, gstAmountReceived, tdsAmountDeducted, paymentDate: input.paymentDate },
+  });
+
+  await syncAutoTransaction({
+    sourceModule: 'BILLING_STATUS',
+    sourceRecordId: payment.id,
+    bankAccountId: input.bankAccountId,
+    transactionType: 'RECEIPT',
+    transactionDate: input.paymentDate,
+    projectId: item.billingRecord.projectId,
+    description: billingPaymentDescription(item),
+    amount: round2(input.amountReceived + gstAmountReceived + tdsAmountDeducted),
+    userId: req.user!.sub,
   });
 
   return getBillingItemWithComputed(req, itemId);
@@ -558,6 +583,7 @@ export async function updateBillingPayment(req: Request, paymentId: string, inpu
       tdsAmountDeducted: input.tdsAmountDeducted ?? undefined,
       paymentDate: input.paymentDate ?? undefined,
       remarks: input.remarks !== undefined ? input.remarks || null : undefined,
+      bankAccountId: input.bankAccountId !== undefined ? input.bankAccountId || null : undefined,
       updatedById: req.user!.sub,
     },
   });
@@ -581,6 +607,18 @@ export async function updateBillingPayment(req: Request, paymentId: string, inpu
       oldPaymentDate: existing.paymentDate,
       newPaymentDate: payment.paymentDate,
     },
+  });
+
+  await syncAutoTransaction({
+    sourceModule: 'BILLING_STATUS',
+    sourceRecordId: payment.id,
+    bankAccountId: payment.bankAccountId,
+    transactionType: 'RECEIPT',
+    transactionDate: payment.paymentDate,
+    projectId: existing.billingItem.billingRecord.projectId,
+    description: billingPaymentDescription(existing.billingItem),
+    amount: round2(nextAmountReceived + nextGstAmountReceived + nextTdsAmountDeducted),
+    userId: req.user!.sub,
   });
 
   return getBillingItemWithComputed(req, existing.billingItemId);
@@ -611,6 +649,8 @@ export async function deleteBillingPayment(req: Request, paymentId: string, meta
       paymentDate: existing.paymentDate,
     },
   });
+
+  await voidAutoTransaction('BILLING_STATUS', paymentId);
 
   return getBillingItemWithComputed(req, existing.billingItemId);
 }

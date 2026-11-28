@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
+  bankAccountsApi,
   costCodesApi,
   departmentsApi,
   designationsApi,
@@ -117,6 +118,18 @@ export function useSubcontractorOptions() {
     queryFn: () => subcontractorsApi.options(),
   });
   return (data ?? []).map((s) => ({ value: s.id, label: s.companyName, contractingType: s.contractingType }));
+}
+
+/// Active registered bank accounts — the dropdown offered wherever a
+/// payment/receipt entry lets the user tag its bank account (Billing
+/// payments, Subcontractor payments, Advances approval, Wages mark-paid,
+/// Site Accounts). Entirely optional everywhere it's used.
+export function useBankAccountOptions() {
+  const { data } = useQuery({
+    queryKey: ['bank-account-options'],
+    queryFn: () => bankAccountsApi.options(),
+  });
+  return (data ?? []).map((a) => ({ value: a.id, label: `${a.bankName} – ${a.accountType} (${a.accountNumber})` }));
 }
 
 export function useTicketCategoryOptions() {
