@@ -9,7 +9,7 @@ import { Modal } from '../components/common/Modal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Badge } from '../components/common/Badge';
 import { useAuth } from '../context/AuthContext';
-import { useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
+import { useEmployeeOptions, useProjectOptions, useProjectUnitOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 
 const SHIFTS = ['DAY', 'NIGHT', 'GENERAL'];
@@ -17,6 +17,7 @@ const STATUSES = ['PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE', 'HOLIDAY', 'WEEK_OFF
 
 const emptyForm = {
   employeeId: '',
+  unitId: '',
   date: new Date().toISOString().slice(0, 10),
   shift: 'GENERAL',
   inTime: '',
@@ -33,10 +34,17 @@ export default function Attendance() {
   const employeeOptions = useEmployeeOptions();
 
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ projectId: '', status: '', approvalStatus: '', dateFrom: '', dateTo: '' });
+  const [filters, setFilters] = useState({ projectId: '', unitId: '', status: '', approvalStatus: '', dateFrom: '', dateTo: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<AttendanceRecord | null>(null);
+
+  // Unit is Project-specific — derived from whichever Employee is
+  // selected (every Employee belongs to exactly one Project) rather than
+  // adding a second, redundant Project selector to this form.
+  const selectedEmployeeProjectId = employeeOptions.find((e) => e.value === form.employeeId)?.projectId;
+  const unitOptions = useProjectUnitOptions(selectedEmployeeProjectId);
+  const filterUnitOptions = useProjectUnitOptions(filters.projectId || undefined);
 
   const { data, isLoading } = useQuery({
     queryKey: ['attendance', page, filters],
@@ -55,6 +63,16 @@ export default function Attendance() {
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
+
+  // Mirrors the backend's own required-field checks (Employee, Date, Unit)
+  // — frontend validation is UX only, the API independently re-validates
+  // and would reject an incomplete payload regardless.
+  const handleSave = () => {
+    if (!form.employeeId) return toast.error('Employee is required.');
+    if (!form.date) return toast.error('Date is required.');
+    if (!form.unitId) return toast.error('Unit is mandatory for marking attendance.');
+    createMutation.mutate();
+  };
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => attendanceApi.approve(id),
@@ -102,6 +120,7 @@ export default function Attendance() {
     { key: 'date', header: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'employee', header: 'Employee', render: (r) => r.employee?.name ?? '—' },
     { key: 'project', header: 'Project', render: (r) => r.project?.projectName ?? '—' },
+    { key: 'unit', header: 'Unit', render: (r) => r.unit?.name ?? '—' },
     { key: 'shift', header: 'Shift', render: (r) => r.shift },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
     { key: 'ot', header: 'OT (hrs)', render: (r) => Number(r.overtimeHours) },
@@ -128,9 +147,26 @@ export default function Attendance() {
         }
         filters={
           <div className="flex flex-wrap gap-2">
-            <select className="input w-auto" value={filters.projectId} onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value }))}>
+            <select
+              className="input w-auto"
+              value={filters.projectId}
+              onChange={(e) => setFilters((f) => ({ ...f, projectId: e.target.value, unitId: '' }))}
+            >
               <option value="">All Projects</option>
               {projectOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input w-auto"
+              value={filters.unitId}
+              disabled={!filters.projectId}
+              onChange={(e) => setFilters((f) => ({ ...f, unitId: e.target.value }))}
+            >
+              <option value="">All Units</option>
+              {filterUnitOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -194,7 +230,7 @@ export default function Attendance() {
             <button className="btn-secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </button>
-            <button className="btn-primary" disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+            <button className="btn-primary" disabled={createMutation.isPending} onClick={handleSave}>
               Save
             </button>
           </>
@@ -203,7 +239,11 @@ export default function Attendance() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="label">Employee *</label>
-            <select className="input" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}>
+            <select
+              className="input"
+              value={form.employeeId}
+              onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value, unitId: '' }))}
+            >
               <option value="">Select employee</option>
               {employeeOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -215,6 +255,27 @@ export default function Attendance() {
           <div>
             <label className="label">Date *</label>
             <input type="date" className="input" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Unit *</label>
+            <select
+              className="input"
+              value={form.unitId}
+              disabled={!form.employeeId}
+              onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
+            >
+              <option value="">{form.employeeId ? 'Select unit' : 'Select an employee first'}</option>
+              {unitOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {form.employeeId && unitOptions.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">
+                No active Units are configured for this Project. Please add a Unit before marking attendance.
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Shift</label>

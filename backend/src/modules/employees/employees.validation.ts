@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EmployeeStatus } from '@prisma/client';
+import { EmployeeCostCode, EmployeeStatus } from '@prisma/client';
 
 const CONTACT_NUMBER_REGEX = /^\d{10}$/;
 const AADHAAR_REGEX = /^\d{12}$/;
@@ -54,6 +54,10 @@ const employeeFieldsSchema = {
   address: z.string().trim().optional().nullable(),
   documents: z.array(z.object({ name: z.string(), url: z.string() })).optional(),
   status: z.nativeEnum(EmployeeStatus).default(EmployeeStatus.ACTIVE),
+  // Fixed 3-option payroll cost category — the single source of truth
+  // read by every module that lets a user pick an employee (Attendance,
+  // Wages, etc.). z.nativeEnum rejects anything outside F01A/F02A/F03A.
+  costCode: z.nativeEnum(EmployeeCostCode).optional().nullable(),
 };
 
 export const createEmployeeSchema = z.object({

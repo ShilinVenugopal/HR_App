@@ -276,6 +276,9 @@ export interface HistoryFilters {
 export async function listHistory(req: Request, pagination: PaginationParams, filters: HistoryFilters) {
   const where: Prisma.CommunicationMessageLogWhereInput = {
     ...projectScopeWhere(req),
+    // Soft-deleted rows (Super Admin only, see deleteMessage) never appear
+    // in the normal history list — only in listDeletedHistory.
+    deletedAt: null,
     ...(filters.channel ? { channel: filters.channel as CommChannel } : {}),
     ...(filters.status ? { status: filters.status as any } : {}),
     ...(filters.projectId ? { projectId: filters.projectId } : {}),
@@ -331,7 +334,7 @@ export async function getCandidateTimeline(req: Request, candidateId: string) {
   assertProjectAccess(req, candidate.projectId);
 
   return prisma.communicationMessageLog.findMany({
-    where: { candidateId },
+    where: { candidateId, deletedAt: null },
     include: { batch: { select: { template: { select: { name: true } }, createdBy: { select: { name: true } } } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -340,6 +343,7 @@ export async function getCandidateTimeline(req: Request, candidateId: string) {
 export async function resendMessage(req: Request, id: string, meta?: RequestMeta) {
   const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
   if (!log) throw ApiError.notFound('Message not found');
+  if (log.deletedAt) throw ApiError.badRequest('This communication record has been deleted and cannot be resent');
   assertProjectAccess(req, log.projectId);
 
   const updated = await prisma.communicationMessageLog.update({
@@ -365,6 +369,114 @@ export async function resendMessage(req: Request, id: string, meta?: RequestMeta
   });
 
   return updated;
+}
+
+/// Soft delete only — Super Admin only (enforced by requireSuperAdmin at
+/// the route level, not the RECRUITMENT permission matrix). The row, its
+/// delivery status history, and provider tracking data are never touched
+/// or physically removed; deletedAt/deletedById just hide it from the
+/// normal history list (see listHistory) and the candidate timeline.
+/// Does not affect the batch's own counters — those reflect what was
+/// actually sent, independent of what's since been archived from the ERP
+/// view.
+export async function deleteMessage(req: Request, id: string, meta?: RequestMeta) {
+  const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
+  if (!log) throw ApiError.notFound('Message not found');
+  if (log.deletedAt) throw ApiError.badRequest('This communication record has already been deleted');
+
+  await prisma.communicationMessageLog.update({
+    where: { id },
+    data: { deletedAt: new Date(), deletedById: req.user!.sub },
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'DELETE',
+    module: 'RECRUITMENT',
+    projectId: log.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: {
+      communicationSoftDelete: true,
+      messageLogId: id,
+      recipient: log.recipientEmail ?? log.recipientPhone,
+      previousStatus: log.status,
+    },
+  });
+}
+
+/// Reverses deleteMessage — Super Admin only (same route gate). Clears
+/// deletedAt/deletedById so the record reappears in the normal history
+/// list exactly as it was before deletion; nothing about the original
+/// send/status data was ever changed by the delete, so there's nothing
+/// else to restore.
+export async function restoreMessage(req: Request, id: string, meta?: RequestMeta) {
+  const log = await prisma.communicationMessageLog.findUnique({ where: { id } });
+  if (!log) throw ApiError.notFound('Message not found');
+  if (!log.deletedAt) throw ApiError.badRequest('This communication record is not deleted');
+
+  const restored = await prisma.communicationMessageLog.update({
+    where: { id },
+    data: { deletedAt: null, deletedById: null },
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'RECRUITMENT',
+    projectId: log.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { communicationRestore: true, messageLogId: id },
+  });
+
+  return restored;
+}
+
+/// Super Admin only (route-gated) — mirrors listHistory but scoped to
+/// deleted rows, with deletedBy included for the "Deleted Communications"
+/// view.
+export async function listDeletedHistory(req: Request, pagination: PaginationParams, filters: HistoryFilters) {
+  const where: Prisma.CommunicationMessageLogWhereInput = {
+    ...projectScopeWhere(req),
+    deletedAt: { not: null },
+    ...(filters.channel ? { channel: filters.channel as CommChannel } : {}),
+    ...(filters.projectId ? { projectId: filters.projectId } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { candidate: { candidateName: { contains: filters.search, mode: 'insensitive' } } },
+            { recipientEmail: { contains: filters.search, mode: 'insensitive' } },
+            { recipientPhone: { contains: filters.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.communicationMessageLog.findMany({
+      where,
+      include: {
+        candidate: { select: { id: true, candidateName: true, email: true, contactNumber: true } },
+        project: { select: { id: true, projectName: true } },
+        deletedBy: { select: { id: true, name: true } },
+        batch: {
+          select: {
+            id: true,
+            template: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
+            attachments: true,
+          },
+        },
+      },
+      skip: pagination.skip,
+      take: pagination.take,
+      orderBy: { deletedAt: pagination.sortOrder },
+    }),
+    prisma.communicationMessageLog.count({ where }),
+  ]);
+
+  return { rows, total };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -471,6 +583,6 @@ export async function handleWhatsappStatusUpdate(
 }
 
 export const communicationConfig = {
-  emailConfigured: Boolean(env.smtp.host && env.smtp.user && env.smtp.password),
+  emailConfigured: Boolean(env.brevo.apiKey && env.brevo.fromAddress) || Boolean(env.smtp.host && env.smtp.user && env.smtp.password),
   whatsappConfigured: Boolean(env.whatsapp.phoneNumberId && env.whatsapp.accessToken),
 };

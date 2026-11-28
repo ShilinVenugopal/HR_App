@@ -32,12 +32,12 @@ export const updateAdvanceHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const approveAdvanceHandler = asyncHandler(async (req: Request, res: Response) => {
-  const record = await advancesService.setAdvanceApproval(req, req.params.id, true, req.meta);
+  const record = await advancesService.setAdvanceApproval(req, req.params.id, true, req.body.bankAccountId, req.meta);
   return sendSuccess(res, record, 'Advance/Loan approved');
 });
 
 export const rejectAdvanceHandler = asyncHandler(async (req: Request, res: Response) => {
-  const record = await advancesService.setAdvanceApproval(req, req.params.id, false, req.meta);
+  const record = await advancesService.setAdvanceApproval(req, req.params.id, false, undefined, req.meta);
   return sendSuccess(res, record, 'Advance/Loan rejected');
 });
 

@@ -43,6 +43,6 @@ export const approveWageHandler = asyncHandler(async (req: Request, res: Respons
 });
 
 export const markWagePaidHandler = asyncHandler(async (req: Request, res: Response) => {
-  const record = await wagesService.markWagePaid(req, req.params.id, req.meta);
+  const record = await wagesService.markWagePaid(req, req.params.id, req.body.bankAccountId, req.meta);
   return sendSuccess(res, record, 'Wage record marked as paid');
 });

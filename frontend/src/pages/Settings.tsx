@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { departmentsApi, designationsApi, MasterItem, Project, projectsApi } from '../api/modules';
+import { departmentsApi, designationsApi, MasterItem, Project, projectsApi, ticketCategoriesApi } from '../api/modules';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -15,6 +15,7 @@ const TABS = [
   { key: 'projects', label: 'Projects' },
   { key: 'designations', label: 'Designations' },
   { key: 'departments', label: 'Departments' },
+  { key: 'ticketCategories', label: 'Ticket Categories' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       {tab === 'projects' && <ProjectsTab isSuperAdmin={isSuperAdmin} />}
       {tab === 'designations' && <MasterTab entity="designation" />}
       {tab === 'departments' && <MasterTab entity="department" />}
+      {tab === 'ticketCategories' && <MasterTab entity="ticketCategory" />}
     </div>
   );
 }
@@ -53,10 +55,11 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState<{ projectName: string; clientName: string; location: string; status: 'ACTIVE' | 'INACTIVE' }>({
+  const [form, setForm] = useState<{ projectName: string; clientName: string; location: string; projectNumber: string; status: 'ACTIVE' | 'INACTIVE' }>({
     projectName: '',
     clientName: '',
     location: '',
+    projectNumber: '',
     status: 'ACTIVE',
   });
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
@@ -68,12 +71,12 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ projectName: '', clientName: '', location: '', status: 'ACTIVE' });
+    setForm({ projectName: '', clientName: '', location: '', projectNumber: '', status: 'ACTIVE' });
     setModalOpen(true);
   };
   const openEdit = (p: Project) => {
     setEditing(p);
-    setForm({ projectName: p.projectName, clientName: p.clientName, location: p.location ?? '', status: p.status });
+    setForm({ projectName: p.projectName, clientName: p.clientName, location: p.location ?? '', projectNumber: p.projectNumber ?? '', status: p.status });
     setModalOpen(true);
   };
 
@@ -100,6 +103,7 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const columns: Column<Project>[] = [
     { key: 'projectName', header: 'Project Name', render: (r) => <span className="font-medium">{r.projectName}</span> },
+    { key: 'projectNumber', header: 'Project No.', render: (r) => r.projectNumber ?? '—' },
     { key: 'clientName', header: 'Client', render: (r) => r.clientName },
     { key: 'location', header: 'Location', render: (r) => r.location ?? '—' },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
@@ -171,6 +175,15 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             <input className="input" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
           </div>
           <div>
+            <label className="label">Project No.</label>
+            <input
+              className="input"
+              value={form.projectNumber}
+              onChange={(e) => setForm((f) => ({ ...f, projectNumber: e.target.value }))}
+              placeholder="Shown on printed procurement documents (PR/PO/GRN)"
+            />
+          </div>
+          <div>
             <label className="label">Status</label>
             <select className="input" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))}>
               <option value="ACTIVE">Active</option>
@@ -193,11 +206,12 @@ function ProjectsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   );
 }
 
-function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
+function MasterTab({ entity }: { entity: 'designation' | 'department' | 'ticketCategory' }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const api = entity === 'designation' ? designationsApi : departmentsApi;
-  const queryKey = entity === 'designation' ? 'designations' : 'departments';
+  const api = entity === 'designation' ? designationsApi : entity === 'department' ? departmentsApi : ticketCategoriesApi;
+  const queryKey = entity === 'designation' ? 'designations' : entity === 'department' ? 'departments' : 'ticketCategories';
+  const lookupInvalidationKey = entity === 'ticketCategory' ? 'lookup-ticket-categories' : `lookup-${queryKey}`;
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -224,7 +238,7 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [queryKey] });
-    queryClient.invalidateQueries({ queryKey: [`lookup-${queryKey}`] });
+    queryClient.invalidateQueries({ queryKey: [lookupInvalidationKey] });
   };
 
   const saveMutation = useMutation({
@@ -252,7 +266,7 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
   ];
 
-  const label = entity === 'designation' ? 'Designation' : 'Department';
+  const label = entity === 'designation' ? 'Designation' : entity === 'department' ? 'Department' : 'Ticket Category';
 
   return (
     <div>
@@ -333,3 +347,4 @@ function MasterTab({ entity }: { entity: 'designation' | 'department' }) {
     </div>
   );
 }
+

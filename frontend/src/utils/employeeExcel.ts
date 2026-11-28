@@ -3,7 +3,9 @@
 /// never bloats the main bundle, matching the rest of the app's Excel
 /// handling (see wageExcel.ts for the same pattern explained in full).
 import type ExcelJS from 'exceljs';
+import { APP_NAME } from '../config/branding';
 import { Employee } from '../api/modules';
+import { EMPLOYEE_COST_CODE_OPTIONS, employeeCostCodeLabel } from './employeeCostCode';
 
 /// Single source of truth for field labels — drives the downloadable
 /// template's headers, the uploaded file's header mapping, the Export
@@ -30,11 +32,21 @@ export const EMPLOYEE_FIELDS = [
   { key: 'bankAccountName', label: 'Bank Account Name' },
   { key: 'address', label: 'Address' },
   { key: 'status', label: 'Status' },
+  { key: 'costCode', label: 'Employee Cost Code' },
 ] as const;
 
 export type EmployeeFieldKey = (typeof EMPLOYEE_FIELDS)[number]['key'];
 
-export const DEFAULT_VISIBLE_COLUMNS: EmployeeFieldKey[] = ['employeeCode', 'name', 'contactNumber', 'project', 'department', 'designation', 'status'];
+export const DEFAULT_VISIBLE_COLUMNS: EmployeeFieldKey[] = [
+  'employeeCode',
+  'name',
+  'contactNumber',
+  'project',
+  'department',
+  'designation',
+  'status',
+  'costCode',
+];
 
 /// Fields stored as free-text in Excel to prevent Excel from silently
 /// reinterpreting long numeric-looking IDs in scientific notation.
@@ -108,12 +120,13 @@ const SAMPLE_ROW: Record<EmployeeFieldKey, string> = {
   bankAccountName: 'Ramesh Kumar',
   address: '123, Sample Street, City',
   status: 'Active',
+  costCode: 'F01A',
 };
 
 export async function downloadEmployeeTemplate(lookups: Lookups) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Forays Group HR Solutions';
+  workbook.creator = APP_NAME;
 
   const sheet = workbook.addWorksheet('Employees');
   sheet.columns = EMPLOYEE_FIELDS.map((f) => ({ header: f.label, key: f.key, width: 22 }));
@@ -142,6 +155,7 @@ export async function downloadEmployeeTemplate(lookups: Lookups) {
   if (lookups.departments.length) dropdownFor('department', lookups.departments.map((d) => d.name));
   if (lookups.designations.length) dropdownFor('designation', lookups.designations.map((d) => d.name));
   dropdownFor('status', STATUS_OPTIONS.map((s) => s.label));
+  dropdownFor('costCode', EMPLOYEE_COST_CODE_OPTIONS.map((o) => o.value));
 
   const guidance = workbook.addWorksheet('Guidance (read me)');
   guidance.columns = [
@@ -162,6 +176,11 @@ export async function downloadEmployeeTemplate(lookups: Lookups) {
     { field: 'Bank IFSC Code', mandatory: 'No', notes: 'Standard 11-character IFSC format, e.g. SBIN0001234.' },
     { field: 'Bank Account Number', mandatory: 'No', notes: 'Digits only.' },
     { field: 'Status', mandatory: 'Yes', notes: `One of: ${STATUS_OPTIONS.map((s) => s.label).join(', ')}. Defaults to Active if left blank.` },
+    {
+      field: 'Employee Cost Code',
+      mandatory: 'No',
+      notes: `Optional. If provided, must be exactly one of: ${EMPLOYEE_COST_CODE_OPTIONS.map((o) => `${o.value} (${o.label})`).join(', ')}. Any other value is rejected and that row will not be imported.`,
+    },
   ]);
 
   await downloadWorkbook(workbook, 'Employee_Template.xlsx');
@@ -266,6 +285,7 @@ export interface ValidatedEmployeeRow {
   bankAccountName: string | null;
   address: string | null;
   status: string;
+  costCode: string | null;
   errors: string[];
   isValid: boolean;
 }
@@ -362,6 +382,23 @@ export function validateEmployeeRows(rawRows: RawEmployeeRow[], lookups: Lookups
       else status = match.value;
     }
 
+    // Cost code is optional, but unlike the other enum-ish fields above
+    // (which silently fall back to a default on a bad value), an invalid
+    // code must block the row outright — there's no sensible default to
+    // substitute for "wrong cost category."
+    let costCode: string | null = null;
+    if (v.costCode) {
+      const norm = normalize(v.costCode);
+      const match = EMPLOYEE_COST_CODE_OPTIONS.find((o) => normalize(o.value) === norm || normalize(o.label) === norm);
+      if (!match) {
+        errors.push(
+          `Employee Cost Code "${v.costCode}" is not valid — must be one of ${EMPLOYEE_COST_CODE_OPTIONS.map((o) => o.value).join(', ')}`
+        );
+      } else {
+        costCode = match.value;
+      }
+    }
+
     return {
       rowNumber: row.rowNumber,
       raw: v,
@@ -386,6 +423,7 @@ export function validateEmployeeRows(rawRows: RawEmployeeRow[], lookups: Lookups
       bankAccountName: v.bankAccountName.trim() || null,
       address: v.address.trim() || null,
       status,
+      costCode,
       errors,
       isValid: errors.length === 0,
     };
@@ -447,6 +485,8 @@ export async function exportEmployeesExcel(employees: Employee[], visibleKeys: E
         return e.dateOfBirth ? e.dateOfBirth.slice(0, 10) : '';
       case 'joiningDate':
         return e.joiningDate ? e.joiningDate.slice(0, 10) : '';
+      case 'costCode':
+        return e.costCode ? `${e.costCode} – ${employeeCostCodeLabel(e.costCode)}` : '';
       default:
         return (e as unknown as Record<string, string | null>)[key] ?? '';
     }

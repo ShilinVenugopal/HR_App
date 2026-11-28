@@ -1,0 +1,578 @@
+import { Prisma, GRNStatus, Role } from '@prisma/client';
+import { Request } from 'express';
+import { prisma } from '../../config/database';
+import { ApiError } from '../../utils/apiError';
+import { PaginationParams } from '../../utils/pagination';
+import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
+import { recordAuditLog } from '../auditLogs/auditLog.service';
+import { RequestMeta } from '../../utils/requestMeta';
+import { nextDocumentNumber } from '../../utils/documentSequence';
+import { listEligibleApprovers } from '../../utils/approvers';
+import { createNotification } from '../notifications/notifications.service';
+
+const includeRelations = {
+  project: { select: { id: true, projectName: true, projectNumber: true } },
+  po: { select: { id: true, poNumber: true, poDate: true, vendor: { select: { id: true, name: true } } } },
+  createdBy: { select: { id: true, name: true, email: true } },
+  submittedBy: { select: { id: true, name: true, email: true } },
+  currentApprover: { select: { id: true, name: true, email: true } },
+  inventoryUpdatedBy: { select: { id: true, name: true } },
+  items: { include: { costCode: { select: { id: true, code: true, name: true } } }, orderBy: { sortOrder: 'asc' as const } },
+} satisfies Prisma.GoodsReceivedNoteInclude;
+
+/// Same locked-document rule as PR/PO: a GRN can only be edited while
+/// Draft or Returned; Pending/Approved/Rejected are locked.
+const EDITABLE_STATUSES: GRNStatus[] = ['DRAFT', 'RETURNED'];
+
+export interface GrnItemInput {
+  costCodeId?: string;
+  description: string;
+  unit: string;
+  qtyAsPerChallan: number;
+  actualQtyReceived: number;
+  acceptedQty: number;
+  remarks?: string;
+}
+
+export interface GrnFilters {
+  projectId?: string;
+  poId?: string;
+  status?: string;
+}
+
+export async function listGoodsReceivedNotes(req: Request, pagination: PaginationParams, filters: GrnFilters) {
+  const where: Prisma.GoodsReceivedNoteWhereInput = {
+    ...projectScopeWhere(req),
+    ...(filters.projectId ? { projectId: filters.projectId } : {}),
+    ...(filters.poId ? { poId: filters.poId } : {}),
+    ...(filters.status ? { status: filters.status as GRNStatus } : {}),
+    ...(pagination.search ? { grnNumber: { contains: pagination.search, mode: 'insensitive' } } : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.goodsReceivedNote.findMany({
+      where,
+      include: includeRelations,
+      skip: pagination.skip,
+      take: pagination.take,
+      orderBy: { [pagination.sortBy ?? 'createdAt']: pagination.sortOrder },
+    }),
+    prisma.goodsReceivedNote.count({ where }),
+  ]);
+
+  return { rows, total };
+}
+
+async function loadAndAuthorize(req: Request, id: string) {
+  const record = await prisma.goodsReceivedNote.findUnique({ where: { id }, include: includeRelations });
+  if (!record) throw ApiError.notFound('Goods Received Note not found');
+  assertProjectAccess(req, record.projectId);
+  return record;
+}
+
+export async function getGoodsReceivedNote(req: Request, id: string) {
+  const grn = await loadAndAuthorize(req, id);
+  const approvalHistory = await prisma.approval.findMany({
+    where: { documentType: 'GRN', documentId: id },
+    include: { actedBy: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  return { ...grn, approvalHistory };
+}
+
+/// rejectedQty is always server-computed as actualQtyReceived minus
+/// acceptedQty — never trust a client-submitted rejected figure, same rule
+/// PR's balQtyReq and PO's amount/gstAmount follow.
+function computeItemData(item: GrnItemInput, sortOrder: number) {
+  const rejectedQty = Math.max(0, item.actualQtyReceived - item.acceptedQty);
+  return {
+    costCodeId: item.costCodeId || null,
+    description: item.description,
+    unit: item.unit as Prisma.GoodsReceivedNoteItemUncheckedCreateInput['unit'],
+    qtyAsPerChallan: item.qtyAsPerChallan,
+    actualQtyReceived: item.actualQtyReceived,
+    acceptedQty: item.acceptedQty,
+    rejectedQty,
+    remarks: item.remarks || null,
+    sortOrder,
+  };
+}
+
+export interface CreateGrnInput {
+  projectId: string;
+  poId: string;
+  supplierName?: string;
+  receiptDate?: Date;
+  challanNumber?: string;
+  challanDate?: Date;
+  lrNumber?: string;
+  lrDate?: Date;
+  transporterName?: string;
+  createdByName?: string;
+  invoiceFileUrl?: string;
+  invoiceFileName?: string;
+  items: GrnItemInput[];
+}
+
+async function assertPoReadyForGrn(projectId: string, poId: string) {
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+  if (!po) throw ApiError.badRequest('Purchase Order not found');
+  if (po.projectId !== projectId) throw ApiError.badRequest('Purchase Order belongs to a different project');
+  if (po.status !== 'APPROVED') throw ApiError.badRequest('A Goods Received Note can only be created against an Approved Purchase Order');
+  return po;
+}
+
+export async function createGoodsReceivedNote(req: Request, input: CreateGrnInput, meta?: RequestMeta) {
+  assertProjectAccess(req, input.projectId);
+  await assertPoReadyForGrn(input.projectId, input.poId);
+
+  const grnNumber = await nextDocumentNumber(input.projectId, 'GRN');
+
+  const grn = await prisma.goodsReceivedNote.create({
+    data: {
+      projectId: input.projectId,
+      poId: input.poId,
+      grnNumber,
+      grnDate: new Date(),
+      supplierName: input.supplierName || null,
+      receiptDate: input.receiptDate || null,
+      challanNumber: input.challanNumber || null,
+      challanDate: input.challanDate || null,
+      lrNumber: input.lrNumber || null,
+      lrDate: input.lrDate || null,
+      transporterName: input.transporterName || null,
+      createdByName: input.createdByName || null,
+      createdById: req.user!.sub,
+      invoiceFileUrl: input.invoiceFileUrl || null,
+      invoiceFileName: input.invoiceFileName || null,
+      status: 'DRAFT',
+      items: { create: input.items.map((it, idx) => computeItemData(it, idx)) },
+    },
+    include: includeRelations,
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'CREATE',
+    module: 'GRN',
+    projectId: grn.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: grn.id, grnNumber: grn.grnNumber },
+  });
+
+  return grn;
+}
+
+export type UpdateGrnInput = Partial<Omit<CreateGrnInput, 'projectId' | 'poId'>>;
+
+/// Normally a GRN can only be edited while Draft/Returned (EDITABLE_STATUSES).
+/// This one narrow exception lets the invoice be replaced on an otherwise
+/// locked GRN: if a Super Admin has deleted the invoice (so there is
+/// currently none attached), the original creator — or a Super Admin —
+/// may upload a replacement without unlocking anything else. It never
+/// requires a new GRN and never touches grnNumber/date/items/any other
+/// field; the GRN simply stays exactly as it was, minus/plus the invoice.
+function canReuploadInvoiceWhileLocked(
+  req: Request,
+  existing: { createdById: string | null; submittedById: string | null; invoiceFileUrl: string | null },
+  input: UpdateGrnInput,
+): boolean {
+  if (existing.invoiceFileUrl) return false;
+  if (!input.invoiceFileUrl) return false;
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  // createdById is the authoritative owner when present. GRNs created before
+  // that column existed have no recorded creator, but every GRN that ever
+  // reaches a locked status has necessarily been submitted — submittedById
+  // already identifies the real logged-in user who did that — so fall back
+  // to it rather than leaving every pre-existing GRN permanently stuck with
+  // only a Super Admin able to re-upload.
+  const isOwner = existing.createdById !== null ? existing.createdById === req.user!.sub : existing.submittedById !== null && existing.submittedById === req.user!.sub;
+  return isSuperAdmin || isOwner;
+}
+
+export async function updateGoodsReceivedNote(req: Request, id: string, input: UpdateGrnInput, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  const invoiceOnlyReupload = !EDITABLE_STATUSES.includes(existing.status) && canReuploadInvoiceWhileLocked(req, existing, input);
+
+  if (!EDITABLE_STATUSES.includes(existing.status) && !invoiceOnlyReupload) {
+    throw ApiError.badRequest(`This Goods Received Note is ${existing.status.toLowerCase()} and cannot be edited`);
+  }
+
+  // The narrow path: write only the invoice fields, leave absolutely
+  // everything else (status, items, dates, grnNumber, ...) untouched.
+  if (invoiceOnlyReupload) {
+    const grn = await prisma.goodsReceivedNote.update({
+      where: { id },
+      data: { invoiceFileUrl: input.invoiceFileUrl || null, invoiceFileName: input.invoiceFileName || null },
+      include: includeRelations,
+    });
+
+    await recordAuditLog({
+      userId: req.user!.sub,
+      action: 'UPDATE',
+      module: 'GRN',
+      projectId: existing.projectId,
+      status: 'SUCCESS',
+      meta,
+      details: { grnId: id, invoiceReuploadedWhileLocked: true, status: existing.status },
+    });
+
+    return grn;
+  }
+
+  const grn = await prisma.$transaction(async (tx) => {
+    if (input.items) {
+      await tx.goodsReceivedNoteItem.deleteMany({ where: { grnId: id } });
+    }
+    return tx.goodsReceivedNote.update({
+      where: { id },
+      data: {
+        supplierName: input.supplierName !== undefined ? input.supplierName || null : undefined,
+        receiptDate: input.receiptDate !== undefined ? input.receiptDate || null : undefined,
+        challanNumber: input.challanNumber !== undefined ? input.challanNumber || null : undefined,
+        challanDate: input.challanDate !== undefined ? input.challanDate || null : undefined,
+        lrNumber: input.lrNumber !== undefined ? input.lrNumber || null : undefined,
+        lrDate: input.lrDate !== undefined ? input.lrDate || null : undefined,
+        transporterName: input.transporterName !== undefined ? input.transporterName || null : undefined,
+        createdByName: input.createdByName !== undefined ? input.createdByName || null : undefined,
+        invoiceFileUrl: input.invoiceFileUrl !== undefined ? input.invoiceFileUrl || null : undefined,
+        invoiceFileName: input.invoiceFileName !== undefined ? input.invoiceFileName || null : undefined,
+        // A Returned GRN being fixed goes back to Draft — resubmission is a
+        // separate, explicit action (the submit endpoint below).
+        status: existing.status === 'RETURNED' ? 'DRAFT' : existing.status,
+        items: input.items ? { create: input.items.map((it, idx) => computeItemData(it, idx)) } : undefined,
+      },
+      include: includeRelations,
+    });
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id },
+  });
+
+  return grn;
+}
+
+/// Regular users (whoever holds GRN 'delete') may only ever remove their
+/// own Draft GRNs — unchanged from before. Super Admin additionally gets a
+/// permanent-delete power that works on a GRN in any status, for the case
+/// where an incorrect/duplicate GRN needs removing after submission —
+/// same bypass shape as deletePurchaseOrder's Super Admin power.
+///
+/// The inventory-updated check is NOT bypassed for Super Admin: once
+/// "Update Inventory" has credited live stock quantities (InventoryItem)
+/// and recorded InventoryTransaction rows that reference this GRN,
+/// deleting it would either leave those transactions pointing at nothing
+/// or (since the FK has no cascade) fail outright — either way the stock
+/// movement would lose its underlying paper trail. Matches
+/// deletePurchaseOrder's "GRN check is NOT bypassed" precedent.
+export async function deleteGoodsReceivedNote(req: Request, id: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  const isSuperAdmin = req.user!.role === Role.SUPER_ADMIN;
+  if (!isSuperAdmin && existing.status !== 'DRAFT') {
+    throw ApiError.badRequest('Only Draft Goods Received Notes can be deleted');
+  }
+  if (existing.inventoryUpdatedAt) {
+    throw ApiError.conflict(
+      'This Goods Received Note has already updated inventory and cannot be deleted — that receipt history (and the inventory credited from it) must be preserved.'
+    );
+  }
+
+  await prisma.$transaction([
+    // Approval is intentionally polymorphic (not a typed Prisma relation),
+    // so nothing FK-cascades it; clean it up explicitly to avoid leaving
+    // orphan rows, same reasoning as deletePurchaseOrder.
+    prisma.approval.deleteMany({ where: { documentType: 'GRN', documentId: id } }),
+    // GoodsReceivedNoteItem cascades automatically (onDelete: Cascade).
+    prisma.goodsReceivedNote.delete({ where: { id } }),
+  ]);
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'DELETE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, grnNumber: existing.grnNumber, permanentDelete: existing.status !== 'DRAFT' },
+  });
+}
+
+/// Super-Admin-only: clears an incorrect/duplicate uploaded invoice from a
+/// GRN without touching anything else on it (items, status, approval
+/// history) and without deleting the GRN itself. Works regardless of the
+/// GRN's lock status, unlike the regular edit flow, since the whole point
+/// is to fix a mistake on a GRN that may already be submitted/approved.
+export async function deleteGrnInvoice(req: Request, id: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  if (!existing.invoiceFileUrl) {
+    throw ApiError.badRequest('This Goods Received Note has no uploaded invoice to delete');
+  }
+
+  const grn = await prisma.goodsReceivedNote.update({
+    where: { id },
+    data: { invoiceFileUrl: null, invoiceFileName: null },
+    include: includeRelations,
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'DELETE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, removedInvoiceFileName: existing.invoiceFileName },
+  });
+
+  return grn;
+}
+
+export async function listApprovers(req: Request, projectId: string) {
+  assertProjectAccess(req, projectId);
+  return listEligibleApprovers(projectId, 'GRN');
+}
+
+export async function submitGoodsReceivedNote(req: Request, id: string, approverId: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  if (!EDITABLE_STATUSES.includes(existing.status)) {
+    throw ApiError.badRequest(`This Goods Received Note is ${existing.status.toLowerCase()} and cannot be submitted`);
+  }
+  if (!existing.items.length) {
+    throw ApiError.badRequest('Add at least one item before submitting for approval');
+  }
+
+  const eligible = await listEligibleApprovers(existing.projectId, 'GRN');
+  if (!eligible.some((u) => u.id === approverId)) {
+    throw ApiError.badRequest('Selected approver is not eligible for this project');
+  }
+
+  const grn = await prisma.goodsReceivedNote.update({
+    where: { id },
+    data: { status: 'PENDING_APPROVAL', submittedById: req.user!.sub, currentApproverId: approverId, submittedAt: new Date(), decidedAt: null },
+    include: includeRelations,
+  });
+
+  await prisma.approval.create({
+    data: { documentType: 'GRN', documentId: id, action: 'SUBMIT', actedById: req.user!.sub, comments: null },
+  });
+
+  await createNotification({
+    userId: approverId,
+    type: 'GRN_PENDING',
+    title: 'Goods Received Note pending your approval',
+    message: `GRN ${grn.grnNumber} against PO ${grn.po.poNumber} is waiting for your approval.`,
+    documentType: 'GRN',
+    documentId: id,
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, submitted: true, approverId },
+  });
+
+  return grn;
+}
+
+function assertIsCurrentApprover(req: Request, grn: { currentApproverId: string | null }) {
+  const isSuperAdmin = req.user!.role === 'SUPER_ADMIN';
+  if (!isSuperAdmin && grn.currentApproverId !== req.user!.sub) {
+    throw ApiError.forbidden('Only the assigned approver (or a Super Admin) may act on this Goods Received Note');
+  }
+}
+
+const NOTIFICATION_BY_ACTION: Record<'APPROVE' | 'REJECT' | 'RETURN', { type: 'GRN_APPROVED' | 'GRN_REJECTED' | 'GRN_RETURNED'; verb: string }> = {
+  APPROVE: { type: 'GRN_APPROVED', verb: 'approved' },
+  REJECT: { type: 'GRN_REJECTED', verb: 'rejected' },
+  RETURN: { type: 'GRN_RETURNED', verb: 'returned' },
+};
+
+export async function decideGoodsReceivedNote(
+  req: Request,
+  id: string,
+  action: 'APPROVE' | 'REJECT' | 'RETURN',
+  comments: string | undefined,
+  meta?: RequestMeta
+) {
+  const existing = await loadAndAuthorize(req, id);
+  if (existing.status !== 'PENDING_APPROVAL') {
+    throw ApiError.badRequest('This Goods Received Note is not pending approval');
+  }
+  assertIsCurrentApprover(req, existing);
+
+  const nextStatus: GRNStatus = action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'RETURNED';
+
+  const grn = await prisma.goodsReceivedNote.update({
+    where: { id },
+    data: { status: nextStatus, decidedAt: new Date() },
+    include: includeRelations,
+  });
+
+  await prisma.approval.create({
+    data: { documentType: 'GRN', documentId: id, action, actedById: req.user!.sub, comments: comments || null },
+  });
+
+  if (existing.submittedById) {
+    const notif = NOTIFICATION_BY_ACTION[action];
+    await createNotification({
+      userId: existing.submittedById,
+      type: notif.type,
+      title: `Goods Received Note ${notif.verb}`,
+      message: `GRN ${grn.grnNumber} has been ${notif.verb}.`,
+      documentType: 'GRN',
+      documentId: id,
+    });
+  }
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'APPROVE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, decision: action, comments },
+  });
+
+  return grn;
+}
+
+/// Route-gated to Super Admin only. Resets to Draft so the submitter can
+/// edit and resubmit. Refused once the inventory update has been applied,
+/// since re-editing quantities after stock was already credited would
+/// silently desync InventoryItem from the GRN it came from.
+export async function unlockGoodsReceivedNote(req: Request, id: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  if (existing.status !== 'APPROVED') {
+    throw ApiError.badRequest('Only Approved Goods Received Notes can be unlocked');
+  }
+  if (existing.inventoryUpdatedAt) {
+    throw ApiError.badRequest('This GRN has already updated inventory and cannot be unlocked');
+  }
+
+  const grn = await prisma.goodsReceivedNote.update({
+    where: { id },
+    data: { status: 'DRAFT', currentApproverId: null, submittedAt: null, decidedAt: null },
+    include: includeRelations,
+  });
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'GRN',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, unlocked: true },
+  });
+
+  return grn;
+}
+
+/// The manual, post-approval "Update Inventory" step from the design brief
+/// — separate from approval itself so a Store Incharge can physically
+/// verify the goods before stock is credited. Finds-or-creates the
+/// InventoryItem row per (project, costCode, description) and credits
+/// inStockQuantity (formerly workingQuantity) by acceptedQty only;
+/// rejectedQty is logged on the InventoryTransaction for audit but never
+/// added to any quantity field.
+export async function updateInventoryFromGrn(req: Request, id: string, meta?: RequestMeta) {
+  const existing = await loadAndAuthorize(req, id);
+  if (existing.status !== 'APPROVED') {
+    throw ApiError.badRequest('Inventory can only be updated from an Approved Goods Received Note');
+  }
+  if (existing.inventoryUpdatedAt) {
+    throw ApiError.badRequest('Inventory has already been updated for this Goods Received Note');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (!item.costCodeId) continue;
+
+      const inventoryItem = await tx.inventoryItem.upsert({
+        where: {
+          projectId_costCodeId_itemDescription: {
+            projectId: existing.projectId,
+            costCodeId: item.costCodeId,
+            itemDescription: item.description,
+          },
+        },
+        update: {},
+        create: {
+          projectId: existing.projectId,
+          costCodeId: item.costCodeId,
+          itemDescription: item.description,
+          unit: item.unit,
+          inStockQuantity: 0,
+          consumedQuantity: 0,
+          createdById: req.user!.sub,
+        },
+      });
+
+      const workingQtyAfter = round2(Number(inventoryItem.inStockQuantity) + Number(item.acceptedQty));
+      const nonWorkingQtyAfter = Number(inventoryItem.consumedQuantity);
+
+      await tx.inventoryItem.update({ where: { id: inventoryItem.id }, data: { inStockQuantity: workingQtyAfter } });
+
+      await tx.inventoryTransaction.create({
+        data: {
+          inventoryItemId: inventoryItem.id,
+          projectId: existing.projectId,
+          type: 'GRN_RECEIPT',
+          workingQtyChange: Number(item.acceptedQty),
+          nonWorkingQtyChange: 0,
+          rejectedQtyChange: Number(item.rejectedQty),
+          workingQtyAfter,
+          nonWorkingQtyAfter,
+          referenceGrnId: existing.id,
+          remarks: `Received via GRN ${existing.grnNumber}`,
+          performedById: req.user!.sub,
+        },
+      });
+    }
+
+    await tx.goodsReceivedNote.update({
+      where: { id },
+      data: { inventoryUpdatedAt: new Date(), inventoryUpdatedById: req.user!.sub },
+    });
+  });
+
+  if (existing.submittedById) {
+    await createNotification({
+      userId: existing.submittedById,
+      type: 'INVENTORY_UPDATED',
+      title: 'Inventory updated from GRN',
+      message: `Inventory has been updated from GRN ${existing.grnNumber}.`,
+      documentType: 'GRN',
+      documentId: id,
+    });
+  }
+
+  await recordAuditLog({
+    userId: req.user!.sub,
+    action: 'UPDATE',
+    module: 'INVENTORY',
+    projectId: existing.projectId,
+    status: 'SUCCESS',
+    meta,
+    details: { grnId: id, inventoryUpdated: true },
+  });
+
+  return loadAndAuthorize(req, id);
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}

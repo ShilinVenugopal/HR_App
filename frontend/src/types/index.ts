@@ -1,4 +1,17 @@
-export type Role = 'SUPER_ADMIN' | 'SITE_ADMIN' | 'HR_EXECUTIVE' | 'PROJECT_MANAGER' | 'FINANCE' | 'NORMAL_USER';
+export type Role =
+  | 'SUPER_ADMIN'
+  | 'SITE_ADMIN'
+  | 'HR_EXECUTIVE'
+  | 'PROJECT_MANAGER'
+  | 'FINANCE'
+  | 'NORMAL_USER'
+  | 'PROCUREMENT_ADMIN'
+  | 'PROJECT_ENGINEER'
+  | 'STORE_INCHARGE'
+  | 'PURCHASE_TEAM'
+  | 'ACCOUNTS'
+  | 'SITE_USER'
+  | 'APPROVER';
 
 export type ModuleName =
   | 'DASHBOARD'
@@ -10,7 +23,19 @@ export type ModuleName =
   | 'ADVANCES'
   | 'REPORTS'
   | 'SETTINGS'
-  | 'USER_MANAGEMENT';
+  | 'USER_MANAGEMENT'
+  | 'INVENTORY'
+  | 'PURCHASE_REQUISITION'
+  | 'PURCHASE_ORDER'
+  | 'GRN'
+  | 'PROCUREMENT_DASHBOARD'
+  | 'BILLING_STATUS'
+  | 'SITE_ACCOUNTS'
+  | 'EXPENSE'
+  | 'TICKETS'
+  | 'ASSETS'
+  | 'SUBCONTRACTORS'
+  | 'BANK_ACCOUNTS';
 
 export const ALL_MODULES: ModuleName[] = [
   'DASHBOARD',
@@ -23,6 +48,18 @@ export const ALL_MODULES: ModuleName[] = [
   'REPORTS',
   'SETTINGS',
   'USER_MANAGEMENT',
+  'INVENTORY',
+  'PURCHASE_REQUISITION',
+  'PURCHASE_ORDER',
+  'GRN',
+  'PROCUREMENT_DASHBOARD',
+  'BILLING_STATUS',
+  'SITE_ACCOUNTS',
+  'EXPENSE',
+  'TICKETS',
+  'ASSETS',
+  'SUBCONTRACTORS',
+  'BANK_ACCOUNTS',
 ];
 
 export const MODULE_LABELS: Record<ModuleName, string> = {
@@ -36,6 +73,18 @@ export const MODULE_LABELS: Record<ModuleName, string> = {
   REPORTS: 'Reports',
   SETTINGS: 'Settings',
   USER_MANAGEMENT: 'User Management',
+  INVENTORY: 'Inventory',
+  PURCHASE_REQUISITION: 'Purchase Requisition',
+  PURCHASE_ORDER: 'Purchase Order',
+  GRN: 'Goods Received Note',
+  PROCUREMENT_DASHBOARD: 'Procurement Dashboard',
+  BILLING_STATUS: 'Billing Status',
+  SITE_ACCOUNTS: 'Site Accounts',
+  EXPENSE: 'Expense',
+  TICKETS: 'Tickets',
+  ASSETS: 'Assets',
+  SUBCONTRACTORS: 'Subcontractors',
+  BANK_ACCOUNTS: 'Bank Accounts',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -45,6 +94,13 @@ export const ROLE_LABELS: Record<Role, string> = {
   PROJECT_MANAGER: 'Project Manager',
   FINANCE: 'Finance',
   NORMAL_USER: 'Normal User',
+  PROCUREMENT_ADMIN: 'Procurement Admin',
+  PROJECT_ENGINEER: 'Project Engineer',
+  STORE_INCHARGE: 'Store Incharge',
+  PURCHASE_TEAM: 'Purchase Team',
+  ACCOUNTS: 'Accounts',
+  SITE_USER: 'Site User',
+  APPROVER: 'Approver',
 };
 
 export interface PermissionClaim {

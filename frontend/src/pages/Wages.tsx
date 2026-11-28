@@ -10,7 +10,7 @@ import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
 import { Skeleton } from '../components/common/Skeleton';
 import { useAuth } from '../context/AuthContext';
-import { useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
+import { useBankAccountOptions, useEmployeeOptions, useProjectOptions } from '../hooks/useLookups';
 import { apiErrorMessage } from '../api/client';
 
 /// Project-wise wages picker — every template returned here (currently just
@@ -77,11 +77,14 @@ export default function Wages() {
   const queryClient = useQueryClient();
   const projectOptions = useProjectOptions();
   const employeeOptions = useEmployeeOptions();
+  const bankAccountOptions = useBankAccountOptions();
 
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ projectId: '', status: '', month: '', year: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [payTarget, setPayTarget] = useState<WageRecord | null>(null);
+  const [payBankAccountId, setPayBankAccountId] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['wages', page, filters],
@@ -111,9 +114,11 @@ export default function Wages() {
   });
 
   const payMutation = useMutation({
-    mutationFn: (id: string) => wagesApi.markPaid(id),
+    mutationFn: () => wagesApi.markPaid(payTarget!.id, payBankAccountId || undefined),
     onSuccess: () => {
       toast.success('Marked as paid');
+      setPayTarget(null);
+      setPayBankAccountId('');
       invalidate();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -180,7 +185,7 @@ export default function Wages() {
               </button>
             )}
             {can('WAGES', 'approve') && row.status === 'APPROVED' && (
-              <button className="btn-ghost p-1.5 text-brand-600" title="Mark Paid" onClick={() => payMutation.mutate(row.id)}>
+              <button className="btn-ghost p-1.5 text-brand-600" title="Mark Paid" onClick={() => setPayTarget(row)}>
                 <Banknote size={15} />
               </button>
             )}
@@ -275,6 +280,35 @@ export default function Wages() {
           <span>
             Net Salary: <strong>₹{netPreview.toLocaleString('en-IN')}</strong>
           </span>
+        </div>
+      </Modal>
+
+      <Modal
+        open={payTarget !== null}
+        onClose={() => setPayTarget(null)}
+        title={`Mark Paid — ${payTarget?.employee?.name ?? ''}`}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setPayTarget(null)}>
+              Cancel
+            </button>
+            <button className="btn-primary" disabled={payMutation.isPending} onClick={() => payMutation.mutate()}>
+              Mark Paid
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label className="label">Bank Account (optional)</label>
+          <select className="input" value={payBankAccountId} onChange={(e) => setPayBankAccountId(e.target.value)}>
+            <option value="">Not specified</option>
+            {bankAccountOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-slate-400">When selected, this salary payment will appear in the Bank Accounts — Payments section.</p>
         </div>
       </Modal>
     </div>

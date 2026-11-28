@@ -11,3 +11,14 @@ export interface ProviderSendResult {
   providerMessageId?: string;
   errorReason?: string;
 }
+
+export interface SendEmailInput {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: ProviderAttachment[];
+}
+
+export interface EmailProvider {
+  send(input: SendEmailInput): Promise<ProviderSendResult>;
+}

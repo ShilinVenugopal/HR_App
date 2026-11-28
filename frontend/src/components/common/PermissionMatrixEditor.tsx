@@ -29,9 +29,9 @@ export function PermissionMatrixEditor({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
+        <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
           <tr>
             <th className="px-4 py-2.5 font-semibold">Module</th>
             {ACTIONS.map((a) => (
@@ -43,8 +43,8 @@ export function PermissionMatrixEditor({
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {modules.map((module) => (
-            <tr key={module}>
-              <td className="px-4 py-2.5 font-medium">{MODULE_LABELS[module]}</td>
+            <tr key={module} className="transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+              <td className="px-4 py-2.5 font-medium text-slate-700 dark:text-slate-200">{MODULE_LABELS[module]}</td>
               {ACTIONS.map((a) => (
                 <td key={a.key} className="px-4 py-2.5 text-center">
                   <input

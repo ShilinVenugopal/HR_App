@@ -6,11 +6,13 @@ import { PaginationParams } from '../../utils/pagination';
 import { assertProjectAccess, projectScopeWhere } from '../../middleware/project.middleware';
 import { recordAuditLog } from '../auditLogs/auditLog.service';
 import { RequestMeta } from '../../utils/requestMeta';
+import { syncAutoTransaction } from '../bankTransactions/bankTransactions.service';
 
 const includeRelations = {
   employee: { select: { id: true, name: true, employeeCode: true } },
   project: { select: { id: true, projectName: true } },
   approvedBy: { select: { id: true, name: true } },
+  bankAccount: { select: { id: true, bankName: true, accountType: true, accountNumber: true } },
   recoveries: { orderBy: [{ year: 'desc' as const }, { month: 'desc' as const }] },
 } satisfies Prisma.AdvanceInclude;
 
@@ -113,7 +115,10 @@ export async function updateAdvance(
   return record;
 }
 
-export async function setAdvanceApproval(req: Request, id: string, approved: boolean, meta?: RequestMeta) {
+/// bankAccountId is only meaningful when approving (an advance/loan being
+/// disbursed is a real Bank Accounts Payment entry — req. 5A "Employee
+/// Payments"); a rejected request never reaches the bank ledger.
+export async function setAdvanceApproval(req: Request, id: string, approved: boolean, bankAccountId: string | undefined, meta?: RequestMeta) {
   const existing = await loadAndAuthorize(req, id);
   if (existing.status !== 'PENDING') throw ApiError.badRequest('This request has already been actioned');
 
@@ -123,6 +128,7 @@ export async function setAdvanceApproval(req: Request, id: string, approved: boo
       status: approved ? 'APPROVED' : 'REJECTED',
       approvedById: req.user!.sub,
       approvedAt: new Date(),
+      bankAccountId: approved ? bankAccountId || null : undefined,
     },
     include: includeRelations,
   });
@@ -136,6 +142,20 @@ export async function setAdvanceApproval(req: Request, id: string, approved: boo
     meta,
     details: { advanceId: id, approved },
   });
+
+  if (approved) {
+    await syncAutoTransaction({
+      sourceModule: 'ADVANCES',
+      sourceRecordId: record.id,
+      bankAccountId,
+      transactionType: 'PAYMENT',
+      transactionDate: record.approvedAt!,
+      projectId: record.projectId,
+      description: `${record.employee.name} – ${record.type === 'LOAN' ? 'Loan' : 'Advance'} Payment`,
+      amount: Number(record.amount),
+      userId: req.user!.sub,
+    });
+  }
 
   return record;
 }

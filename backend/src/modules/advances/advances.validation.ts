@@ -19,6 +19,10 @@ export const updateAdvanceSchema = z.object({
   }),
 });
 
+export const approveAdvanceSchema = z.object({
+  body: z.object({ bankAccountId: z.string().uuid().optional() }),
+});
+
 export const recoverySchema = z.object({
   body: z.object({
     month: z.coerce.number().int().min(1).max(12),
